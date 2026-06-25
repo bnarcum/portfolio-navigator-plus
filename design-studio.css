@@ -165,7 +165,6 @@
 .ds-intent-section-head strong{font-size:12px;color:var(--text)}
 .ds-intent-section-head span{font-size:10px;color:var(--muted)}
 .ds-intent-actions{display:flex;gap:8px;margin:16px 0 0;flex-wrap:wrap}
-#ds-intent .ds-json-area{min-height:80px;margin-top:8px;font-family:ui-monospace,monospace;font-size:11px;width:100%}
 #ds-intent .ds-templates{display:flex;flex-direction:column;gap:12px}
 .ds-tpl-group-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin-bottom:6px}
 .ds-tpl-group-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px}
@@ -173,8 +172,6 @@
   background:var(--surface2);font-size:11px;line-height:1.35;cursor:pointer;color:var(--muted);text-align:left}
 #ds-intent .ds-tpl:hover{border-color:var(--accent);color:var(--accent);background:rgba(2,200,255,.06)}
 #ds-intent .ds-arch-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px}
-.ds-intent-advanced{margin-top:14px;font-size:11px;color:var(--muted)}
-.ds-intent-advanced summary{cursor:pointer;padding:6px 0;color:var(--subtle)}
 .ds-bom-deco{padding:8px 12px;font-size:10px;color:var(--muted);border-top:1px solid var(--border);line-height:1.45}
 
 #ds-status{padding:6px 12px;font-size:10px;color:var(--subtle);border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:8px}
@@ -199,6 +196,7 @@
 .ds-gallery-thumb{height:48px;border-radius:6px;background:linear-gradient(135deg,rgba(2,200,255,.12),rgba(255,144,0,.08));
   display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase}
 .ds-gallery-thumb.room{background:linear-gradient(135deg,rgba(100,80,255,.12),rgba(2,200,255,.08))}
+.ds-gallery-card small.ds-cvd-ref{display:block;margin-top:6px;color:var(--accent);font-size:9px;line-height:1.35}
 
 body.design-studio-open #app-chrome,
 body.design-studio-open #gw,

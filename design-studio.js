@@ -194,25 +194,6 @@
     return `<text class="ds-layer-title" x="${cx}" y="${y - 6}" text-anchor="middle">${tspans}</text>`;
   }
 
-  function unwrapJsonDesign(data) {
-    if (!data || typeof data !== "object") return data;
-    if (Array.isArray(data.nodes)) return data;
-    for (const key of ["design", "data", "content", "result", "output"]) {
-      const inner = data[key];
-      if (inner && Array.isArray(inner.nodes)) return inner;
-    }
-    return data;
-  }
-
-  function syncRoomsFromNodes(design, prevRooms) {
-    const prev = new Map((prevRooms || []).map(r => [r.id, r]));
-    const roomIds = [...new Set(design.nodes.filter(n => n.roomId).map(n => n.roomId))];
-    if (!roomIds.length) { design.rooms = []; return; }
-    design.rooms = roomIds.map(id => prev.get(id) || {
-      id, name: "Room", template: "conference", width: 560, height: 420
-    });
-  }
-
   function computeLinkOffsets(links) {
     const offsets = new Map();
     const byFrom = {};
@@ -287,6 +268,12 @@
     design.nodes = nodes; design.links = links; design.rooms = [];
 
     const pickNet = () => {
+      if (/snra|secure network reference/i.test(t)) return "snraCampus";
+      if (/unified branch/i.test(t)) return "unifiedBranchMed";
+      if (/university|higher.?ed|college campus/i.test(t)) return "universityCampus";
+      if (/manufacturing|factory|plant|ot\b|industrial/i.test(t)) return "manufacturingPlant";
+      if (/sd-?access|sda\b|fabric lan/i.test(t)) return "sdAccessFabric";
+      if (/ai\/?ml|gpu|inference|training cluster/i.test(t)) return "dcAiMlFabric";
       if (/data center|datacenter|aci|spine|leaf|nexus/i.test(t)) return "dcSpineLeaf";
       if (/aci pod/i.test(t)) return "dcAciPod";
       if (/hyperflex|hx/i.test(t)) return "hyperflexEdge";
@@ -306,7 +293,9 @@
     const needsNet = intentNeedsNetwork(t) || roomCount > 1;
     if (needsNet) TPL()?.applyNetworkTemplate?.(design, netKey, 80, 80, STN());
 
-    const roomTpl = /boardroom|executive board|large room|20 seat/i.test(t) ? "boardroom"
+    const roomTpl = /dual display|video centric/i.test(t) ? "ctMediumDualDisplay"
+      : /small collab|small collaboration/i.test(t) ? "ctSmallCollab"
+      : /boardroom|executive board|large room|20 seat/i.test(t) ? "boardroom"
       : /training|classroom/i.test(t) ? "training"
       : /executive office|office/i.test(t) ? "executive"
       : /teams room|microsoft teams|mtr/i.test(t) ? "teamsRoom"
@@ -329,72 +318,6 @@
 
     design.requirements.notes = text.slice(0, 2000);
     return design;
-  }
-
-  function extractJsonText(raw) {
-    const t = String(raw || "").trim();
-    if (!t) return "";
-    const fenced = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
-    if (fenced) return fenced[1].trim();
-    const start = t.indexOf("{");
-    const end = t.lastIndexOf("}");
-    if (start >= 0 && end > start) return t.slice(start, end + 1);
-    return t;
-  }
-
-  function resolveNodeRef(design, ref) {
-    if (!ref) return null;
-    const byId = design.nodes.find(n => n.id === ref);
-    if (byId) return byId.id;
-    const byLabel = design.nodes.find(n => n.label === ref || n.stencilId === ref);
-    return byLabel?.id || null;
-  }
-
-  function applyJsonDesign(json, design) {
-    let data;
-    try {
-      const parsed = typeof json === "string" ? JSON.parse(extractJsonText(json)) : json;
-      data = unwrapJsonDesign(parsed);
-    } catch (e) {
-      return { ok: false, error: e.message || "Invalid JSON" };
-    }
-    if (!data || !Array.isArray(data.nodes) || !data.nodes.length)
-      return { ok: false, error: "JSON must include a non-empty nodes array" };
-
-    const prevRooms = design.rooms || [];
-    const labelToId = new Map();
-    design.nodes = data.nodes.map(n => {
-      const id = n.id || uid();
-      if (n.label) labelToId.set(n.label, id);
-      const mode = n.canvas === "room" ? "room" : "network";
-      const def = STN()?.getDef?.(n.stencilId, mode);
-      return {
-        id, stencilId: n.stencilId, label: n.label || def?.label, pid: n.pid || def?.pid,
-        layer: n.layer || def?.layer || "access", x: n.x || 100, y: n.y || 100, canvas: mode,
-        qty: n.qty || 1, w: n.w || def?.w, h: n.h || def?.h, roomId: n.roomId
-      };
-    });
-    design.links = (data.links || []).map(l => {
-      const from = resolveNodeRef(design, l.from) || resolveNodeRef(design, l.fromLabel) || labelToId.get(l.fromLabel || l.from);
-      const to = resolveNodeRef(design, l.to) || resolveNodeRef(design, l.toLabel) || labelToId.get(l.toLabel || l.to);
-      if (!from || !to) return null;
-      return {
-        id: l.id || uid(), from, to, media: l.media || "cat6", label: l.label || "Link",
-        length: l.length || "3m", fromPort: l.fromPort || "", toPort: l.toPort || ""
-      };
-    }).filter(Boolean);
-
-    if (Array.isArray(data.rooms)) {
-      design.rooms = data.rooms.map(r => ({ ...r, id: r.id || uid() }));
-    } else {
-      syncRoomsFromNodes(design, prevRooms);
-    }
-    if (data.account) design.account = data.account;
-    const skipped = (data.links || []).length - design.links.length;
-    if (skipped > 0) {
-      return { ok: true, warn: `${skipped} link(s) skipped — check fromLabel/toLabel match node labels` };
-    }
-    return { ok: true };
   }
 
   function autoLayoutNetwork(design) {
@@ -474,7 +397,7 @@
             <div id="ds-intent" hidden>
               <div class="ds-intent-hero">
                 <h3>Describe the opportunity</h3>
-                <p>Natural language in — validated Cisco topology out. Reference architectures and room templates follow Cisco CVD / Webex room system guidance.</p>
+                <p>Natural language in — validated Cisco topology out. Network templates map to <a href="https://www.cisco.com/go/cvd" target="_blank" rel="noopener">Cisco Validated Designs</a>; room layouts follow <a href="https://www.cisco.com/c/en/us/solutions/collaboration/workplace-transformation/hybrid-work-design-guides.html" target="_blank" rel="noopener">Cisco Tested hybrid work guides</a>.</p>
               </div>
               <label class="ds-intent-label" for="ds-intent-text">Opportunity brief</label>
               <textarea id="ds-intent-text" placeholder="e.g. Training classroom with Board Pro 75, ceiling mics, PoE switch — or campus + SD-WAN + 8 conference rooms with Room Kit EQ…"></textarea>
@@ -488,13 +411,8 @@
               </div>
               <div class="ds-intent-actions">
                 <button type="button" class="ds-btn primary" id="ds-generate">Generate Draft</button>
-                <button type="button" class="ds-btn" id="ds-import-json">Apply AI JSON</button>
                 <button type="button" class="ds-btn" id="ds-clear">Clear</button>
               </div>
-              <details class="ds-intent-advanced">
-                <summary>Paste AI JSON response</summary>
-                <textarea id="ds-json-import" class="ds-json-area" placeholder='{"nodes":[...],"links":[...]}'></textarea>
-              </details>
             </div>
             <div id="ds-canvas-wrap" class="network-mode">
               <div id="ds-floorplan"></div>
@@ -585,7 +503,6 @@
         this.renderPanel();
       };
       $("ds-generate").onclick = () => this.runGenerate();
-      $("ds-import-json").onclick = () => this.runJsonImport();
       $("ds-clear").onclick = () => { if (confirm("Clear design?")) { this.design = emptyDesign(this.design.account); this.pushHistory(); this.render(); } };
       $("ds-import-stack").onclick = () => this.importStack();
       $("ds-export-pack").onclick = () => this.exportPack();
@@ -660,6 +577,14 @@
 
     populateTemplates() {
       const groups = [
+        { title: "Cisco Validated (CVD)", items: [
+          "SNRA secure campus with Catalyst Center, ISE, Umbrella",
+          "Unified Branch medium — dual WAN HA routers, PoE Wi-Fi",
+          "University campus CVP — residence and academic segmentation",
+          "Manufacturing plant IT/OT segmentation with industrial access",
+          "SD-Access fabric campus with border nodes and macro segmentation",
+          "DC AI/ML spine-leaf fabric for GPU compute"
+        ]},
         { title: "Campus & WAN", items: [
           "200-bed hospital, redundant core, ISE, 12 conference rooms Room Kit EQ",
           "SD-WAN HQ + 8 branches with Secure Firewall and Catalyst Center",
@@ -668,7 +593,9 @@
           "Retail 50 stores Meraki MX SD-WAN MR57",
           "Zero trust SASE with Umbrella and Duo"
         ]},
-        { title: "Collaboration", items: [
+        { title: "Collaboration (CT)", items: [
+          "CT small collaboration room — Room Bar, table mic, Room Navigator",
+          "CT medium dual-display video-centric boardroom with ceiling mics",
           "Training classroom Board Pro 75, ceiling mics, PoE collab switch",
           "Boardroom 14 seats Board Pro 75, aux display, Quad Camera, ceiling mics",
           "24 huddle rooms Room Bar, PoE switch per room",
@@ -690,9 +617,18 @@
 
     populateArchPresets() {
       const box = document.getElementById("ds-arch-presets");
+      if (!box) return;
+      box.innerHTML = "";
       const nets = TPL()?.NETWORK_TEMPLATES || {};
-      Object.entries(nets).slice(0, 6).forEach(([key, preset]) => {
-        const b = document.createElement("button"); b.type = "button"; b.className = "ds-tpl"; b.textContent = "+ " + preset.label;
+      const featured = ["snraCampus", "unifiedBranchMed", "campus3tierRedundant", "sdwanFull", "healthcareCampus", "dcAiMlFabric"];
+      const keys = [...new Set([...featured, ...Object.keys(nets)])].filter(k => nets[k]);
+      keys.slice(0, 10).forEach(key => {
+        const preset = nets[key];
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "ds-tpl";
+        b.textContent = "+ " + preset.label;
+        b.title = preset.cvd ? `${preset.cvd}${preset.cvdUrl ? " — " + preset.cvdUrl : ""}` : "";
         b.onclick = () => this.applyRefArch(key);
         box.appendChild(b);
       });
@@ -711,6 +647,7 @@
             <div class="ds-gallery-thumb room">${t.category || "Room"}</div>
             <strong>${escapeHtml(t.name)}</strong>
             <span>${t.items?.length || 0} devices · ${t.links?.length || 0} links</span>
+            ${t.ct ? `<small class="ds-cvd-ref" title="${escapeAttr(t.ctUrl || "")}">CT: ${escapeHtml(t.ct)}</small>` : ""}
           </div>`).join("");
         grid.querySelectorAll("[data-room]").forEach(el => {
           el.onclick = () => { this.addRoomTemplate(el.dataset.room); this.closeGallery(); };
@@ -722,6 +659,7 @@
             <strong>${escapeHtml(t.label)}</strong>
             <span>${t.nodes?.length || 0} nodes · ${t.links?.length || 0} links</span>
             <small>${escapeHtml((t.tags || []).join(", "))}</small>
+            ${t.cvd ? `<small class="ds-cvd-ref" title="${escapeAttr(t.cvdUrl || "")}">CVD: ${escapeHtml(t.cvd)}</small>` : ""}
           </div>`).join("");
         grid.querySelectorAll("[data-net]").forEach(el => {
           el.onclick = () => { this.applyRefArch(el.dataset.net); this.closeGallery(); };
@@ -738,7 +676,7 @@
       if (!tpl) return;
       autoLayoutNetwork(this.design);
       this.pushHistory(); this.setTab("network"); this.fitView();
-      this.toast("Added " + tpl.label);
+      this.toast("Added " + tpl.label + (tpl.cvd ? " · " + tpl.cvd : ""));
     }
 
     addRoomTemplate(tplKey) {
@@ -860,35 +798,6 @@
       this.fitView();
     }
 
-    runJsonImport() {
-      const box = document.getElementById("ds-json-import");
-      let raw = box?.value?.trim() || "";
-      if (!raw) raw = extractJsonText(document.getElementById("ds-intent-text")?.value || "");
-      if (!raw) {
-        this.toast("Paste JSON in the box below first");
-        document.querySelector(".ds-intent-advanced")?.setAttribute("open", "");
-        box?.focus();
-        return;
-      }
-      const result = applyJsonDesign(raw, this.design);
-      if (!result.ok) {
-        this.toast("JSON error: " + (result.error || "Invalid"));
-        document.querySelector(".ds-intent-advanced")?.setAttribute("open", "");
-        return;
-      }
-      if (result.warn) this.toast(result.warn);
-      if (this.design.nodes.some(n => n.canvas !== "room")) autoLayoutNetwork(this.design);
-      this.design.rooms.forEach(r => autoLayoutRoom(this.design, r.id));
-      this.activeRoomId = this.design.rooms[0]?.id || this.design.activeRoomId || null;
-      this.design.activeRoomId = this.activeRoomId;
-      this.pushHistory();
-      const roomOnly = this.design.rooms.length > 0 && !this.design.nodes.some(n => n.canvas !== "room");
-      this.setTab(roomOnly ? "room" : "network");
-      this.render();
-      this.fitView();
-      this.toast(`Applied ${this.design.nodes.length} devices · ${this.design.links.length} links`);
-    }
-
     importStack() {
       const v2 = window.__cpnV2;
       if (!v2?.phases?.readState) { this.toast("Planner not ready"); return; }
@@ -926,7 +835,7 @@ Request: ${text}
 Account: ${this.design.account}`;
       if (window.__cpnV2?.phases?.openAiWithPrompt) {
         window.__cpnV2.phases.openAiWithPrompt(prompt, { send: true });
-        this.toast("AI prompt sent — paste JSON and Apply");
+        this.toast("AI prompt sent");
         this.setTab("intent");
       } else this.toast("Configure AI assistant first");
     }

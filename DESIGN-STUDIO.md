@@ -6,8 +6,8 @@ Netformx-style presales design for Portfolio Navigator Plus.
 
 - **SVG device silhouettes** — switches, routers, firewalls, APs, codecs, displays (not emoji boxes)
 - **Port-based linking** — click source port → target port; auto media/PID suggestions
-- **12 network reference architectures** — redundant campus, SD-WAN, DC spine-leaf, ACI, K-12, healthcare, retail Meraki, zero trust, HyperFlex, etc.
-- **8 room floor plans** — zone-based layouts (display, table, credenza, ceiling) with correct AV paths
+- **17 Cisco Validated network templates** — SNRA campus, Unified Branch, SD-Access fabric, university/manufacturing CVPs, AI/ML DC fabric, plus campus, SD-WAN, ACI, K-12, healthcare, retail Meraki, zero trust, HyperFlex, etc. Each links to official CVD docs (`cvd` / `cvdUrl` in gallery).
+- **10 room floor plans** — Cisco Tested hybrid-work guides (CT): small/medium collaboration, dual-display video-centric, huddle, conference, boardroom, training, Teams/Zoom, divisible
 - **Template Gallery** — browse and insert any template from header **Gallery**
 - **Design score (0–100)** — completeness badge in header
 - **Suggest panel** — one-click fixes (add core, wire APs, PoE budget, auto-wire)

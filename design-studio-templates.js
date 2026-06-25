@@ -11,7 +11,8 @@
       label: "Campus 3-Tier (Redundant)",
       category: "Campus",
       tags: ["enterprise", "hospital", "hq"],
-      cvd: "Campus LAN — three-tier with redundant core",
+      cvd: "Campus LAN and Wireless LAN Design Guide",
+      cvdUrl: "https://www.cisco.com/c/en/us/td/docs/solutions/CVD/Campus/cisco-campus-lan-wlan-design-guide.html",
       nodes: [
         { stencilId: "c9500-core", label: "Core-A", x: 280, y: 180 },
         { stencilId: "c9500-core-2", label: "Core-B", x: 280, y: 280 },
@@ -72,6 +73,8 @@
       label: "SD-WAN Full Stack",
       category: "WAN",
       tags: ["sd-wan", "multi-site"],
+      cvd: "Cisco Catalyst SD-WAN Design Guide",
+      cvdUrl: "https://www.cisco.com/c/en/us/solutions/design-zone/sd-wan.html",
       nodes: [
         { stencilId: "vmanage", label: "vManage", x: 400, y: 60 },
         { stencilId: "cat-center", label: "Cat Center", x: 520, y: 60 },
@@ -140,6 +143,8 @@
       label: "DC Spine-Leaf (VXLAN)",
       category: "Data Center",
       tags: ["dc", "spine-leaf"],
+      cvd: "Application-Centric Infrastructure design guide",
+      cvdUrl: "https://www.cisco.com/c/en/us/td/docs/solutions/CVD/DataCenter/cisco-aci-design-guide.html",
       nodes: [
         { stencilId: "n9k-spine", label: "Spine-1", x: 400, y: 120 },
         { stencilId: "n9k-spine", label: "Spine-2", x: 400, y: 220 },
@@ -166,6 +171,8 @@
       label: "ACI Pod",
       category: "Data Center",
       tags: ["aci", "dc"],
+      cvd: "ACI Pod validated design",
+      cvdUrl: "https://www.cisco.com/c/en/us/td/docs/solutions/CVD/DataCenter/cisco-aci-design-guide.html",
       nodes: [
         { stencilId: "apic", label: "APIC Cluster", x: 300, y: 80 },
         { stencilId: "n9k-spine", label: "Spine-A", x: 300, y: 200 },
@@ -216,6 +223,8 @@
       label: "Healthcare Campus",
       category: "Vertical",
       tags: ["healthcare", "hospital"],
+      cvd: "Cisco Validated Profile — Healthcare",
+      cvdUrl: "https://www.cisco.com/c/en/us/solutions/industries/healthcare/validated-designs.html",
       nodes: [
         { stencilId: "c9500-core", label: "Clinical Core", x: 300, y: 220 },
         { stencilId: "c9500-core-2", label: "Clinical Core-B", x: 300, y: 320 },
@@ -241,6 +250,8 @@
       label: "Zero Trust Edge (SASE)",
       category: "Security",
       tags: ["zero-trust", "sase"],
+      cvd: "Zero trust access from Cisco",
+      cvdUrl: "https://www.cisco.com/c/en/us/solutions/collateral/enterprise/design-zone-zero-trust.html",
       nodes: [
         { stencilId: "c8200-sdwan", label: "SD-WAN Edge", x: 200, y: 220 },
         { stencilId: "fpr-2130", label: "Secure FW", x: 380, y: 220 },
@@ -263,6 +274,8 @@
       label: "HyperFlex Edge + ToR",
       category: "Data Center",
       tags: ["hyperflex", "edge-dc"],
+      cvd: "HyperFlex validated designs",
+      cvdUrl: "https://www.cisco.com/c/en/us/solutions/data-center-virtualization/hyperconverged-infrastructure/index.html",
       nodes: [
         { stencilId: "n9k-leaf", label: "ToR-1", x: 280, y: 200 },
         { stencilId: "n9k-leaf", label: "ToR-2", x: 280, y: 300 },
@@ -279,6 +292,192 @@
         { fi: 1, ti: 4, media: "fiber-sm", label: "Compute", fromPort: "Eth1/2", toPort: "Port1" },
         { fi: 5, ti: 0, media: "fiber-sm", label: "FW-ToR", fromPort: "inside", toPort: "Eth1/33" }
       ]
+    },
+    snraCampus: {
+      label: "SNRA Secure Campus",
+      category: "Campus",
+      tags: ["snra", "zero-trust", "enterprise"],
+      cvd: "Secure Network Reference Architecture (SNRA) CVD",
+      cvdUrl: "https://www.cisco.com/c/en/us/td/docs/solutions/CVD/Campus/SNRA-CVD-Architecture-Guide.html",
+      nodes: [
+        { stencilId: "internet", label: "Internet / DIA", x: 60, y: 100 },
+        { stencilId: "c8200-sdwan", label: "WAN Edge-A", x: 200, y: 180 },
+        { stencilId: "c8200-sdwan-2", label: "WAN Edge-B", x: 200, y: 280 },
+        { stencilId: "fpr-2130", label: "Secure FW Pair", x: 360, y: 140 },
+        { stencilId: "c9500-core", label: "Core-A", x: 360, y: 240 },
+        { stencilId: "c9500-core-2", label: "Core-B", x: 360, y: 340 },
+        { stencilId: "c9400-dist", label: "Fabric Dist", x: 540, y: 240 },
+        { stencilId: "c9300-access", label: "Access-1", x: 720, y: 200 },
+        { stencilId: "c9300-access", label: "Access-2", x: 720, y: 300 },
+        { stencilId: "cw9179f", label: "Wi-Fi 6E AP", x: 900, y: 200 },
+        { stencilId: "ise-pan", label: "ISE PAN", x: 540, y: 80 },
+        { stencilId: "ise-psn", label: "ISE PSN", x: 660, y: 80 },
+        { stencilId: "cat-center", label: "Catalyst Center", x: 780, y: 80 },
+        { stencilId: "umbrella-va", label: "Umbrella / SSE", x: 360, y: 60 }
+      ],
+      links: [
+        { fi: 0, ti: 1, media: "fiber-sm", label: "DIA-A", fromPort: "Port1", toPort: "Gi0/0/0" },
+        { fi: 0, ti: 2, media: "fiber-sm", label: "DIA-B", fromPort: "Port1", toPort: "Gi0/0/0" },
+        { fi: 1, ti: 4, media: "fiber-sm", label: "Edge-Core-A", fromPort: "Te0/1/0", toPort: "Te1/1/1" },
+        { fi: 2, ti: 5, media: "fiber-sm", label: "Edge-Core-B", fromPort: "Te0/1/0", toPort: "Te1/1/1" },
+        { fi: 3, ti: 4, media: "fiber-sm", label: "FW-Core", fromPort: "inside", toPort: "Te1/1/1" },
+        { fi: 4, ti: 5, media: "fiber-sm", label: "Core VPC", fromPort: "Te1/1/1", toPort: "Te1/1/1" },
+        { fi: 4, ti: 6, media: "fiber-sm", label: "Core-Dist", fromPort: "Te1/1/2", toPort: "Te1/1/1" },
+        { fi: 6, ti: 7, media: "fiber-mm", label: "Dist-Acc1", fromPort: "Te1/1/2", toPort: "Te1/1/1" },
+        { fi: 6, ti: 8, media: "fiber-mm", label: "Dist-Acc2", fromPort: "Te1/1/2", toPort: "Te1/1/2" },
+        { fi: 7, ti: 9, media: "cat6", label: "PoE-AP", fromPort: "Gi1/0/1", toPort: "ETH0" },
+        { fi: 10, ti: 7, media: "cat6a", label: "NAC", fromPort: "Port1", toPort: "Gi1/0/24" },
+        { fi: 11, ti: 7, media: "cat6a", label: "SGT", fromPort: "Port1", toPort: "Gi1/0/48" },
+        { fi: 12, ti: 7, media: "cat6a", label: "Mgmt", fromPort: "Port1", toPort: "Gi1/0/24" },
+        { fi: 13, ti: 3, media: "cat6a", label: "SSE", fromPort: "Port1", toPort: "dmz" }
+      ]
+    },
+    unifiedBranchMed: {
+      label: "Unified Branch (Medium)",
+      category: "Branch",
+      tags: ["unified-branch", "sd-wan", "cvd"],
+      cvd: "Cisco Unified Branch — Medium Deployment",
+      cvdUrl: "https://www.cisco.com/c/en/us/solutions/design-zone/campus-branch.html",
+      nodes: [
+        { stencilId: "internet", label: "Broadband", x: 60, y: 200 },
+        { stencilId: "mpls", label: "MPLS / LTE", x: 60, y: 300 },
+        { stencilId: "c8200-sdwan", label: "Branch Router-A", x: 220, y: 200 },
+        { stencilId: "c8200-sdwan-2", label: "Branch Router-B", x: 220, y: 300 },
+        { stencilId: "fpr-1120", label: "Branch NGFW", x: 400, y: 250 },
+        { stencilId: "c9200-access", label: "Access Stack", x: 580, y: 250 },
+        { stencilId: "cw9179f", label: "Branch AP", x: 760, y: 250 },
+        { stencilId: "vmanage", label: "SD-WAN Controller", x: 400, y: 80 },
+        { stencilId: "ise-psn", label: "ISE / RADIUS", x: 580, y: 80 }
+      ],
+      links: [
+        { fi: 0, ti: 2, media: "cat6a", label: "WAN-1", fromPort: "Port1", toPort: "Gi0/0/0" },
+        { fi: 1, ti: 3, media: "fiber-sm", label: "WAN-2", fromPort: "Port1", toPort: "Gi0/0/0" },
+        { fi: 2, ti: 4, media: "fiber-sm", label: "HA-FW", fromPort: "Te0/1/0", toPort: "outside" },
+        { fi: 3, ti: 4, media: "fiber-sm", label: "HA-FW-B", fromPort: "Te0/1/0", toPort: "outside" },
+        { fi: 4, ti: 5, media: "cat6a", label: "FW-LAN", fromPort: "inside", toPort: "Te1/1/1" },
+        { fi: 5, ti: 6, media: "cat6", label: "PoE-AP", fromPort: "Gi1/0/1", toPort: "ETH0" },
+        { fi: 7, ti: 2, media: "cat6a", label: "vManage", fromPort: "Port1", toPort: "Gi0/0/1" },
+        { fi: 8, ti: 5, media: "cat6a", label: "802.1X", fromPort: "Port1", toPort: "Gi1/0/24" }
+      ]
+    },
+    universityCampus: {
+      label: "University Campus (CVP)",
+      category: "Vertical",
+      tags: ["university", "higher-ed", "cvp"],
+      cvd: "Cisco Validated Profile — University",
+      cvdUrl: "https://www.cisco.com/c/en/us/solutions/industries/education/validated-designs.html",
+      nodes: [
+        { stencilId: "c9500-core", label: "Campus Core-A", x: 300, y: 200 },
+        { stencilId: "c9500-core-2", label: "Campus Core-B", x: 300, y: 300 },
+        { stencilId: "c9400-dist", label: "Residence Dist", x: 500, y: 180 },
+        { stencilId: "c9400-dist", label: "Academic Dist", x: 500, y: 320 },
+        { stencilId: "c9300-access", label: "Dorm Access", x: 700, y: 180 },
+        { stencilId: "c9300-access", label: "Class Access", x: 700, y: 320 },
+        { stencilId: "cw9179f", label: "Student AP", x: 880, y: 160 },
+        { stencilId: "cw9179f", label: "Guest AP", x: 880, y: 340 },
+        { stencilId: "ise-pan", label: "ISE PAN", x: 500, y: 60 },
+        { stencilId: "ise-psn", label: "ISE PSN", x: 620, y: 60 },
+        { stencilId: "cat-center", label: "Catalyst Center", x: 740, y: 60 },
+        { stencilId: "umbrella-va", label: "Umbrella", x: 300, y: 60 },
+        { stencilId: "fpr-2130", label: "Internet FW", x: 300, y: 420 }
+      ],
+      links: [
+        { fi: 0, ti: 1, media: "fiber-sm", label: "Core VPC", fromPort: "Te1/1/1", toPort: "Te1/1/1" },
+        { fi: 0, ti: 2, media: "fiber-sm", label: "Core-Res", fromPort: "Te1/1/2", toPort: "Te1/1/1" },
+        { fi: 1, ti: 3, media: "fiber-sm", label: "Core-Acad", fromPort: "Te1/1/2", toPort: "Te1/1/1" },
+        { fi: 2, ti: 4, media: "fiber-mm", label: "Dist-Acc", fromPort: "Te1/1/2", toPort: "Te1/1/1" },
+        { fi: 3, ti: 5, media: "fiber-mm", label: "Dist-Acc", fromPort: "Te1/1/2", toPort: "Te1/1/1" },
+        { fi: 4, ti: 6, media: "cat6", label: "PoE-Student", fromPort: "Gi1/0/1", toPort: "ETH0" },
+        { fi: 5, ti: 7, media: "cat6", label: "PoE-Guest", fromPort: "Gi1/0/1", toPort: "ETH0" },
+        { fi: 8, ti: 4, media: "cat6a", label: "NAC", fromPort: "Port1", toPort: "Gi1/0/24" },
+        { fi: 10, ti: 4, media: "cat6a", label: "Mgmt", fromPort: "Port1", toPort: "Gi1/0/24" },
+        { fi: 12, ti: 0, media: "fiber-sm", label: "FW-Edge", fromPort: "inside", toPort: "Te1/1/1" }
+      ]
+    },
+    manufacturingPlant: {
+      label: "Manufacturing (IT/OT)",
+      category: "Vertical",
+      tags: ["manufacturing", "ot", "cvp"],
+      cvd: "Cisco Validated Profile — Manufacturing",
+      cvdUrl: "https://www.cisco.com/c/en/us/solutions/industries/manufacturing/validated-designs.html",
+      nodes: [
+        { stencilId: "c9500-core", label: "Plant Core", x: 320, y: 220 },
+        { stencilId: "fpr-2130", label: "OT Seg FW", x: 320, y: 100 },
+        { stencilId: "c9400-dist", label: "Enterprise Dist", x: 520, y: 180 },
+        { stencilId: "c9300-access", label: "Office Access", x: 720, y: 180 },
+        { stencilId: "c9200-access", label: "OT Cell Access", x: 720, y: 300 },
+        { stencilId: "cw9179f", label: "Warehouse AP", x: 900, y: 180 },
+        { stencilId: "ise-psn", label: "ISE", x: 520, y: 80 },
+        { stencilId: "cat-center", label: "Catalyst Center", x: 640, y: 80 },
+        { stencilId: "users-vlan", label: "SCADA VLAN", x: 900, y: 300 }
+      ],
+      links: [
+        { fi: 1, ti: 0, media: "fiber-sm", label: "FW-Core", fromPort: "inside", toPort: "Te1/1/1" },
+        { fi: 0, ti: 2, media: "fiber-sm", label: "Core-Dist", fromPort: "Te1/1/2", toPort: "Te1/1/1" },
+        { fi: 2, ti: 3, media: "fiber-mm", label: "IT-Access", fromPort: "Te1/1/2", toPort: "Te1/1/1" },
+        { fi: 2, ti: 4, media: "fiber-mm", label: "OT-Access", fromPort: "Te1/1/2", toPort: "Te1/1/1" },
+        { fi: 3, ti: 5, media: "cat6", label: "PoE-AP", fromPort: "Gi1/0/1", toPort: "ETH0" },
+        { fi: 1, ti: 4, media: "cat6a", label: "OT-DMZ", fromPort: "dmz", toPort: "Te1/1/1" },
+        { fi: 4, ti: 8, media: "cat6", label: "OT-Zone", fromPort: "Gi1/0/1", toPort: "Port1" },
+        { fi: 6, ti: 3, media: "cat6a", label: "NAC", fromPort: "Port1", toPort: "Gi1/0/24" }
+      ]
+    },
+    sdAccessFabric: {
+      label: "SD-Access Fabric Campus",
+      category: "Campus",
+      tags: ["sda", "fabric", "segmentation"],
+      cvd: "Cisco Software-Defined Access Design Guide",
+      cvdUrl: "https://www.cisco.com/c/en/us/td/docs/solutions/CVD/Campus/cisco-sda-design-guide.html",
+      nodes: [
+        { stencilId: "c9500-core", label: "Border Node", x: 300, y: 220 },
+        { stencilId: "c9500-core-2", label: "Border Node-B", x: 300, y: 320 },
+        { stencilId: "c9300-access", label: "Fabric Edge-1", x: 520, y: 200 },
+        { stencilId: "c9300-access", label: "Fabric Edge-2", x: 520, y: 320 },
+        { stencilId: "cw9179f", label: "Fabric AP", x: 700, y: 260 },
+        { stencilId: "cat-center", label: "Catalyst Center", x: 520, y: 80 },
+        { stencilId: "ise-pan", label: "ISE PAN", x: 640, y: 80 },
+        { stencilId: "ise-psn", label: "ISE PSN", x: 760, y: 80 },
+        { stencilId: "fpr-2130", label: "Macro Seg FW", x: 300, y: 80 }
+      ],
+      links: [
+        { fi: 0, ti: 1, media: "fiber-sm", label: "Border VPC", fromPort: "Te1/1/1", toPort: "Te1/1/1" },
+        { fi: 0, ti: 2, media: "fiber-sm", label: "Fabric-Edge", fromPort: "Te1/1/2", toPort: "Te1/1/1" },
+        { fi: 1, ti: 3, media: "fiber-sm", label: "Fabric-Edge", fromPort: "Te1/1/2", toPort: "Te1/1/1" },
+        { fi: 2, ti: 4, media: "cat6", label: "PoE-AP", fromPort: "Gi1/0/1", toPort: "ETH0" },
+        { fi: 5, ti: 2, media: "cat6a", label: "DNA-C", fromPort: "Port1", toPort: "Gi1/0/48" },
+        { fi: 6, ti: 2, media: "cat6a", label: "SGT", fromPort: "Port1", toPort: "Gi1/0/24" },
+        { fi: 8, ti: 0, media: "fiber-sm", label: "FW-Border", fromPort: "inside", toPort: "Te1/1/1" }
+      ]
+    },
+    dcAiMlFabric: {
+      label: "DC AI/ML Fabric (CVD)",
+      category: "Data Center",
+      tags: ["ai", "ml", "gpu", "spine-leaf"],
+      cvd: "Cisco Data Center Networking Blueprint for AI/ML",
+      cvdUrl: "https://www.cisco.com/c/en/us/solutions/data-center-virtualization/artificial-intelligence-machine-learning/index.html",
+      nodes: [
+        { stencilId: "n9k-spine", label: "AI Spine-1", x: 400, y: 100 },
+        { stencilId: "n9k-spine", label: "AI Spine-2", x: 400, y: 200 },
+        { stencilId: "n9k-leaf", label: "GPU Leaf-1", x: 200, y: 320 },
+        { stencilId: "n9k-leaf", label: "GPU Leaf-2", x: 400, y: 320 },
+        { stencilId: "n9k-leaf", label: "GPU Leaf-3", x: 600, y: 320 },
+        { stencilId: "ucs-x", label: "GPU Server-1", x: 200, y: 440 },
+        { stencilId: "ucs-x", label: "GPU Server-2", x: 400, y: 440 },
+        { stencilId: "ucs-x", label: "GPU Server-3", x: 600, y: 440 },
+        { stencilId: "fpr-2130", label: "DC Border FW", x: 600, y: 100 },
+        { stencilId: "cat-center", label: "Nexus Dashboard", x: 200, y: 100 }
+      ],
+      links: [
+        { fi: 0, ti: 2, media: "fiber-40g", label: "Spine-Leaf", fromPort: "Eth1/1", toPort: "Eth1/33" },
+        { fi: 0, ti: 3, media: "fiber-40g", label: "Spine-Leaf", fromPort: "Eth1/32", toPort: "Eth1/33" },
+        { fi: 1, ti: 3, media: "fiber-40g", label: "Spine-Leaf", fromPort: "Eth1/1", toPort: "Eth1/64" },
+        { fi: 1, ti: 4, media: "fiber-40g", label: "Spine-Leaf", fromPort: "Eth1/32", toPort: "Eth1/64" },
+        { fi: 2, ti: 5, media: "fiber-sm", label: "GPU-1", fromPort: "Eth1/1", toPort: "Port1" },
+        { fi: 3, ti: 6, media: "fiber-sm", label: "GPU-2", fromPort: "Eth1/1", toPort: "Port1" },
+        { fi: 4, ti: 7, media: "fiber-sm", label: "GPU-3", fromPort: "Eth1/1", toPort: "Port1" },
+        { fi: 8, ti: 0, media: "fiber-sm", label: "Border", fromPort: "inside", toPort: "Eth1/33" },
+        { fi: 9, ti: 2, media: "cat6a", label: "Ops", fromPort: "Port1", toPort: "Eth1/64" }
+      ]
     }
   };
 
@@ -286,6 +485,8 @@
     huddle: {
       name: "Huddle (4–6 seats)",
       category: "Small",
+      ct: "Traditional Huddle Room Design Guide",
+      ctUrl: "https://www.cisco.com/c/dam/en/us/solutions/collateral/hybrid-work/webex-nyc-design-guide-traditional-huddle-room.pdf",
       w: 440, h: 360,
       zones: { display: { x: 180, y: 28, w: 200, h: 100 }, table: { x: 100, y: 150, w: 200, h: 110 }, rack: { x: 24, y: 280, w: 160, h: 72 } },
       items: [
@@ -302,6 +503,8 @@
     conference: {
       name: "Conference (8–12 seats)",
       category: "Medium",
+      ct: "Medium Collaboration Room — Single Display",
+      ctUrl: "https://www.cisco.com/c/dam/en/us/solutions/collateral/hybrid-work/webex-nyc-design-guide-medium-collaboration-room-single-display.pdf",
       w: 560, h: 420,
       zones: {
         display: { x: 150, y: 20, w: 280, h: 110 },
@@ -333,6 +536,8 @@
     boardroom: {
       name: "Boardroom (14–20 seats)",
       category: "Large",
+      ct: "Medium Collaboration Room — Video Centric",
+      ctUrl: "https://www.cisco.com/c/dam/en/us/solutions/collateral/hybrid-work/webex-nyc-design-guide-medium-collaboration-room-video-centric.pdf",
       w: 600, h: 440,
       zones: {
         display: { x: 160, y: 20, w: 320, h: 110 },
@@ -364,6 +569,8 @@
     training: {
       name: "Training Room",
       category: "Medium",
+      ct: "Small Collaboration Room Design Guide",
+      ctUrl: "https://www.cisco.com/c/dam/en/us/solutions/collateral/hybrid-work/webex-nyc-design-guide-small-collaboration-room.pdf",
       w: 560, h: 420,
       zones: { display: { x: 200, y: 30, w: 220, h: 90 }, table: { x: 60, y: 140, w: 440, h: 200 }, rack: { x: 30, y: 350, w: 160, h: 70 } },
       items: [
@@ -446,6 +653,8 @@
     divisible: {
       name: "Divisible All-Hands",
       category: "Large",
+      ct: "Cisco hybrid work — divisible spaces",
+      ctUrl: "https://www.cisco.com/c/en/us/solutions/collaboration/workplace-transformation/hybrid-work-design-guides.html",
       w: 640, h: 460,
       zones: { display: { x: 120, y: 20, w: 400, h: 100 }, table: { x: 60, y: 140, w: 520, h: 200 }, rack: { x: 30, y: 360, w: 110, h: 80 } },
       items: [
@@ -465,6 +674,63 @@
         { fi: 4, ti: 6, media: "cat6", label: "Mic-B", fromPort: "Gi1/0/4", toPort: "ETH" },
         { fi: 2, ti: 0, media: "hdmi", label: "Video-A", fromPort: "HDMI1", toPort: "HDMI1" },
         { fi: 3, ti: 1, media: "hdmi", label: "Video-B", fromPort: "HDMI1", toPort: "HDMI1" }
+      ]
+    },
+    ctSmallCollab: {
+      name: "CT Small Collaboration Room",
+      category: "Small",
+      ct: "Small Collaboration Room Design Guide",
+      ctUrl: "https://www.cisco.com/c/dam/en/us/solutions/collateral/hybrid-work/webex-nyc-design-guide-small-collaboration-room.pdf",
+      w: 480, h: 380,
+      zones: {
+        display: { x: 160, y: 28, w: 200, h: 100 },
+        table: { x: 100, y: 150, w: 260, h: 120 },
+        rack: { x: 24, y: 290, w: 200, h: 76 }
+      },
+      items: [
+        { stencilId: "room-bar", zone: "display", relX: 0.5, relY: 0.3, label: "Room Bar" },
+        { stencilId: "display-75", zone: "display", relX: 0.5, relY: 0.78, label: "Wall Display" },
+        { stencilId: "touch-10", zone: "rack", relX: 0.35, relY: 0.45, label: "Room Navigator" },
+        { stencilId: "c9200-collab", zone: "rack", relX: 0.72, relY: 0.45, label: "PoE Switch" },
+        { stencilId: "table-mic", zone: "table", relX: 0.5, relY: 0.35, label: "Table Mic" },
+        { stencilId: "conf-table-8", zone: "table", relX: 0.5, relY: 0.7, label: "Table" }
+      ],
+      links: [
+        { fi: 3, ti: 0, media: "cat6", label: "PoE-Bar", fromPort: "Gi1/0/1", toPort: "LAN" },
+        { fi: 3, ti: 2, media: "cat6", label: "PoE-Nav", fromPort: "Gi1/0/2", toPort: "LAN" },
+        { fi: 3, ti: 4, media: "cat6", label: "PoE-Mic", fromPort: "Gi1/0/3", toPort: "ETH" },
+        { fi: 0, ti: 1, media: "hdmi", label: "Video", fromPort: "HDMI1", toPort: "HDMI1" }
+      ]
+    },
+    ctMediumDualDisplay: {
+      name: "CT Medium — Dual Display",
+      category: "Medium",
+      ct: "Medium Collaboration Room — Video Centric",
+      ctUrl: "https://www.cisco.com/c/dam/en/us/solutions/collateral/hybrid-work/webex-nyc-design-guide-medium-collaboration-room-video-centric.pdf",
+      w: 600, h: 420,
+      zones: {
+        display: { x: 120, y: 20, w: 360, h: 110 },
+        table: { x: 100, y: 150, w: 360, h: 150 },
+        rack: { x: 24, y: 320, w: 280, h: 88 }
+      },
+      items: [
+        { stencilId: "display-75", zone: "display", relX: 0.3, relY: 0.55, label: "People Display" },
+        { stencilId: "display-75", zone: "display", relX: 0.7, relY: 0.55, label: "Content Display" },
+        { stencilId: "quad-cam", zone: "display", relX: 0.5, relY: 0.18, label: "Quad Cam" },
+        { stencilId: "room-kit-eq", zone: "rack", relX: 0.2, relY: 0.4, label: "Room Kit EQ" },
+        { stencilId: "touch-10", zone: "rack", relX: 0.5, relY: 0.4, label: "Touch 10" },
+        { stencilId: "c9200-collab", zone: "rack", relX: 0.8, relY: 0.4, label: "Collab Switch" },
+        { stencilId: "ceiling-mic", zone: "table", relX: 0.35, relY: 0.2, label: "Ceiling Mic L" },
+        { stencilId: "ceiling-mic", zone: "table", relX: 0.65, relY: 0.2, label: "Ceiling Mic R" },
+        { stencilId: "conf-table-12", zone: "table", relX: 0.5, relY: 0.65, label: "Tapered Table" }
+      ],
+      links: [
+        { fi: 5, ti: 3, media: "cat6", label: "PoE-Codec", fromPort: "Gi1/0/1", toPort: "LAN" },
+        { fi: 5, ti: 4, media: "cat6", label: "PoE-Touch", fromPort: "Gi1/0/2", toPort: "LAN" },
+        { fi: 5, ti: 6, media: "cat6", label: "PoE-Mic-L", fromPort: "Gi1/0/3", toPort: "ETH" },
+        { fi: 5, ti: 7, media: "cat6", label: "PoE-Mic-R", fromPort: "Gi1/0/4", toPort: "ETH" },
+        { fi: 3, ti: 0, media: "hdmi", label: "People", fromPort: "HDMI1", toPort: "HDMI1" },
+        { fi: 3, ti: 1, media: "hdmi", label: "Content", fromPort: "HDMI2", toPort: "HDMI1" }
       ]
     }
   };
