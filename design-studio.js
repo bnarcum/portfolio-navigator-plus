@@ -442,9 +442,11 @@
           <button type="button" class="ds-btn" id="ds-snapshot" title="Save snapshot">Snapshot</button>
           <button type="button" class="ds-btn" id="ds-undo">↶</button>
           <button type="button" class="ds-btn" id="ds-redo">↷</button>
+          <button type="button" class="ds-btn" id="ds-start-over" title="Clear canvas, rooms, and BOM">Start Over</button>
           <button type="button" class="ds-btn" id="ds-import-stack">Import Stack</button>
           <button type="button" class="ds-btn" id="ds-export-svg">SVG</button>
-          <button type="button" class="ds-btn warn" id="ds-export-pack">Export Pack</button>
+          <button type="button" class="ds-btn" id="ds-export-pack" title="CCW BOM + cable schedule + summary JSON">Full Pack</button>
+          <button type="button" class="ds-btn ds-export-ccw" id="ds-export-ccw">Export to CCW</button>
           <button type="button" class="ds-btn" id="ds-ai-design">Ask AI</button>
           <button type="button" class="ds-btn primary" id="ds-close">Close</button>
         </header>
@@ -467,7 +469,7 @@
               </div>
               <div class="ds-intent-actions">
                 <button type="button" class="ds-btn primary" id="ds-generate">Generate Draft</button>
-                <button type="button" class="ds-btn" id="ds-clear">Clear</button>
+                <button type="button" class="ds-btn" id="ds-clear">Start Over</button>
               </div>
             </div>
             <div id="ds-canvas-wrap" class="network-mode">
@@ -559,8 +561,10 @@
         this.renderPanel();
       };
       $("ds-generate").onclick = () => this.runGenerate();
-      $("ds-clear").onclick = () => { if (confirm("Clear design?")) { this.design = emptyDesign(this.design.account); this.pushHistory(); this.render(); } };
+      $("ds-clear").onclick = () => this.startOver();
+      $("ds-start-over").onclick = () => this.startOver();
       $("ds-import-stack").onclick = () => this.importStack();
+      $("ds-export-ccw").onclick = () => this.exportCcw();
       $("ds-export-pack").onclick = () => this.exportPack();
       $("ds-export-svg").onclick = () => this.exportSvg();
       $("ds-ai-design").onclick = () => this.askAi();
@@ -894,6 +898,35 @@ Account: ${this.design.account}`;
         this.toast("AI prompt sent");
         this.setTab("intent");
       } else this.toast("Configure AI assistant first");
+    }
+
+    startOver() {
+      const name = this.design.account;
+      if (!confirm("Start over? This clears the canvas, rooms, links, and BOM. Your account name is kept.")) return;
+      this.design = emptyDesign(name);
+      this.activeRoomId = null;
+      this.selectedNode = null;
+      this.selectedLink = null;
+      this.linkFrom = null;
+      this.linkFromPort = null;
+      const ta = document.getElementById("ds-intent-text");
+      if (ta) ta.value = "";
+      this.pushHistory();
+      this.setTab("intent");
+      this.render();
+      this.toast("Design cleared — describe a new opportunity or open Gallery");
+    }
+
+    exportCcw() {
+      const bom = computeBom(this.design);
+      const dl = window.__cpnV2?.helpers?.downloadBlob;
+      if (!dl) { this.toast("Export unavailable"); return; }
+      if (!bom.length) { this.toast("Nothing to export — add devices or open Gallery"); return; }
+      const slug = (this.design.account || "design").replace(/[^\w-]+/g, "-");
+      const bomRows = [["Item Type", "Part Number", "Description", "Qty", "Unit"]];
+      bom.forEach(b => bomRows.push([b.type, b.pid, b.desc, b.qty, b.unit || "EA"]));
+      dl(`CCW_Prep_${slug}.csv`, "text/csv;charset=utf-8", bomRows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n"));
+      this.toast(`CCW BOM exported · ${bom.length} line${bom.length === 1 ? "" : "s"}`);
     }
 
     exportPack() {
@@ -1424,13 +1457,19 @@ Account: ${this.design.account}`;
           const pid = n.pid || def?.pid;
           return def?.decorative || !STN()?.isCcwEligible?.(def, pid);
         });
-        body.innerHTML = bom.length ? `
+        body.innerHTML = `
+          <div class="ds-bom-actions">
+            <button type="button" class="ds-btn ds-export-ccw ds-export-ccw-block" id="ds-export-ccw-panel"${bom.length ? "" : " disabled"}>Export to CCW</button>
+            <span class="ds-bom-actions-hint">CCW_Prep CSV · hardware PIDs from canvas</span>
+          </div>
+          ${bom.length ? `
           <table class="ds-table"><thead><tr><th>Item</th><th>PID</th><th>Qty</th></tr></thead>
           <tbody>${bom.map(b => `<tr><td title="${escapeAttr(b.pid)}">${escapeHtml((b.desc || b.pid).slice(0, 42))}</td><td class="ds-pid-cell">${escapeHtml(b.pid)}</td><td>${b.qty}</td></tr>`).join("")}</tbody></table>
           <div class="ds-bom-total">${bom.length} CCW lines · ${bom.reduce((s, b) => s + b.qty, 0)} qty</div>
           ${deco.length ? `<div class="ds-bom-deco">${deco.length} layout-only item(s) on canvas (tables, generic displays, credenza) — not in CCW export.</div>` : ""}
-          <div class="ds-bom-deco">BOM lists orderable hardware PIDs from the canvas only. Licenses, Smart Net, copper/AV cabling, and services — quote in CCW or use Manual BOM.</div>
-          <div style="padding:8px 12px"><button type="button" class="ds-btn" id="ds-add-bom">+ Manual BOM</button></div>` : `<div class="ds-empty">Generate from Intent or Gallery</div>`;
+          <div class="ds-bom-deco">Licenses, Smart Net, copper/AV cabling, and services — quote in CCW or use Manual BOM.</div>
+          <div style="padding:8px 12px"><button type="button" class="ds-btn" id="ds-add-bom">+ Manual BOM</button></div>` : `<div class="ds-empty">Generate from Intent or Gallery, then export to CCW</div>`}`;
+        document.getElementById("ds-export-ccw-panel")?.addEventListener("click", () => this.exportCcw());
         document.getElementById("ds-add-bom")?.addEventListener("click", () => {
           const pid = prompt("PID:"); if (!pid) return;
           (this.design.bomOverrides ||= []).push({ pid, desc: prompt("Desc:", pid) || pid, qty: parseInt(prompt("Qty:", "1") || "1", 10), type: "manual" });
