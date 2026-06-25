@@ -13,12 +13,32 @@
   const TPL = () => window.__DS_TEMPLATES;
   const RULES = () => window.__DS_RULES;
 
-  const LAYERS = ["wan", "core", "distribution", "access", "security", "mgmt", "collab", "dc"];
+  const LAYERS = ["wan", "security", "core", "distribution", "dc", "access", "mgmt", "collab"];
   const LAYER_LABELS = {
     wan: "WAN / SD-WAN", core: "Core", distribution: "Distribution", access: "Access",
     security: "Security", mgmt: "Management", collab: "Collaboration", dc: "Data Center"
   };
+  /** Left-to-right professional topology columns */
+  const LAYER_X = { wan: 60, security: 200, core: 340, distribution: 480, dc: 480, access: 620, mgmt: 620, collab: 760 };
+  const LAYER_COL_W = 130;
+  const LAYER_START_Y = 90;
+  const LAYER_ROW_H = 88;
+  /** @deprecated kept for minimap compat */
   const LAYER_Y = { wan: 40, security: 120, core: 200, distribution: 300, access: 400, mgmt: 500, collab: 580, dc: 260 };
+
+  const LINK_MEDIA_STYLE = {
+    "fiber-sm": { stroke: "#5a9fd4", w: 2.5 },
+    "fiber-mm": { stroke: "#5a9fd4", w: 2.5 },
+    "fiber-40g": { stroke: "#7090ff", w: 3 },
+    dac: { stroke: "#7090ff", w: 2 },
+    hdmi: { stroke: "#44cc88", w: 2.5, dash: "7 4" },
+    "usb-c": { stroke: "#44cc88", w: 2, dash: "5 3" },
+    speaker: { stroke: "#aa88cc", w: 1.5, dash: "4 3" },
+    control: { stroke: "#aa88cc", w: 1.5, dash: "4 3" },
+    wireless: { stroke: "#6688aa", w: 1.5, dash: "2 4" },
+    cat6a: { stroke: "#d4a060", w: 2 },
+    cat6: { stroke: "#c49050", w: 2 }
+  };
 
   const MEDIA_TYPES = [
     { id: "cat6", label: "Cat6 UTP", cablePid: "CAB-CAT6-3M", maxMbps: 1000 },
@@ -119,6 +139,22 @@
 
   function snap(v, grid = 24) { return Math.round(v / grid) * grid; }
 
+  function linkMediaStyle(mediaId) {
+    return LINK_MEDIA_STYLE[mediaId] || LINK_MEDIA_STYLE.cat6;
+  }
+
+  function linkDisplayLabel(links, l) {
+    const base = (l.label || "Link").slice(0, 20);
+    const peers = links.filter(x => (x.label || "Link") === (l.label || "Link"));
+    if (peers.length > 1 && peers[0].id !== l.id) return "";
+    if (peers.length > 1) return `${base} ×${peers.length}`;
+    return base;
+  }
+
+  function intentNeedsNetwork(t) {
+    return /campus|sd-wan|sdwan|hospital|healthcare|k-12|k12|data center|datacenter|branch|retail|zero trust|sase|firewall|core|distrib|nexus|spine|hyperflex|aci|meraki|vmanage|\d+\s*(branch|site|store)/i.test(t);
+  }
+
   function displayNodeLabel(label) {
     if (!label) return "";
     return String(label).replace(/^Room \d+\s+/, "");
@@ -190,7 +226,10 @@
     };
 
     const netKey = pickNet();
-    TPL()?.applyNetworkTemplate?.(design, netKey, 80, 80, STN());
+    const roomCount = parseInt(t.match(/(\d+)\s*(room|conference|huddle|boardroom|meeting)/)?.[1] || "0", 10);
+    const hasCollab = /room|webex|collab|hybrid|meeting|video|board|kit/i.test(t);
+    const needsNet = intentNeedsNetwork(t) || roomCount > 1;
+    if (needsNet) TPL()?.applyNetworkTemplate?.(design, netKey, 80, 80, STN());
 
     const roomTpl = /boardroom|executive board|large room|20 seat/i.test(t) ? "boardroom"
       : /training|classroom/i.test(t) ? "training"
@@ -199,9 +238,6 @@
       : /zoom room|zoom/i.test(t) ? "zoomRoom"
       : /divisible|all-hands| divisible/i.test(t) ? "divisible"
       : /huddle|small room/i.test(t) ? "huddle" : "conference";
-
-    const roomCount = parseInt(t.match(/(\d+)\s*(room|conference|huddle|boardroom|meeting)/)?.[1] || "0", 10);
-    const hasCollab = /room|webex|collab|hybrid|meeting|video|board|kit/i.test(t);
 
     if (hasCollab || roomCount > 0) {
       const n = roomCount || (hasCollab ? 1 : 0);
@@ -253,11 +289,11 @@
     LAYERS.forEach(layer => {
       const group = byLayer[layer];
       if (!group) return;
-      const gap = 200;
-      const startX = Math.max(60, 520 - (group.length * gap) / 2);
+      const x = LAYER_X[layer] || 400;
+      const startY = LAYER_START_Y + Math.max(0, (6 - group.length) * (LAYER_ROW_H / 2));
       group.forEach((n, i) => {
-        n.x = startX + i * gap;
-        n.y = LAYER_Y[layer] || 200;
+        n.x = x;
+        n.y = startY + i * LAYER_ROW_H;
         if (design.snapGrid !== false) { n.x = snap(n.x); n.y = snap(n.y); }
       });
     });
@@ -485,6 +521,8 @@
         if (e.key === "l") this.toggleLinkMode();
         if (e.key === "f" && !(e.metaKey || e.ctrlKey)) this.fitView();
         if (e.key === "p" && !(e.metaKey || e.ctrlKey)) this.togglePresentation();
+        if (e.key === "[" && this.tab === "room") this.cycleRoom(-1);
+        if (e.key === "]" && this.tab === "room") this.cycleRoom(1);
         if (e.key === "/") { e.preventDefault(); $("ds-palette-search")?.focus(); }
         if (e.key === "Escape") { if (document.getElementById("ds-gallery-modal")?.hidden === false) this.closeGallery(); else this.close(); }
       });
@@ -557,6 +595,7 @@
       const ox = 80 + this.design.nodes.filter(n => n.canvas === "network").length * 15;
       const tpl = TPL()?.applyNetworkTemplate?.(this.design, key, ox, 60, STN());
       if (!tpl) return;
+      autoLayoutNetwork(this.design);
       this.pushHistory(); this.setTab("network"); this.fitView();
       this.toast("Added " + tpl.label);
     }
@@ -573,6 +612,18 @@
       this.design.activeRoomId = roomId;
       this.pushHistory(); this.setTab("room"); this.fitView(); this.render();
       this.toast("Added " + tpl.name);
+    }
+
+    cycleRoom(dir) {
+      const rooms = this.design.rooms;
+      if (!rooms.length) return;
+      const idx = Math.max(0, rooms.findIndex(r => r.id === this.activeRoomId));
+      const next = rooms[(idx + dir + rooms.length) % rooms.length];
+      this.activeRoomId = next.id;
+      this.design.activeRoomId = next.id;
+      this.updateRoomPicker();
+      this.fitView();
+      this.render();
     }
 
     togglePresentation() {
@@ -653,12 +704,13 @@
       const text = document.getElementById("ds-intent-text").value.trim();
       if (!text) { this.toast("Enter a description"); return; }
       generateFromIntent(text, this.design);
-      autoLayoutNetwork(this.design);
+      if (this.design.nodes.some(n => n.canvas !== "room")) autoLayoutNetwork(this.design);
       this.design.rooms.forEach(r => autoLayoutRoom(this.design, r.id));
       this.activeRoomId = this.design.activeRoomId || this.design.rooms[0]?.id || null;
       this.pushHistory();
       this.toast(`Draft generated · Score ${computeScore(this.design)}/100`);
-      this.setTab(this.design.rooms.length && !/campus|sd-wan|data center|spine|k-12|hospital|retail|zero trust/i.test(text) ? "room" : "network");
+      const roomOnly = this.design.rooms.length > 0 && !this.design.nodes.some(n => n.canvas !== "room");
+      this.setTab(roomOnly ? "room" : "network");
       this.fitView();
     }
 
@@ -827,7 +879,9 @@ Account: ${this.design.account}`;
       }
       document.getElementById("ds-status-left").textContent =
         `${this.design.nodes.length} devices · ${this.design.links.length} links · ${bom.length} BOM · Score ${score}`;
-      document.getElementById("ds-status-right").textContent = `v3 · ${this.design.account}`;
+      const room = this.design.rooms.find(r => r.id === this.activeRoomId);
+      const roomHint = this.tab === "room" && room ? ` · ${room.name}` : "";
+      document.getElementById("ds-status-right").textContent = `v3${roomHint} · ${this.design.account}`;
     }
 
     renderPalette() {
@@ -894,7 +948,7 @@ Account: ${this.design.account}`;
         if (!roomNodes.length) return;
         const minX = Math.min(...roomNodes.map(n => n.x)) - 24;
         const minY = Math.min(...roomNodes.map(n => n.y)) - 36;
-        html += `<text class="ds-room-title" x="${minX}" y="${minY}">${escapeHtml(room.name)}</text>`;
+        html += `<text class="ds-room-title" data-room="${room.id}" x="${minX}" y="${minY}">${escapeHtml(room.name)}</text>`;
         Object.entries(tpl.zones).forEach(([name, z]) => {
           const label = String(name).replace(/^\w/, c => c.toUpperCase());
           html += `<g class="ds-zone" data-room="${room.id}" data-zone="${escapeAttr(name)}" transform="translate(${minX + z.x},${minY + z.y})">
@@ -914,12 +968,43 @@ Account: ${this.design.account}`;
       if (!tpl?.zones) return;
       const roomNodes = this.design.nodes.filter(n => n.roomId === roomId);
       if (!roomNodes.length) return;
-      const minX = Math.min(...roomNodes.map(n => n.x)) - 20;
-      const minY = Math.min(...roomNodes.map(n => n.y)) - 20;
+      const minX = Math.min(...roomNodes.map(n => n.x)) - 24;
+      const minY = Math.min(...roomNodes.map(n => n.y)) - 36;
       document.querySelectorAll(`#ds-room-zones .ds-zone[data-room="${roomId}"]`).forEach(el => {
         const name = el.dataset.zone;
         const z = tpl.zones[name];
         if (z) el.setAttribute("transform", `translate(${minX + z.x},${minY + z.y})`);
+      });
+      const title = document.querySelector(`#ds-room-zones .ds-room-title[data-room="${roomId}"]`);
+      if (title && room) {
+        title.setAttribute("x", minX);
+        title.setAttribute("y", minY);
+      }
+    }
+
+    ensureLinkMarkers() {
+      let defs = document.getElementById("ds-arrow-def");
+      const svg = document.getElementById("ds-svg");
+      if (!svg) return;
+      if (!defs) {
+        defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+        defs.id = "ds-arrow-def";
+        svg.prepend(defs);
+      }
+      const ids = [...new Set([...MEDIA_TYPES.map(m => m.id), "cat6"])];
+      ids.forEach(id => {
+        const mid = `ds-arrow-${id}`;
+        if (defs.querySelector(`#${mid}`)) return;
+        const ms = linkMediaStyle(id);
+        const m = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+        m.setAttribute("id", mid);
+        m.setAttribute("markerWidth", "8");
+        m.setAttribute("markerHeight", "8");
+        m.setAttribute("refX", "7");
+        m.setAttribute("refY", "3");
+        m.setAttribute("orient", "auto");
+        m.innerHTML = `<path d="M0,0 L8,3 L0,6 Z" fill="${ms.stroke}"/>`;
+        defs.appendChild(m);
       });
     }
 
@@ -974,28 +1059,36 @@ Account: ${this.design.account}`;
 
       const bandsG = document.getElementById("ds-layer-bands");
       if (this.tab === "network" && this.design.showLayerBands !== false && !this.presentation) {
-        bandsG.innerHTML = LAYERS.map(layer => {
-          const y = (LAYER_Y[layer] || 200) - 30;
-          return `<rect class="ds-layer-band" x="0" y="${y}" width="2400" height="70"/>
-            <text class="ds-layer-title" x="8" y="${y + 16}">${LAYER_LABELS[layer]}</text>`;
+        const activeLayers = [...new Set(nodes.map(n => n.layer).filter(Boolean))];
+        bandsG.innerHTML = LAYERS.filter(l => activeLayers.includes(l)).map(layer => {
+          const x = (LAYER_X[layer] || 400) - 20;
+          const layerNodes = nodes.filter(n => n.layer === layer);
+          const maxY = layerNodes.length ? Math.max(...layerNodes.map(n => n.y + (n.h || 46))) + 24 : 520;
+          return `<rect class="ds-layer-band" x="${x}" y="72" width="${LAYER_COL_W}" height="${Math.max(400, maxY - 60)}"/>
+            <text class="ds-layer-title" x="${x + 6}" y="64">${LAYER_LABELS[layer]}</text>`;
         }).join("");
       } else bandsG.innerHTML = "";
 
+      const selNode = this.selectedNode;
       const linksG = document.getElementById("ds-links");
       const showBands = this.tab === "network" && this.design.showLayerBands !== false;
       linksG.innerHTML = links.map(l => {
         const { a, b } = this.linkEndpoints(l);
         const off = this._linkOffsets.get(l.id) || 0;
         const sel = this.selectedLink === l.id ? " selected" : "";
+        const hl = selNode && (l.from === selNode || l.to === selNode) ? " highlighted" : "";
+        const dim = selNode && !hl && !sel ? " dimmed" : "";
         const path = linkRoute(a.x, a.y, b.x, b.y, off);
         const lp = linkLabelPos(a, b, off);
-        const showLbl = !this.presentation && this.shouldShowLinkLabel(links, l.id);
-        const lbl = (l.label || "Link").slice(0, 22);
+        const lbl = linkDisplayLabel(links, l);
+        const showLbl = lbl && !this.presentation && this.shouldShowLinkLabel(links, l.id);
         const portDetail = sel && l.fromPort && l.toPort ? `${l.fromPort} → ${l.toPort}` : "";
         const lw = Math.max(36, lbl.length * 6.5 + 14);
         const lh = portDetail ? 24 : 14;
-        return `<g class="ds-link${sel}" data-link="${l.id}">
-          <path class="ds-link-path${sel}" d="${path}" marker-end="url(#ds-arrow)"/>
+        const ms = linkMediaStyle(l.media);
+        const dash = ms.dash ? ` stroke-dasharray="${ms.dash}"` : "";
+        return `<g class="ds-link${sel}${hl}${dim}" data-link="${l.id}" data-media="${escapeAttr(l.media || "cat6")}">
+          <path class="ds-link-path${sel}" d="${path}" marker-end="url(#ds-arrow-${l.media || "cat6"})" style="stroke:${ms.stroke};stroke-width:${hl ? ms.w + 1 : ms.w}${dash ? ";stroke-dasharray:" + ms.dash : ""}"/>
           ${showLbl ? `<g class="ds-link-label-group" transform="translate(${lp.x},${lp.y})">
             <rect class="ds-link-label-bg" x="${-lw / 2}" y="-11" width="${lw}" height="${lh}" rx="3"/>
             <text class="ds-link-label" text-anchor="middle" y="0">${escapeHtml(lbl)}</text>
@@ -1004,12 +1097,7 @@ Account: ${this.design.account}`;
         </g>`;
       }).join("");
 
-      if (!document.getElementById("ds-arrow-def")) {
-        const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
-        defs.id = "ds-arrow-def";
-        defs.innerHTML = `<marker id="ds-arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#8899aa"/></marker>`;
-        document.getElementById("ds-svg").prepend(defs);
-      }
+      this.ensureLinkMarkers();
 
       const nodesG = document.getElementById("ds-nodes");
       const mode = this.tab === "room" ? "room" : "network";
@@ -1023,8 +1111,10 @@ Account: ${this.design.account}`;
         const svgInner = STN()?.renderDeviceSvg?.(def, w, h, sel) || `<rect class="ds-node-box" width="${w}" height="${h}" rx="6"/>`;
         const ports = this.showPortsOnNode(n) ? STN()?.renderPorts?.(n, mode, this.linkFrom === n.id ? this.linkFromPort : null) || "" : "";
         const showLayer = n.layer && this.tab === "network" && !showBands;
-        return `<g class="ds-node${sel}" data-node="${n.id}" transform="translate(${n.x},${n.y})">
+        const isHub = mode === "room" && /switch|9200|9300|collab/i.test(n.stencilId || "");
+        return `<g class="ds-node${sel}${isHub ? " ds-hub" : ""}" data-node="${n.id}" transform="translate(${n.x},${n.y})">
           <title>${escapeHtml(title)}</title>
+          ${isHub ? `<rect class="ds-node-hub-ring" x="-4" y="-4" width="${w + 8}" height="${h + 8}" rx="10"/>` : ""}
           ${svgInner}
           <rect class="ds-node-hit" width="${w}" height="${h}" rx="6" fill="transparent"/>
           <rect class="ds-node-label-bg" x="2" y="${h - 18}" width="${w - 4}" height="14" rx="3"/>
@@ -1047,7 +1137,7 @@ Account: ${this.design.account}`;
           this.selectedNode = id; this.selectedLink = null;
           this.drag = { node: this.design.nodes.find(n => n.id === id) };
           this.renderInspector();
-          if (prev !== id) this.renderCanvas();
+          this.renderCanvas();
         };
       });
 
@@ -1132,7 +1222,7 @@ Account: ${this.design.account}`;
         });
         return;
       }
-      box.innerHTML = `<div class="ds-empty">Select device or link · L link · / search · P present · F fit</div>`;
+      box.innerHTML = `<div class="ds-empty">Select device or link · L link · F fit · P present${this.tab === "room" ? " · [ ] switch rooms" : ""}</div>`;
     }
 
     renderPanel() {
@@ -1140,8 +1230,8 @@ Account: ${this.design.account}`;
       if (this.panelTab === "bom") {
         const bom = computeBom(this.design);
         body.innerHTML = bom.length ? `
-          <table class="ds-table"><thead><tr><th>Type</th><th>PID</th><th>Qty</th></tr></thead>
-          <tbody>${bom.map(b => `<tr><td>${escapeHtml(b.type)}</td><td title="${escapeAttr(b.desc)}">${escapeHtml(b.pid)}</td><td>${b.qty}</td></tr>`).join("")}</tbody></table>
+          <table class="ds-table"><thead><tr><th>Item</th><th>PID</th><th>Qty</th></tr></thead>
+          <tbody>${bom.map(b => `<tr><td title="${escapeAttr(b.pid)}">${escapeHtml((b.desc || b.pid).slice(0, 42))}</td><td class="ds-pid-cell">${escapeHtml(b.pid)}</td><td>${b.qty}</td></tr>`).join("")}</tbody></table>
           <div class="ds-bom-total">${bom.length} lines · ${bom.reduce((s, b) => s + b.qty, 0)} qty</div>
           <div style="padding:8px 12px"><button type="button" class="ds-btn" id="ds-add-bom">+ Manual BOM</button></div>` : `<div class="ds-empty">Generate from Intent or Gallery</div>`;
         document.getElementById("ds-add-bom")?.addEventListener("click", () => {
@@ -1150,7 +1240,14 @@ Account: ${this.design.account}`;
           this.pushHistory(); this.renderPanel();
         });
       } else if (this.panelTab === "cables") {
-        const cables = computeCables(this.design);
+        const nodeIds = this.tab === "room" && this.activeRoomId
+          ? new Set(this.design.nodes.filter(n => n.roomId === this.activeRoomId).map(n => n.id))
+          : null;
+        const cables = computeCables(this.design).filter(c => {
+          if (!nodeIds) return true;
+          const link = this.design.links.find(l => l.id === c.id);
+          return link && nodeIds.has(link.from) && nodeIds.has(link.to);
+        });
         body.innerHTML = cables.length ? `
           <table class="ds-table"><thead><tr><th>Label</th><th>From</th><th>Port</th><th>To</th><th>Media</th></tr></thead>
           <tbody>${cables.map(c => `<tr><td>${escapeHtml(c.label)}</td><td>${escapeHtml(c.from.slice(0, 10))}</td><td>${escapeHtml(c.fromPort)}</td><td>${escapeHtml(c.to.slice(0, 10))}</td><td>${escapeHtml(c.media)}</td></tr>`).join("")}</tbody></table>` : `<div class="ds-empty">Link mode (L) — click ports to connect</div>`;
@@ -1234,8 +1331,9 @@ Account: ${this.design.account}`;
       const xs = nodes.flatMap(n => [n.x, n.x + (n.w || 76)]);
       const ys = nodes.flatMap(n => [n.y, n.y + (n.h || 46)]);
       const rect = document.getElementById("ds-svg").getBoundingClientRect();
-      const pad = 80, w = Math.max(...xs) - Math.min(...xs) + pad * 2, h = Math.max(...ys) - Math.min(...ys) + pad * 2;
-      this.pan.zoom = Math.max(0.25, Math.min(rect.width / w, rect.height / h, 1.4));
+      const pad = this.tab === "room" ? 100 : 80, w = Math.max(...xs) - Math.min(...xs) + pad * 2, h = Math.max(...ys) - Math.min(...ys) + pad * 2;
+      const maxZoom = this.tab === "room" ? 1.35 : 1.1;
+      this.pan.zoom = Math.max(0.25, Math.min(rect.width / w, rect.height / h, maxZoom));
       this.pan.x = pad - Math.min(...xs) * this.pan.zoom;
       this.pan.y = pad - Math.min(...ys) * this.pan.zoom;
       this.applyTransform();
