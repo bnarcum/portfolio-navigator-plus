@@ -1,48 +1,60 @@
-# Design Studio v2
+# Design Studio v3
 
-Presales design mode for Portfolio Navigator Plus.
+Netformx-style presales design for Portfolio Navigator Plus.
+
+## What's new in v3
+
+- **SVG device silhouettes** — switches, routers, firewalls, APs, codecs, displays (not emoji boxes)
+- **Port-based linking** — click source port → target port; auto media/PID suggestions
+- **12 network reference architectures** — redundant campus, SD-WAN, DC spine-leaf, ACI, K-12, healthcare, retail Meraki, zero trust, HyperFlex, etc.
+- **8 room floor plans** — zone-based layouts (display, table, credenza, ceiling) with correct AV paths
+- **Template Gallery** — browse and insert any template from header **Gallery**
+- **Design score (0–100)** — completeness badge in header
+- **Suggest panel** — one-click fixes (add core, wire APs, PoE budget, auto-wire)
+- **PoE budget tracking** — load vs switch capacity
+- **Presentation mode** — `P` key hides chrome for customer calls
+- **Snapshots** — named design checkpoints
+- **Minimap** — bottom-left canvas overview
+- **Customer narrative export** — Markdown solution overview in Export Pack
 
 ## Surfaces
 
 | Tab | Purpose |
 |-----|---------|
-| **Intent** | Natural language + templates + reference architectures + AI JSON import |
-| **Network** | Logical topology canvas with layer bands, 48+ family stencils from portfolio catalog |
-| **Room** | Collab floor plan with huddle / conference / boardroom templates |
+| **Intent** | Natural language → picks best template + rooms |
+| **Network** | Logical topology with layer bands & port links |
+| **Room** | Collab floor plans with zone labels |
 
-## Features
-
-- **Inspector** — edit label, PID, qty, layer, ports, cable length for selected device/link
-- **Live BOM** — hardware, DNA/ISE/Webex licenses, cables, SMARTnet/PS placeholders
-- **Cable schedule** — from/to ports, media, length, cable PID
-- **Validation** — blocking warnings + tips
-- **Undo/redo** — ⌘Z / ⌘⇧Z (40 steps)
-- **Auto layout** — layer-based network layout
-- **Orthogonal links** with arrows and media labels
-- **Snap to grid** — toggle in toolbar
-- **Floor plan** — upload background image (Room tab)
-- **Import stack** — from Account Planner
-- **Export pack** — CCW prep CSV, cable CSV, design summary MD, JSON
-- **SVG export** — topology diagram
-
-## Shortcuts (canvas focused)
+## Shortcuts
 
 | Key | Action |
 |-----|--------|
-| `L` | Toggle link mode |
-| `Delete` | Delete selection |
-| `⌘D` | Duplicate device |
+| `L` | Link mode (port-to-port) |
+| `F` | Fit view |
+| `P` | Presentation mode |
+| `/` | Focus stencil search |
 | `⌘Z` / `⌘⇧Z` | Undo / redo |
-| `Esc` | Close Design Studio |
+| `⌘D` | Duplicate |
+| `Del` | Delete selection |
+| `Esc` | Close / dismiss gallery |
 
-## AI workflow
+## Workflow
 
-1. **Ask AI** — sends structured JSON prompt
-2. Paste response into **Apply AI JSON** textarea
-3. Click **Apply AI JSON**
+1. **Gallery** or **Generate Draft** from Intent
+2. Review **Validate** + **Suggest** panels — apply fixes
+3. Tune PIDs in **Inspector**; adjust links/cables
+4. **Export Pack** → CCW CSV, cable schedule, narrative MD, JSON, SVG
 
-Or use **Generate Draft** for rule-based designs without AI.
+## Files
+
+| File | Role |
+|------|------|
+| `design-studio-stencils.js` | Device defs, SVG shapes, port anchors |
+| `design-studio-templates.js` | Network + room template library |
+| `design-studio-rules.js` | Score, validation, suggestions, PoE |
+| `design-studio.js` | UI shell, canvas, export |
+| `design-studio.css` | Styles |
 
 ## CCW note
 
-Exports are **CCW prep** drafts — verify PIDs before import into Cisco Commerce Workspace.
+Exports are **CCW prep** drafts — verify PIDs and quantities before import.

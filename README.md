@@ -16,11 +16,11 @@
 
 Same core capabilities as Cisco Portfolio Navigator — guided planning, portfolio graph views, account planner, AI assistant (BYOK), exports, and more. See the [upstream README](https://github.com/bnarcum/cisco-portfolio-navigator) for the full feature list.
 
-### Design Studio (Plus) — v2
+### Design Studio (Plus) — v3
 
-Open **Design Studio** from the action bar. See [DESIGN-STUDIO.md](DESIGN-STUDIO.md) for full details.
+Open **Design Studio** from the action bar. See [DESIGN-STUDIO.md](DESIGN-STUDIO.md).
 
-Highlights: intent-driven topology, 48+ Cisco family stencils, room templates, inspector, undo/redo, live BOM/cables, CCW prep export, SVG diagram export.
+v3 adds SVG stencils, port-based linking, 12 network + 8 room templates (Gallery), design score, suggestion engine, PoE tracking, presentation mode, and customer narrative export.
 
 ## Local development
 
