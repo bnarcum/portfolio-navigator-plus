@@ -119,9 +119,51 @@
 
   function snap(v, grid = 24) { return Math.round(v / grid) * grid; }
 
-  function orthPath(x1, y1, x2, y2) {
-    const mx = (x1 + x2) / 2;
-    return `M ${x1} ${y1} L ${mx} ${y1} L ${mx} ${y2} L ${x2} ${y2}`;
+  function displayNodeLabel(label) {
+    if (!label) return "";
+    return String(label).replace(/^Room \d+\s+/, "");
+  }
+
+  function linkRoute(ax, ay, bx, by, offset) {
+    const dx = bx - ax, dy = by - ay;
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      const mx = (ax + bx) / 2 + offset;
+      return `M ${ax} ${ay} L ${mx} ${ay} L ${mx} ${by} L ${bx} ${by}`;
+    }
+    const my = (ay + by) / 2 + offset;
+    return `M ${ax} ${ay} L ${ax} ${my} L ${bx} ${my} L ${bx} ${by}`;
+  }
+
+  function linkLabelPos(a, b, offset) {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    if (Math.abs(dx) >= Math.abs(dy)) return { x: (a.x + b.x) / 2 + offset, y: (a.y + b.y) / 2 - 10 };
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 + offset - 10 };
+  }
+
+  function computeLinkOffsets(links) {
+    const offsets = new Map();
+    const byFrom = {};
+    links.forEach(l => { (byFrom[l.from] ||= []).push(l); });
+    Object.values(byFrom).forEach(bucket => {
+      bucket.forEach((l, i) => offsets.set(l.id, (i - (bucket.length - 1) / 2) * 20));
+    });
+    return offsets;
+  }
+
+  function autoLayoutRoom(design, roomId) {
+    const room = design.rooms.find(r => r.id === roomId);
+    const tpl = room ? TPL()?.ROOM_TEMPLATES?.[room.template] : null;
+    if (!tpl) return;
+    const baseX = 80, baseY = 60;
+    design.nodes.filter(n => n.roomId === roomId).forEach(n => {
+      const item = tpl.items.find(it => it.label === n.label);
+      if (!item) return;
+      const zone = tpl.zones[item.zone];
+      if (!zone) return;
+      const pos = TPL().zonePos(zone, item.relX, item.relY);
+      n.x = design.snapGrid !== false ? snap(baseX + pos.x) : baseX + pos.x;
+      n.y = design.snapGrid !== false ? snap(baseY + pos.y) : baseY + pos.y;
+    });
   }
 
   function applyRoomTemplateToDesign(design, tplKey, roomId, roomName, ox, oy, nodesArr, linksArr) {
@@ -162,14 +204,16 @@
     const hasCollab = /room|webex|collab|hybrid|meeting|video|board|kit/i.test(t);
 
     if (hasCollab || roomCount > 0) {
-      const n = roomCount || (hasCollab ? 2 : 0);
+      const n = roomCount || (hasCollab ? 1 : 0);
       for (let i = 0; i < Math.min(n, 8); i++) {
         const roomId = uid();
-        const roomName = `Room ${i + 1}`;
         const rtpl = TPL()?.ROOM_TEMPLATES?.[roomTpl];
+        const roomName = roomCount > 1 ? `${rtpl?.name || "Room"} ${i + 1}` : (rtpl?.name || "Room 1");
         design.rooms.push({ id: roomId, name: roomName, template: roomTpl, width: rtpl?.w || 480, height: rtpl?.h || 360 });
-        applyRoomTemplateToDesign(design, roomTpl, roomId, roomName, 60 + (i % 2) * 560, 60 + Math.floor(i / 2) * 460, design.nodes, design.links);
+        applyRoomTemplateToDesign(design, roomTpl, roomId, roomName, 80, 80, design.nodes, design.links);
+        autoLayoutRoom(design, roomId);
       }
+      if (design.rooms.length) design.activeRoomId = design.rooms[0].id;
     }
 
     design.requirements.notes = text.slice(0, 2000);
@@ -206,15 +250,16 @@
     const nodes = design.nodes.filter(n => n.canvas !== "room");
     const byLayer = {};
     nodes.forEach(n => { (byLayer[n.layer || "access"] ||= []).push(n); });
-    let col = 0;
     LAYERS.forEach(layer => {
       const group = byLayer[layer];
       if (!group) return;
+      const gap = 200;
+      const startX = Math.max(60, 520 - (group.length * gap) / 2);
       group.forEach((n, i) => {
-        n.x = 80 + col * 200; n.y = (LAYER_Y[layer] || 200) + i * 90;
+        n.x = startX + i * gap;
+        n.y = LAYER_Y[layer] || 200;
         if (design.snapGrid !== false) { n.x = snap(n.x); n.y = snap(n.y); }
       });
-      col++;
     });
   }
 
@@ -239,7 +284,8 @@
       this.linkFrom = null; this.linkFromPort = null; this.linkMode = false;
       this.drag = null; this.pan = { x: 40, y: 40, zoom: 1 };
       this.layerFilter = "all"; this.paletteFilter = "";
-      this.presentation = false; this.showPorts = true; this.showMinimap = true;
+      this.presentation = false; this.showPorts = false; this.showMinimap = true;
+      this.activeRoomId = null;
       this.history = new History(this); this.el = null;
     }
 
@@ -338,11 +384,12 @@
     buildToolbar() {
       const tb = document.getElementById("ds-toolbar");
       tb.innerHTML = `
+        <select id="ds-room-picker" hidden title="Active room"></select>
         <select id="ds-layer-filter"><option value="all">All layers</option></select>
         <select id="ds-link-media"></select>
         <select id="ds-room-template"><option value="">+ Room template…</option></select>
         <button type="button" id="ds-link-mode">Link: off</button>
-        <button type="button" id="ds-ports" class="active">Ports: on</button>
+        <button type="button" id="ds-ports">Ports: off</button>
         <button type="button" id="ds-snap" class="active">Snap: on</button>
         <button type="button" id="ds-layers-band" class="active">Layers: on</button>
         <button type="button" id="ds-auto-layout">Auto layout</button>
@@ -380,12 +427,21 @@
       $("ds-ai-design").onclick = () => this.askAi();
       $("ds-undo").onclick = () => this.history.undo();
       $("ds-redo").onclick = () => this.history.redo();
+      $("ds-room-picker").onchange = e => {
+        this.activeRoomId = e.target.value || null;
+        this.design.activeRoomId = this.activeRoomId;
+        this.fitView(); this.renderCanvas();
+      };
       $("ds-link-mode").onclick = () => this.toggleLinkMode();
       $("ds-ports").onclick = () => { this.showPorts = !this.showPorts; $("ds-ports").classList.toggle("active", this.showPorts); $("ds-ports").textContent = "Ports: " + (this.showPorts ? "on" : "off"); this.renderCanvas(); };
       $("ds-delete-sel").onclick = () => this.deleteSelected();
       $("ds-dup").onclick = () => this.duplicateSelected();
       $("ds-fit").onclick = () => this.fitView();
-      $("ds-auto-layout").onclick = () => { autoLayoutNetwork(this.design); this.pushHistory(); this.render(); };
+      $("ds-auto-layout").onclick = () => {
+        if (this.tab === "room" && this.activeRoomId) autoLayoutRoom(this.design, this.activeRoomId);
+        else autoLayoutNetwork(this.design);
+        this.pushHistory(); this.render(); this.fitView();
+      };
       $("ds-auto-wire").onclick = () => { RULES()?.autoWireLayerBased?.(this.design, uid, STN()); this.pushHistory(); this.render(); this.toast("Auto-wired by layer"); };
       $("ds-snap").onclick = () => { this.design.snapGrid = !this.design.snapGrid; $("ds-snap").classList.toggle("active", this.design.snapGrid); $("ds-snap").textContent = "Snap: " + (this.design.snapGrid ? "on" : "off"); };
       $("ds-layers-band").onclick = () => { this.design.showLayerBands = !this.design.showLayerBands; $("ds-layers-band").classList.toggle("active", this.design.showLayerBands); $("ds-layers-band").textContent = "Layers: " + (this.design.showLayerBands ? "on" : "off"); this.renderCanvas(); };
@@ -509,12 +565,13 @@
       const tpl = TPL()?.ROOM_TEMPLATES?.[tplKey];
       if (!tpl) return;
       const roomId = uid();
-      const name = `${tpl.name} ${this.design.rooms.length + 1}`;
+      const name = `${tpl.name}${this.design.rooms.length ? " " + (this.design.rooms.length + 1) : ""}`;
       this.design.rooms.push({ id: roomId, name, template: tplKey, width: tpl.w, height: tpl.h });
-      const ox = 60 + (this.design.rooms.length % 2) * (tpl.w + 80);
-      const oy = 60 + Math.floor(this.design.rooms.length / 2) * (tpl.h + 80);
-      applyRoomTemplateToDesign(this.design, tplKey, roomId, name, ox, oy, this.design.nodes, this.design.links);
-      this.pushHistory(); this.setTab("room"); this.render();
+      applyRoomTemplateToDesign(this.design, tplKey, roomId, name, 80, 80, this.design.nodes, this.design.links);
+      autoLayoutRoom(this.design, roomId);
+      this.activeRoomId = roomId;
+      this.design.activeRoomId = roomId;
+      this.pushHistory(); this.setTab("room"); this.fitView(); this.render();
       this.toast("Added " + tpl.name);
     }
 
@@ -522,6 +579,7 @@
       this.presentation = !this.presentation;
       this.el.classList.toggle("ds-present-mode", this.presentation);
       document.getElementById("ds-present").classList.toggle("active", this.presentation);
+      this.renderCanvas();
       if (this.presentation) this.fitView();
     }
 
@@ -551,7 +609,9 @@
       const acct = document.querySelector("#acct-name")?.value?.trim();
       if (acct) this.design.account = acct;
       if (this.design.floorPlan) document.getElementById("ds-floorplan").style.backgroundImage = `url(${this.design.floorPlan})`;
-      ["ds-snap", "ds-layers-band", "ds-ports"].forEach(id => document.getElementById(id)?.classList.add("active"));
+      this.activeRoomId = this.design.activeRoomId || this.design.rooms?.[0]?.id || null;
+      ["ds-snap", "ds-layers-band"].forEach(id => document.getElementById(id)?.classList.add("active"));
+      document.getElementById("ds-ports")?.classList.remove("active");
       this.history.snapshot();
       this.el.classList.add("open");
       document.body.classList.add("design-studio-open");
@@ -564,14 +624,29 @@
     setTab(tab) {
       this.tab = tab;
       if (tab === "network" || tab === "room") this.design.mode = tab;
+      if (tab === "room" && !this.activeRoomId && this.design.rooms.length)
+        this.activeRoomId = this.design.rooms[0].id;
       $$("#ds-tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
       document.getElementById("ds-intent").hidden = tab !== "intent";
       document.getElementById("ds-canvas-wrap").hidden = tab === "intent";
       const wrap = document.getElementById("ds-canvas-wrap");
       wrap.classList.toggle("room-mode", tab === "room");
       wrap.classList.toggle("network-mode", tab === "network");
-      if (tab !== "intent") { this.renderPalette(); this.renderCanvas(); }
+      this.updateRoomPicker();
+      if (tab !== "intent") { this.renderPalette(); this.renderCanvas(); if (tab === "room") this.fitView(); }
       this.renderPanel();
+    }
+
+    updateRoomPicker() {
+      const sel = document.getElementById("ds-room-picker");
+      if (!sel) return;
+      const show = this.tab === "room" && this.design.rooms.length > 0;
+      sel.hidden = !show;
+      if (!show) return;
+      sel.innerHTML = this.design.rooms.map(r =>
+        `<option value="${r.id}"${r.id === this.activeRoomId ? " selected" : ""}>${escapeHtml(r.name)}</option>`
+      ).join("");
+      if (!this.activeRoomId && this.design.rooms.length) this.activeRoomId = this.design.rooms[0].id;
     }
 
     runGenerate() {
@@ -579,9 +654,12 @@
       if (!text) { this.toast("Enter a description"); return; }
       generateFromIntent(text, this.design);
       autoLayoutNetwork(this.design);
+      this.design.rooms.forEach(r => autoLayoutRoom(this.design, r.id));
+      this.activeRoomId = this.design.activeRoomId || this.design.rooms[0]?.id || null;
       this.pushHistory();
       this.toast(`Draft generated · Score ${computeScore(this.design)}/100`);
-      this.setTab("network"); this.fitView();
+      this.setTab(this.design.rooms.length && !/campus|sd-wan|data center|spine|k-12|hospital|retail|zero trust/i.test(text) ? "room" : "network");
+      this.fitView();
     }
 
     runJsonImport() {
@@ -659,8 +737,9 @@ Account: ${this.design.account}`;
       const vp = document.getElementById("ds-viewport");
       if (!vp) return;
       const clone = vp.cloneNode(true);
+      clone.querySelectorAll(".ds-ports, .ds-port, .ds-layer-band, .ds-layer-title").forEach(el => el.remove());
       const bbox = vp.getBBox?.() || { x: 0, y: 0, width: 1200, height: 800 };
-      const svg = `<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="${bbox.x - 20} ${bbox.y - 20} ${bbox.width + 40} ${bbox.height + 40}">${clone.innerHTML}</svg>`;
+      const svg = `<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="${bbox.x - 24} ${bbox.y - 24} ${bbox.width + 48} ${bbox.height + 48}" style="background:#0a1628;font-family:system-ui,sans-serif">${clone.innerHTML}</svg>`;
       window.__cpnV2?.helpers?.downloadBlob?.(`Topology_${(this.design.account || "design").replace(/[^\w-]+/g, "-")}.svg`, "image/svg+xml", svg);
       this.toast("SVG exported");
     }
@@ -677,7 +756,7 @@ Account: ${this.design.account}`;
     }
 
     showPortsOnNode(n) {
-      return this.showPorts && (this.linkMode || this.selectedNode === n.id);
+      return !this.presentation && this.showPorts && (this.linkMode || this.selectedNode === n.id);
     }
 
     createLink(fromId, fromPort, toId, toPort) {
@@ -717,12 +796,23 @@ Account: ${this.design.account}`;
       const mode = this.tab === "room" ? "room" : "network";
       return this.design.nodes.filter(n => {
         if ((n.canvas || "network") !== mode) return false;
+        if (mode === "room" && this.activeRoomId && n.roomId !== this.activeRoomId) return false;
         if (this.layerFilter !== "all" && n.layer !== this.layerFilter) return false;
         return true;
       });
     }
 
+    visibleLinks(nodeIds) {
+      return this.design.links.filter(l => nodeIds.has(l.from) && nodeIds.has(l.to));
+    }
+
+    shouldShowLinkLabel(links, linkId) {
+      if (this.selectedLink === linkId || this.linkMode) return true;
+      return links.length <= 14;
+    }
+
     render() {
+      this.updateRoomPicker();
       this.renderPalette();
       this.renderCanvas();
       this.renderInspector();
@@ -793,21 +883,24 @@ Account: ${this.design.account}`;
     renderRoomZones() {
       const zoneLayer = document.getElementById("ds-room-zones");
       if (!zoneLayer || this.tab !== "room") { if (zoneLayer) zoneLayer.innerHTML = ""; return; }
-      const seen = new Set();
+      const rooms = this.activeRoomId
+        ? this.design.rooms.filter(r => r.id === this.activeRoomId)
+        : this.design.rooms;
       let html = "";
-      this.design.rooms.forEach(room => {
+      rooms.forEach(room => {
         const tpl = TPL()?.ROOM_TEMPLATES?.[room.template];
-        if (!tpl?.zones || seen.has(room.id)) return;
-        seen.add(room.id);
+        if (!tpl?.zones) return;
         const roomNodes = this.design.nodes.filter(n => n.roomId === room.id);
         if (!roomNodes.length) return;
-        const minX = Math.min(...roomNodes.map(n => n.x)) - 20;
-        const minY = Math.min(...roomNodes.map(n => n.y)) - 20;
+        const minX = Math.min(...roomNodes.map(n => n.x)) - 24;
+        const minY = Math.min(...roomNodes.map(n => n.y)) - 36;
+        html += `<text class="ds-room-title" x="${minX}" y="${minY}">${escapeHtml(room.name)}</text>`;
         Object.entries(tpl.zones).forEach(([name, z]) => {
-          const label = String(name).toUpperCase();
+          const label = String(name).replace(/^\w/, c => c.toUpperCase());
           html += `<g class="ds-zone" data-room="${room.id}" data-zone="${escapeAttr(name)}" transform="translate(${minX + z.x},${minY + z.y})">
             <rect class="ds-zone-rect" width="${z.w}" height="${z.h}" rx="8"/>
-            <text class="ds-zone-label-text" x="8" y="14">${escapeHtml(label)}</text>
+            <rect class="ds-zone-label-bg" x="6" y="4" width="${Math.min(label.length * 7 + 12, z.w - 8)}" height="16" rx="4"/>
+            <text class="ds-zone-label-text" x="12" y="15">${escapeHtml(label)}</text>
           </g>`;
         });
       });
@@ -854,12 +947,12 @@ Account: ${this.design.account}`;
         const g = linksG.querySelector(`.ds-link[data-link="${l.id}"]`);
         if (!g) return;
         const { a, b } = this.linkEndpoints(l);
-        const path = orthPath(a.x, a.y, b.x, b.y);
-        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 - 6;
+        const off = (this._linkOffsets && this._linkOffsets.get(l.id)) || 0;
+        const path = linkRoute(a.x, a.y, b.x, b.y, off);
+        const lp = linkLabelPos(a, b, off);
         g.querySelector(".ds-link-path")?.setAttribute("d", path);
-        const labels = g.querySelectorAll(".ds-link-label");
-        if (labels[0]) { labels[0].setAttribute("x", mx); labels[0].setAttribute("y", my); }
-        if (labels[1]) { labels[1].setAttribute("x", mx); labels[1].setAttribute("y", my + 10); }
+        const grp = g.querySelector(".ds-link-label-group");
+        if (grp) grp.setAttribute("transform", `translate(${lp.x},${lp.y})`);
       });
     }
 
@@ -876,10 +969,11 @@ Account: ${this.design.account}`;
       this.renderRoomZones();
       const nodes = this.visibleNodes();
       const nodeIds = new Set(nodes.map(n => n.id));
-      const links = this.design.links.filter(l => nodeIds.has(l.from) && nodeIds.has(l.to));
+      const links = this.visibleLinks(nodeIds);
+      this._linkOffsets = computeLinkOffsets(links);
 
       const bandsG = document.getElementById("ds-layer-bands");
-      if (this.tab === "network" && this.design.showLayerBands !== false) {
+      if (this.tab === "network" && this.design.showLayerBands !== false && !this.presentation) {
         bandsG.innerHTML = LAYERS.map(layer => {
           const y = (LAYER_Y[layer] || 200) - 30;
           return `<rect class="ds-layer-band" x="0" y="${y}" width="2400" height="70"/>
@@ -888,17 +982,25 @@ Account: ${this.design.account}`;
       } else bandsG.innerHTML = "";
 
       const linksG = document.getElementById("ds-links");
+      const showBands = this.tab === "network" && this.design.showLayerBands !== false;
       linksG.innerHTML = links.map(l => {
         const { a, b } = this.linkEndpoints(l);
+        const off = this._linkOffsets.get(l.id) || 0;
         const sel = this.selectedLink === l.id ? " selected" : "";
-        const path = orthPath(a.x, a.y, b.x, b.y);
-        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 - 6;
-        const media = MEDIA_TYPES.find(m => m.id === l.media);
-        const portLbl = l.fromPort && l.toPort ? `${l.fromPort}→${l.toPort}` : "";
+        const path = linkRoute(a.x, a.y, b.x, b.y, off);
+        const lp = linkLabelPos(a, b, off);
+        const showLbl = !this.presentation && this.shouldShowLinkLabel(links, l.id);
+        const lbl = (l.label || "Link").slice(0, 22);
+        const portDetail = sel && l.fromPort && l.toPort ? `${l.fromPort} → ${l.toPort}` : "";
+        const lw = Math.max(36, lbl.length * 6.5 + 14);
+        const lh = portDetail ? 24 : 14;
         return `<g class="ds-link${sel}" data-link="${l.id}">
           <path class="ds-link-path${sel}" d="${path}" marker-end="url(#ds-arrow)"/>
-          <text class="ds-link-label" x="${mx}" y="${my}">${escapeHtml(l.label || "")} ${escapeHtml(portLbl)}</text>
-          <text class="ds-link-label" x="${mx}" y="${my + 10}" font-size="8">${escapeHtml(media?.label?.slice(0, 12) || "")}</text>
+          ${showLbl ? `<g class="ds-link-label-group" transform="translate(${lp.x},${lp.y})">
+            <rect class="ds-link-label-bg" x="${-lw / 2}" y="-11" width="${lw}" height="${lh}" rx="3"/>
+            <text class="ds-link-label" text-anchor="middle" y="0">${escapeHtml(lbl)}</text>
+            ${portDetail ? `<text class="ds-link-label-detail" text-anchor="middle" y="10">${escapeHtml(portDetail)}</text>` : ""}
+          </g>` : ""}
         </g>`;
       }).join("");
 
@@ -916,14 +1018,18 @@ Account: ${this.design.account}`;
         const def = STN()?.getDef?.(n.stencilId, mode);
         const w = n.w || def?.w || 76, h = n.h || def?.h || 46;
         const qty = n.qty > 1 ? ` ×${n.qty}` : "";
+        const dispLabel = displayNodeLabel(n.label);
+        const title = [n.label, n.pid || def?.pid].filter(Boolean).join(" · ");
         const svgInner = STN()?.renderDeviceSvg?.(def, w, h, sel) || `<rect class="ds-node-box" width="${w}" height="${h}" rx="6"/>`;
         const ports = this.showPortsOnNode(n) ? STN()?.renderPorts?.(n, mode, this.linkFrom === n.id ? this.linkFromPort : null) || "" : "";
+        const showLayer = n.layer && this.tab === "network" && !showBands;
         return `<g class="ds-node${sel}" data-node="${n.id}" transform="translate(${n.x},${n.y})">
+          <title>${escapeHtml(title)}</title>
           ${svgInner}
           <rect class="ds-node-hit" width="${w}" height="${h}" rx="6" fill="transparent"/>
-          <text class="ds-node-label" x="${w/2}" y="${h - 8}" text-anchor="middle">${escapeHtml((n.label || "").slice(0, 20) + qty)}</text>
-          <text class="ds-node-sub" x="${w/2}" y="${h - 1}" text-anchor="middle">${escapeHtml((n.pid || "").slice(0, 16))}</text>
-          ${n.layer && this.tab === "network" ? `<text class="ds-node-layer" x="4" y="10">${escapeHtml(LAYER_LABELS[n.layer]?.slice(0, 10) || n.layer)}</text>` : ""}
+          <rect class="ds-node-label-bg" x="2" y="${h - 18}" width="${w - 4}" height="14" rx="3"/>
+          <text class="ds-node-label" x="${w / 2}" y="${h - 7}" text-anchor="middle">${escapeHtml((dispLabel || "").slice(0, 22) + qty)}</text>
+          ${showLayer ? `<text class="ds-node-layer" x="4" y="11">${escapeHtml(LAYER_LABELS[n.layer]?.slice(0, 12) || n.layer)}</text>` : ""}
           <g class="ds-ports">${ports}</g>
         </g>`;
       }).join("");

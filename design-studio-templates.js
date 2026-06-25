@@ -499,7 +499,7 @@
       const id = "ds-" + Math.random().toString(36).slice(2, 10);
       idxMap.push(id);
       nodesArr.push({
-        id, stencilId: item.stencilId, label: `${roomName} ${item.label}`,
+        id, stencilId: item.stencilId, label: item.label,
         pid: def?.pid, x: ox + pos.x, y: oy + pos.y, canvas: "room", roomId,
         w: def?.w || 76, h: def?.h || 46, qty: 1
       });
