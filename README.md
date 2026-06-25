@@ -14,6 +14,20 @@ A personal sandbox fork of [Cisco Portfolio Navigator](https://github.com/bnarcu
 
 Same core capabilities as Cisco Portfolio Navigator — guided planning, portfolio graph views, account planner, AI assistant (BYOK), exports, and more. See the [upstream README](https://github.com/bnarcum/cisco-portfolio-navigator) for the full feature list.
 
+### Design Studio (Plus)
+
+**Design Studio** extends Plus into presales design work:
+
+- **Intent** — describe an opportunity in plain language → auto-generate campus/branch/room topology
+- **Network canvas** — Visio-like drag-and-drop Cisco stencils, link mode, layer filters
+- **Room canvas** — floor-plan grid for Webex/collab gear placement and AV cabling
+- **Live BOM** — hardware, licenses, cables, services (CCW prep CSV)
+- **Cable schedule** — port-to-port links with media types and cable PIDs
+- **Validation** — design rule warnings before export
+- **Export pack** — CCW prep CSV + cable schedule + design JSON
+
+Open from the **Design Studio** button in the top action bar.
+
 ## Local development
 
 ```bash

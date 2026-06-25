@@ -7,6 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="assets/cpn-favicon.svg"/>
   <meta name="theme-color" content="#07182D"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+  <link rel="stylesheet" href="design-studio.css"/>
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     @font-face{
@@ -1138,6 +1139,15 @@
   <button id="rst">Reset</button>
   <button id="theme-toggle" type="button" title="Toggle light / dark presentation theme" aria-label="Toggle theme">☀ Light</button>
   <div class="actionbar-end">
+  <button id="design-studio-btn" type="button" title="Design Studio — topology, rooms, BOM, CCW prep">
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x="1" y="1" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.3"/>
+      <rect x="9" y="1" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.3"/>
+      <rect x="5" y="9" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.3"/>
+      <path d="M4 4h8M8 4v8" stroke="currentColor" stroke-width="1.2" opacity=".5"/>
+    </svg>
+    <span>Design Studio</span>
+  </button>
   <button id="dcloud-btn" type="button" title="Browse and launch Cisco dCloud hands-on labs">
     <svg width="13" height="13" viewBox="0 0 32 32" fill="none" aria-hidden="true">
       <path d="M24.5 17.5c1.2 0 2.2-1 2.2-2.3 0-1.1-.7-2-1.7-2.3.3-2.4-2-4.4-4.7-4.4-1.8 0-3.4.8-4.5 2.1-1-1.2-2.5-1.9-4.1-1.9-3.1 0-5.7 2.2-5.7 5.1 0 .3 0 .6.1.9C2.8 16.6 1.5 18.2 1.5 20.2c0 2.4 2 4.3 4.4 4.3h16.6c2.7 0 4.8-2.1 4.8-4.7 0-2.6-2.1-4.8-4.8-4.8-.3 0-.6 0-.9.1-.4-1.2-1.5-2.1-2.8-2.1z" fill="currentColor"/>
@@ -9620,7 +9630,7 @@ document.addEventListener("keydown",ev=>{
    ══════════════════════════════════════════════════════════════════════════*/
 (function v2(){
 
-const APP_VERSION   = "2.31.94";
+const APP_VERSION   = "2.32.0";
 const DATA_UPDATED  = "2026-06-20";
 const STORAGE_KEYS  = {
   plans:    "cpn-plans-v2",
@@ -15447,6 +15457,7 @@ function boot(){
   // Restore prior state (URL hash > current plan > autosave)
   bootRestore();
   if (typeof updatePlannerUI === "function") updatePlannerUI();
+  if (typeof initDesignStudio === "function") initDesignStudio();
 }
 
 // Wait a beat to ensure existing graph is ready
@@ -15470,5 +15481,6 @@ window.__cpnV2 = {
 };
 })();
 </script>
+<script src="design-studio.js"></script>
 </body>
 </html>
