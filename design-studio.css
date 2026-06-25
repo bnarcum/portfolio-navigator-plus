@@ -63,10 +63,9 @@
   background-size:24px 24px}
 #ds-canvas-wrap.room-mode{background:#0a1628}
 #ds-floorplan{position:absolute;inset:0;pointer-events:none;opacity:.35;background-size:contain;background-repeat:no-repeat;background-position:center}
-#ds-room-zones{position:absolute;inset:0;pointer-events:none;z-index:1}
-.ds-zone-label{position:absolute;border:1px dashed rgba(255,255,255,.12);border-radius:8px;
-  display:flex;align-items:flex-start;justify-content:flex-start;padding:4px 8px;
-  font-size:9px;text-transform:uppercase;color:rgba(255,255,255,.25);letter-spacing:.05em}
+#ds-room-zones{pointer-events:none}
+.ds-zone-rect{fill:none;stroke:rgba(255,255,255,.12);stroke-width:1;stroke-dasharray:4 3}
+.ds-zone-label-text{font-size:9px;fill:rgba(255,255,255,.25);letter-spacing:.05em;font-family:system-ui,sans-serif}
 
 #ds-minimap{position:absolute;bottom:12px;left:12px;width:130px;height:90px;z-index:3;
   background:rgba(7,24,45,.9);border:1px solid var(--border);border-radius:6px;padding:4px;pointer-events:none}

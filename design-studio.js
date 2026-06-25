@@ -288,11 +288,11 @@
             </div>
             <div id="ds-canvas-wrap" class="network-mode">
               <div id="ds-floorplan"></div>
-              <div id="ds-room-zones"></div>
               <div id="ds-toolbar"></div>
               <div id="ds-minimap"><svg id="ds-minimap-svg"></svg></div>
               <svg id="ds-svg" xmlns="http://www.w3.org/2000/svg">
                 <g id="ds-viewport">
+                  <g id="ds-room-zones"></g>
                   <g id="ds-layer-bands"></g>
                   <g id="ds-links"></g>
                   <g id="ds-nodes"></g>
@@ -673,6 +673,11 @@ Account: ${this.design.account}`;
       btn.classList.toggle("active", this.linkMode);
       document.getElementById("ds-svg").classList.toggle("linking", this.linkMode);
       if (this.linkMode) this.toast("Click source port, then target port");
+      this.renderCanvas();
+    }
+
+    showPortsOnNode(n) {
+      return this.showPorts && (this.linkMode || this.selectedNode === n.id);
     }
 
     createLink(fromId, fromPort, toId, toPort) {
@@ -799,10 +804,71 @@ Account: ${this.design.account}`;
         const minX = Math.min(...roomNodes.map(n => n.x)) - 20;
         const minY = Math.min(...roomNodes.map(n => n.y)) - 20;
         Object.entries(tpl.zones).forEach(([name, z]) => {
-          html += `<div class="ds-zone-label" style="left:${minX + z.x}px;top:${minY + z.y}px;width:${z.w}px;height:${z.h}px" data-zone="${name}">${name}</div>`;
+          const label = String(name).toUpperCase();
+          html += `<g class="ds-zone" data-room="${room.id}" data-zone="${escapeAttr(name)}" transform="translate(${minX + z.x},${minY + z.y})">
+            <rect class="ds-zone-rect" width="${z.w}" height="${z.h}" rx="8"/>
+            <text class="ds-zone-label-text" x="8" y="14">${escapeHtml(label)}</text>
+          </g>`;
         });
       });
       zoneLayer.innerHTML = html;
+    }
+
+    updateRoomZonesForRoom(roomId) {
+      if (this.tab !== "room") return;
+      const room = this.design.rooms.find(r => r.id === roomId);
+      const tpl = room ? TPL()?.ROOM_TEMPLATES?.[room.template] : null;
+      if (!tpl?.zones) return;
+      const roomNodes = this.design.nodes.filter(n => n.roomId === roomId);
+      if (!roomNodes.length) return;
+      const minX = Math.min(...roomNodes.map(n => n.x)) - 20;
+      const minY = Math.min(...roomNodes.map(n => n.y)) - 20;
+      document.querySelectorAll(`#ds-room-zones .ds-zone[data-room="${roomId}"]`).forEach(el => {
+        const name = el.dataset.zone;
+        const z = tpl.zones[name];
+        if (z) el.setAttribute("transform", `translate(${minX + z.x},${minY + z.y})`);
+      });
+    }
+
+    linkEndpoints(l) {
+      const portXY = (nodeId, portId) => {
+        const n = this.design.nodes.find(x => x.id === nodeId);
+        return n ? STN()?.portXY?.(n, portId) : { x: 0, y: 0 };
+      };
+      const a = l.fromPort ? portXY(l.from, l.fromPort) : (() => {
+        const n = this.design.nodes.find(x => x.id === l.from);
+        return { x: n.x + (n.w || 76) / 2, y: n.y + (n.h || 46) / 2 };
+      })();
+      const b = l.toPort ? portXY(l.to, l.toPort) : (() => {
+        const n = this.design.nodes.find(x => x.id === l.to);
+        return { x: n.x + (n.w || 76) / 2, y: n.y + (n.h || 46) / 2 };
+      })();
+      return { a, b };
+    }
+
+    updateLinksForNode(nodeId) {
+      const linksG = document.getElementById("ds-links");
+      if (!linksG) return;
+      this.design.links.forEach(l => {
+        if (l.from !== nodeId && l.to !== nodeId) return;
+        const g = linksG.querySelector(`.ds-link[data-link="${l.id}"]`);
+        if (!g) return;
+        const { a, b } = this.linkEndpoints(l);
+        const path = orthPath(a.x, a.y, b.x, b.y);
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 - 6;
+        g.querySelector(".ds-link-path")?.setAttribute("d", path);
+        const labels = g.querySelectorAll(".ds-link-label");
+        if (labels[0]) { labels[0].setAttribute("x", mx); labels[0].setAttribute("y", my); }
+        if (labels[1]) { labels[1].setAttribute("x", mx); labels[1].setAttribute("y", my + 10); }
+      });
+    }
+
+    updateNodeDragPosition(node) {
+      const el = document.querySelector(`#ds-nodes .ds-node[data-node="${node.id}"]`);
+      if (el) el.setAttribute("transform", `translate(${node.x},${node.y})`);
+      this.updateLinksForNode(node.id);
+      if (node.roomId) this.updateRoomZonesForRoom(node.roomId);
+      this.renderMinimap();
     }
 
     renderCanvas() {
@@ -811,10 +877,6 @@ Account: ${this.design.account}`;
       const nodes = this.visibleNodes();
       const nodeIds = new Set(nodes.map(n => n.id));
       const links = this.design.links.filter(l => nodeIds.has(l.from) && nodeIds.has(l.to));
-      const portXY = (nodeId, portId) => {
-        const n = this.design.nodes.find(x => x.id === nodeId);
-        return n ? STN()?.portXY?.(n, portId) : { x: 0, y: 0 };
-      };
 
       const bandsG = document.getElementById("ds-layer-bands");
       if (this.tab === "network" && this.design.showLayerBands !== false) {
@@ -827,16 +889,17 @@ Account: ${this.design.account}`;
 
       const linksG = document.getElementById("ds-links");
       linksG.innerHTML = links.map(l => {
-        const a = l.fromPort ? portXY(l.from, l.fromPort) : (() => { const n = this.design.nodes.find(x => x.id === l.from); return { x: n.x + (n.w||76)/2, y: n.y + (n.h||46)/2 }; })();
-        const b = l.toPort ? portXY(l.to, l.toPort) : (() => { const n = this.design.nodes.find(x => x.id === l.to); return { x: n.x + (n.w||76)/2, y: n.y + (n.h||46)/2 }; })();
+        const { a, b } = this.linkEndpoints(l);
         const sel = this.selectedLink === l.id ? " selected" : "";
         const path = orthPath(a.x, a.y, b.x, b.y);
         const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 - 6;
         const media = MEDIA_TYPES.find(m => m.id === l.media);
         const portLbl = l.fromPort && l.toPort ? `${l.fromPort}→${l.toPort}` : "";
-        return `<path class="ds-link-path${sel}" data-link="${l.id}" d="${path}" marker-end="url(#ds-arrow)"/>
+        return `<g class="ds-link${sel}" data-link="${l.id}">
+          <path class="ds-link-path${sel}" d="${path}" marker-end="url(#ds-arrow)"/>
           <text class="ds-link-label" x="${mx}" y="${my}">${escapeHtml(l.label || "")} ${escapeHtml(portLbl)}</text>
-          <text class="ds-link-label" x="${mx}" y="${my + 10}" font-size="8">${escapeHtml(media?.label?.slice(0, 12) || "")}</text>`;
+          <text class="ds-link-label" x="${mx}" y="${my + 10}" font-size="8">${escapeHtml(media?.label?.slice(0, 12) || "")}</text>
+        </g>`;
       }).join("");
 
       if (!document.getElementById("ds-arrow-def")) {
@@ -854,7 +917,7 @@ Account: ${this.design.account}`;
         const w = n.w || def?.w || 76, h = n.h || def?.h || 46;
         const qty = n.qty > 1 ? ` ×${n.qty}` : "";
         const svgInner = STN()?.renderDeviceSvg?.(def, w, h, sel) || `<rect class="ds-node-box" width="${w}" height="${h}" rx="6"/>`;
-        const ports = this.showPorts && this.linkMode ? STN()?.renderPorts?.(n, mode, this.linkFrom === n.id ? this.linkFromPort : null) || "" : "";
+        const ports = this.showPortsOnNode(n) ? STN()?.renderPorts?.(n, mode, this.linkFrom === n.id ? this.linkFromPort : null) || "" : "";
         return `<g class="ds-node${sel}" data-node="${n.id}" transform="translate(${n.x},${n.y})">
           ${svgInner}
           <rect class="ds-node-hit" width="${w}" height="${h}" rx="6" fill="transparent"/>
@@ -865,7 +928,7 @@ Account: ${this.design.account}`;
         </g>`;
       }).join("");
 
-      linksG.querySelectorAll(".ds-link-path").forEach(el => {
+      linksG.querySelectorAll(".ds-link").forEach(el => {
         el.onclick = e => { e.stopPropagation(); this.selectedLink = el.dataset.link; this.selectedNode = null; this.renderInspector(); this.renderCanvas(); };
       });
 
@@ -874,9 +937,11 @@ Account: ${this.design.account}`;
           if (e.target.classList?.contains("ds-port")) return;
           e.stopPropagation();
           const id = el.dataset.node;
+          const prev = this.selectedNode;
           this.selectedNode = id; this.selectedLink = null;
           this.drag = { node: this.design.nodes.find(n => n.id === id) };
           this.renderInspector();
+          if (prev !== id) this.renderCanvas();
         };
       });
 
@@ -1039,7 +1104,7 @@ Account: ${this.design.account}`;
         let nx = pt.x - (this.drag.node.w || 76) / 2, ny = pt.y - (this.drag.node.h || 46) / 2;
         if (this.design.snapGrid !== false) { nx = snap(nx); ny = snap(ny); }
         this.drag.node.x = nx; this.drag.node.y = ny;
-        this.renderCanvas(); this.renderMinimap();
+        this.updateNodeDragPosition(this.drag.node);
         return;
       }
       if (this.panDrag) {

@@ -33,17 +33,17 @@
         { fi: 0, ti: 1, media: "fiber-sm", label: "Core VPC", fromPort: "Te1/1/1", toPort: "Te1/1/1" },
         { fi: 0, ti: 2, media: "fiber-sm", label: "Core-Dist-MDF", fromPort: "Te1/1/2", toPort: "Te1/1/1" },
         { fi: 1, ti: 3, media: "fiber-sm", label: "Core-Dist-IDF", fromPort: "Te1/1/2", toPort: "Te1/1/1" },
-        { fi: 2, ti: 4, media: "fiber-mm", label: "Dist-Acc1", fromPort: "Gi1/0/48", toPort: "Te1/1/1" },
-        { fi: 2, ti: 5, media: "fiber-mm", label: "Dist-Acc2", fromPort: "Gi1/0/47", toPort: "Te1/1/2" },
-        { fi: 3, ti: 6, media: "fiber-mm", label: "Dist-Acc-IDF", fromPort: "Gi1/0/48", toPort: "Te1/1/1" },
+        { fi: 2, ti: 4, media: "fiber-mm", label: "Dist-Acc1", fromPort: "Te1/1/2", toPort: "Te1/1/1" },
+        { fi: 2, ti: 5, media: "fiber-mm", label: "Dist-Acc2", fromPort: "Te1/1/2", toPort: "Te1/1/2" },
+        { fi: 3, ti: 6, media: "fiber-mm", label: "Dist-Acc-IDF", fromPort: "Te1/1/2", toPort: "Te1/1/1" },
         { fi: 4, ti: 7, media: "cat6", label: "PoE-AP", fromPort: "Gi1/0/1", toPort: "ETH0" },
         { fi: 6, ti: 8, media: "cat6", label: "PoE-AP", fromPort: "Gi1/0/1", toPort: "ETH0" },
         { fi: 9, ti: 0, media: "fiber-sm", label: "WAN-Core", fromPort: "Te0/1/0", toPort: "Te1/1/1" },
         { fi: 14, ti: 9, media: "fiber-sm", label: "DIA-WAN", fromPort: "Port1", toPort: "Gi0/0/0" },
         { fi: 10, ti: 2, media: "fiber-sm", label: "FW-Dist", fromPort: "inside", toPort: "Te1/1/2" },
-        { fi: 11, ti: 2, media: "cat6a", label: "ISE-RADIUS", fromPort: "Port1", toPort: "Gi1/0/24" },
+        { fi: 11, ti: 2, media: "cat6a", label: "ISE-RADIUS", fromPort: "Port1", toPort: "Gi1/0/48" },
         { fi: 12, ti: 4, media: "cat6a", label: "ISE-Acc", fromPort: "Port1", toPort: "Gi1/0/24" },
-        { fi: 13, ti: 4, media: "cat6a", label: "Mgmt", fromPort: "Port1", toPort: "Gi1/0/23" }
+        { fi: 13, ti: 4, media: "cat6a", label: "Mgmt", fromPort: "Port1", toPort: "Gi1/0/24" }
       ]
     },
     campusCollapsed: {
@@ -205,8 +205,8 @@
         { fi: 9, ti: 0, media: "fiber-sm", label: "WAN-Core", fromPort: "Te0/1/0", toPort: "Te1/1/1" },
         { fi: 0, ti: 1, media: "fiber-sm", label: "Core-HS", fromPort: "Te1/1/1", toPort: "Te1/1/1" },
         { fi: 0, ti: 2, media: "fiber-sm", label: "Core-MS", fromPort: "Te1/1/2", toPort: "Te1/1/1" },
-        { fi: 1, ti: 3, media: "fiber-mm", label: "Dist-Acc", fromPort: "Gi1/0/48", toPort: "Te1/1/1" },
-        { fi: 2, ti: 4, media: "fiber-mm", label: "Dist-Acc", fromPort: "Gi1/0/48", toPort: "Te1/1/1" },
+        { fi: 1, ti: 3, media: "fiber-mm", label: "Dist-Acc", fromPort: "Te1/1/2", toPort: "Te1/1/1" },
+        { fi: 2, ti: 4, media: "fiber-mm", label: "Dist-Acc", fromPort: "Te1/1/2", toPort: "Te1/1/1" },
         { fi: 3, ti: 5, media: "cat6", label: "PoE Gym", fromPort: "Gi1/0/1", toPort: "ETH0" },
         { fi: 4, ti: 6, media: "cat6", label: "PoE Class", fromPort: "Gi1/0/1", toPort: "ETH0" },
         { fi: 7, ti: 0, media: "cat6a", label: "ISE", fromPort: "Port1", toPort: "Gi1/0/24" }
@@ -234,7 +234,7 @@
         { fi: 1, ti: 6, media: "fiber-mm", label: "Guest", fromPort: "Te1/1/2", toPort: "Te1/1/1" },
         { fi: 5, ti: 7, media: "cat6", label: "PoE", fromPort: "Gi1/0/1", toPort: "ETH0" },
         { fi: 3, ti: 5, media: "cat6a", label: "NAC", fromPort: "Port1", toPort: "Gi1/0/24" },
-        { fi: 8, ti: 5, media: "cat6a", label: "Mgmt", fromPort: "Port1", toPort: "Gi1/0/23" }
+        { fi: 8, ti: 5, media: "cat6a", label: "Mgmt", fromPort: "Port1", toPort: "Gi1/0/24" }
       ]
     },
     zeroTrustEdge: {
@@ -245,19 +245,18 @@
         { stencilId: "c8200-sdwan", label: "SD-WAN Edge", x: 200, y: 220 },
         { stencilId: "fpr-2130", label: "Secure FW", x: 380, y: 220 },
         { stencilId: "umbrella-va", label: "Umbrella SWG", x: 380, y: 100 },
-        { stencilId: "ise-psn", label: "ISE", x: 560, y: 100 },
-        { stencilId: "ise-psn", label: "Duo MFA", x: 560, y: 220 },
+        { stencilId: "ise-psn", label: "ISE PSN", x: 560, y: 100 },
         { stencilId: "c9300-access", label: "Access", x: 560, y: 320 },
         { stencilId: "users-vlan", label: "Users", x: 740, y: 320 },
         { stencilId: "internet", label: "Internet", x: 60, y: 220 }
       ],
       links: [
-        { fi: 7, ti: 0, media: "fiber-sm", label: "WAN", fromPort: "Port1", toPort: "Gi0/0/0" },
+        { fi: 6, ti: 0, media: "fiber-sm", label: "WAN", fromPort: "Port1", toPort: "Gi0/0/0" },
         { fi: 0, ti: 1, media: "fiber-sm", label: "Edge-FW", fromPort: "Te0/1/0", toPort: "outside" },
         { fi: 1, ti: 4, media: "cat6a", label: "FW-Access", fromPort: "inside", toPort: "Te1/1/1" },
         { fi: 2, ti: 1, media: "cat6a", label: "SWG", fromPort: "Port1", toPort: "dmz" },
         { fi: 3, ti: 4, media: "cat6a", label: "NAC", fromPort: "Port1", toPort: "Gi1/0/24" },
-        { fi: 4, ti: 6, media: "cat6", label: "User VLAN", fromPort: "Gi1/0/1", toPort: "Port1" }
+        { fi: 4, ti: 5, media: "cat6", label: "User VLAN", fromPort: "Gi1/0/1", toPort: "Port1" }
       ]
     },
     hyperflexEdge: {
@@ -277,7 +276,7 @@
         { fi: 0, ti: 1, media: "fiber-sm", label: "ToR VPC", fromPort: "Eth1/32", toPort: "Eth1/32" },
         { fi: 0, ti: 2, media: "fiber-sm", label: "Compute", fromPort: "Eth1/1", toPort: "Port1" },
         { fi: 1, ti: 3, media: "fiber-sm", label: "Compute", fromPort: "Eth1/1", toPort: "Port1" },
-        { fi: 0, ti: 4, media: "fiber-sm", label: "Compute", fromPort: "Eth1/2", toPort: "Port1" },
+        { fi: 1, ti: 4, media: "fiber-sm", label: "Compute", fromPort: "Eth1/2", toPort: "Port1" },
         { fi: 5, ti: 0, media: "fiber-sm", label: "FW-ToR", fromPort: "inside", toPort: "Eth1/33" }
       ]
     }
@@ -324,9 +323,7 @@
         { fi: 4, ti: 7, media: "cat6", label: "PoE-Mic-R", fromPort: "Gi1/0/4", toPort: "ETH" },
         { fi: 2, ti: 0, media: "hdmi", label: "Primary Video", fromPort: "HDMI1", toPort: "HDMI1" },
         { fi: 2, ti: 1, media: "hdmi", label: "Camera", fromPort: "HDMI2", toPort: "HDMI" },
-        { fi: 2, ti: 3, media: "usb-c", label: "Touch Control", fromPort: "USB", toPort: "LAN" },
-        { fi: 8, ti: 6, media: "speaker", label: "Spk-L", fromPort: "SPK1", toPort: "ETH" },
-        { fi: 8, ti: 7, media: "speaker", label: "Spk-R", fromPort: "SPK2", toPort: "ETH" }
+        { fi: 4, ti: 8, media: "cat6", label: "Amp-Control", fromPort: "Gi1/0/5", toPort: "LAN" }
       ]
     },
     boardroom: {
@@ -356,7 +353,8 @@
         { fi: 5, ti: 10, media: "cat6", label: "PoE-Mic3", fromPort: "Gi1/0/5", toPort: "ETH" },
         { fi: 3, ti: 0, media: "hdmi", label: "Board Video", fromPort: "HDMI1", toPort: "HDMI1" },
         { fi: 3, ti: 1, media: "hdmi", label: "Aux Video", fromPort: "HDMI2", toPort: "HDMI1" },
-        { fi: 3, ti: 2, media: "hdmi", label: "Camera", fromPort: "HDMI2", toPort: "HDMI" }
+        { fi: 3, ti: 2, media: "hdmi", label: "Camera", fromPort: "HDMI2", toPort: "HDMI" },
+        { fi: 5, ti: 11, media: "cat6", label: "Amp-Control", fromPort: "Gi1/0/6", toPort: "LAN" }
       ]
     },
     training: {

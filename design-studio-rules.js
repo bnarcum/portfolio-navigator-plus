@@ -5,44 +5,58 @@
   "use strict";
 
   const ST = () => window.__DS_STENCILS;
-  const MEDIA = [
-    { id: "cat6", cablePid: "CAB-CAT6-3M" }, { id: "cat6a", cablePid: "CAB-CAT6A-5M" },
-    { id: "fiber-sm", cablePid: "SFP-10G-LR-S" }, { id: "fiber-mm", cablePid: "SFP-10G-SR-S" },
-    { id: "fiber-40g", cablePid: "QSFP-40G-LR4-S" }, { id: "dac", cablePid: "SFP-H10GB-CU3M" },
-    { id: "hdmi", cablePid: "CAB-HDMI-3M" }, { id: "usb-c", cablePid: "CAB-USBC-2M" },
-    { id: "speaker", cablePid: "CAB-SPK-10M" }, { id: "wireless", cablePid: "N/A-RF" }
-  ];
 
   function nodeDef(n) {
     const mode = n.canvas === "room" ? "room" : "network";
     return ST()?.getDef?.(n.stencilId, mode);
   }
 
+  function nodeMode(n) { return n.canvas === "room" ? "room" : "network"; }
+
   function nets(d) { return d.nodes.filter(n => n.canvas !== "room"); }
   function rooms(d) { return d.nodes.filter(n => n.canvas === "room"); }
 
-  function computePoeBudget(design) {
-    const switches = design.nodes.filter(n => {
-      const def = nodeDef(n);
-      return def?.poeW > 0 || /9200|9300|ms250|switch/i.test(n.stencilId || "");
-    });
-    const poeDevices = design.nodes.filter(n => {
-      const def = nodeDef(n);
-      return def?.poeW > 0 && def?.role !== "access" && def?.role !== "collab-switch" || /ap|mic|kit|bar|touch|desk/i.test(n.stencilId || "");
-    });
-    const load = poeDevices.reduce((s, n) => s + (nodeDef(n)?.poeW || 15) * (n.qty || 1), 0);
-    const budget = switches.reduce((s, n) => s + (nodeDef(n)?.poeW || 370) * (n.qty || 1), 0);
-    return { load, budget, headroom: budget - load, switches: switches.length, devices: poeDevices.length };
+  function isPoeSwitch(def) {
+    return def && (def.role === "access" || def.role === "collab-switch") && (def.poeW || 0) > 0;
   }
 
-  function usedPorts(design, nodeId) {
-    return design.links.filter(l => l.from === nodeId || l.to === nodeId).length;
+  function isPoeLoad(def, stencilId) {
+    if (!def) return /ap|mic|kit|bar|touch|desk|9179|mr57/i.test(stencilId || "");
+    if (isPoeSwitch(def)) return false;
+    if ((def.poeW || 0) > 0) return true;
+    return /ap|mic|kit|bar|touch|desk/i.test(stencilId || "");
+  }
+
+  function computePoeBudget(design) {
+    const switches = design.nodes.filter(n => isPoeSwitch(nodeDef(n)));
+    const loads = design.nodes.filter(n => isPoeLoad(nodeDef(n), n.stencilId));
+    const load = loads.reduce((s, n) => s + (nodeDef(n)?.poeW || 15) * (n.qty || 1), 0);
+    const budget = switches.reduce((s, n) => s + (nodeDef(n)?.poeW || 0) * (n.qty || 1), 0);
+    return { load, budget, headroom: budget - load, switches: switches.length, devices: loads.length };
+  }
+
+  function validateLinkPorts(design) {
+    const issues = [];
+    design.links.forEach(l => {
+      const from = design.nodes.find(n => n.id === l.from);
+      const to = design.nodes.find(n => n.id === l.to);
+      if (!from || !to) return;
+      const fm = nodeMode(from), tm = nodeMode(to);
+      const STN = ST();
+      if (l.fromPort && STN && !STN.portExists(from.stencilId, fm, l.fromPort))
+        issues.push({ id: "port-from-" + l.id, msg: `${l.label || "Link"}: invalid fromPort ${l.fromPort} on ${from.label}`, severity: "error" });
+      if (l.toPort && STN && !STN.portExists(to.stencilId, tm, l.toPort))
+        issues.push({ id: "port-to-" + l.id, msg: `${l.label || "Link"}: invalid toPort ${l.toPort} on ${to.label}`, severity: "error" });
+    });
+    return issues;
   }
 
   function validateDesign(design) {
-    const w = [], tips = [], info = [];
+    const w = [], tips = [];
     const network = nets(design);
     const roomNodes = rooms(design);
+
+    w.push(...validateLinkPorts(design));
 
     const cores = network.filter(n => /core|c9500|n9k-spine|spine/i.test(n.stencilId + n.label));
     const fws = network.filter(n => /fpr|firewall|sf-/i.test(n.stencilId));
@@ -79,7 +93,7 @@
       const hasNet = design.links.some(l => {
         if (l.from !== r.id && l.to !== r.id) return false;
         const other = design.nodes.find(n => n.id === (l.from === r.id ? l.to : l.from));
-        return other && /switch|9200|9300/i.test(other.stencilId || "");
+        return other && /switch|9200|9300|collab/i.test(other.stencilId || "");
       });
       if (!hasNet) w.push({ id: "room-poe-" + r.id, msg: `${r.label}: missing PoE/network to collab switch.`, severity: "error" });
     });
@@ -96,23 +110,21 @@
     if (ise.length === 0 && network.length >= 8)
       tips.push({ id: "add-ise", msg: "Consider ISE for 802.1X/NAC on enterprise campus." });
 
-    return { warnings: w, tips, info, ok: w.filter(x => x.severity === "error").length === 0, poe };
+    return { warnings: w, tips, ok: w.filter(x => x.severity === "error").length === 0, poe };
   }
 
   function computeScore(design) {
     let score = 100;
     const val = validateDesign(design);
-    score -= val.warnings.filter(w => w.severity === "error").length * 12;
-    score -= val.tips.length * 3;
+    score -= val.warnings.filter(w => w.severity === "error").length * 15;
+    score -= val.tips.length * 2;
     const network = nets(design);
     if (network.length >= 2) {
       const connected = network.filter(n => design.links.some(l => l.from === n.id || l.to === n.id)).length;
       const ratio = connected / network.length;
-      if (ratio < 0.8) score -= Math.round((0.8 - ratio) * 30);
+      if (ratio < 0.85) score -= Math.round((0.85 - ratio) * 40);
     }
-    if (design.links.length === 0 && design.nodes.length > 1) score -= 20;
-    const bomLines = design.nodes.length;
-    if (bomLines >= 5 && val.warnings.length === 0) score += 5;
+    if (design.links.length === 0 && design.nodes.length > 1) score -= 25;
     return Math.max(0, Math.min(100, score));
   }
 
@@ -120,7 +132,6 @@
     const suggestions = [];
     const network = nets(design);
     const STN = ST();
-
     const cores = network.filter(n => /core|c9500/i.test(n.stencilId));
     const access = network.filter(n => /9200|9300|access|c9200/i.test(n.stencilId));
     const aps = network.filter(n => /9179|mr57|ap/i.test(n.stencilId + n.label));
@@ -155,7 +166,7 @@
     });
 
     if (cores.length >= 1 && access.length >= 1) {
-      access.forEach((acc, i) => {
+      access.forEach(acc => {
         if (!design.links.some(l => (l.from === acc.id || l.to === acc.id) && cores.some(c => l.from === c.id || l.to === c.id)))
           suggestions.push({
             id: "link-core-acc-" + acc.id, label: `Uplink ${acc.label} → ${cores[0].label}`,
@@ -192,14 +203,8 @@
       return id;
     };
 
-    if (suggestion.action === "addNode") {
-      addNode(p, 300, 180);
-      return true;
-    }
-    if (suggestion.action === "addNodes") {
-      (p.nodes || []).forEach((n, i) => addNode(n, 280, 180 + i * 100));
-      return true;
-    }
+    if (suggestion.action === "addNode") { addNode(p, 300, 180); return true; }
+    if (suggestion.action === "addNodes") { (p.nodes || []).forEach((n, i) => addNode(n, 280, 180 + i * 100)); return true; }
     if (suggestion.action === "addLink" && p.from && p.to) {
       design.links.push({ id: uid(), from: p.from, to: p.to, media: p.media || "cat6", label: p.label || "Link", length: "5m", fromPort: p.fromPort || "", toPort: p.toPort || "" });
       return true;
@@ -222,20 +227,14 @@
       }
       return true;
     }
-    if (suggestion.action === "autoWireAll") {
-      autoWireLayerBased(design, uid, STN);
-      return true;
-    }
+    if (suggestion.action === "autoWireAll") { autoWireLayerBased(design, uid, STN); return true; }
     return false;
   }
 
   function autoWireLayerBased(design, uid, STN) {
     const layerOrder = ["wan", "security", "core", "distribution", "dc", "access", "mgmt", "collab"];
     const byLayer = {};
-    nets(design).forEach(n => {
-      const l = n.layer || "access";
-      (byLayer[l] ||= []).push(n);
-    });
+    nets(design).forEach(n => { (byLayer[n.layer || "access"] ||= []).push(n); });
     for (let i = 0; i < layerOrder.length - 1; i++) {
       const upper = byLayer[layerOrder[i]] || [];
       const lower = byLayer[layerOrder[i + 1]] || [];
@@ -251,23 +250,16 @@
 
   function generateCustomerNarrative(design) {
     const network = nets(design);
-    const roomCount = (design.rooms || []).length;
     const score = computeScore(design);
     const poe = computePoeBudget(design);
-    let md = `# Solution Overview — ${design.account}\n\n`;
-    md += `**Design completeness score:** ${score}/100\n\n`;
-    md += `## Scope\n- **Network devices:** ${network.length}\n- **Collaboration rooms:** ${roomCount || rooms(design).length}\n- **Interconnections:** ${design.links.length}\n`;
-    if (poe.budget) md += `- **PoE budget:** ${poe.load}W / ${poe.budget}W\n`;
-    md += `\n## Architecture\n`;
-    const roles = {};
-    network.forEach(n => { const r = nodeDef(n)?.role || n.layer || "other"; roles[r] = (roles[r] || 0) + 1; });
-    Object.entries(roles).forEach(([r, c]) => { md += `- ${r}: ${c}\n`; });
-    md += `\n## Next steps\n1. Validate PIDs in CCW\n2. Confirm cable lengths on site survey\n3. Review validation panel for design gaps\n`;
+    let md = `# Solution Overview — ${design.account || "Design"}\n\n**Design score:** ${score}/100\n\n`;
+    md += `## Scope\n- Network devices: ${network.length}\n- Collaboration rooms: ${(design.rooms || []).length || rooms(design).length}\n- Links: ${design.links.length}\n`;
+    if (poe.budget) md += `- PoE: ${poe.load}W / ${poe.budget}W (${poe.headroom}W headroom)\n`;
     return md;
   }
 
   window.__DS_RULES = {
     validateDesign, computeScore, getSuggestions, applyFix, computePoeBudget,
-    autoWireLayerBased, generateCustomerNarrative, MEDIA
+    validateLinkPorts, autoWireLayerBased, generateCustomerNarrative
   };
 })();

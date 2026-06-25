@@ -52,18 +52,37 @@
       <ellipse cx="38" cy="20" rx="28" ry="8" fill="none" stroke="#506070" stroke-width="1" stroke-dasharray="3 2"/>`
   };
 
+  function buildCopperPorts(prefix, count, startX, endX) {
+    const ports = [];
+    for (let i = 1; i <= count; i++) {
+      const t = count === 1 ? 0.5 : startX + ((i - 1) / (count - 1)) * (endX - startX);
+      ports.push({ id: `${prefix}${i}`, x: t, y: 1, side: "bottom", type: "copper", poe: true });
+    }
+    return ports;
+  }
+
   const PORT_PRESETS = {
     "switch-48": [
-      { id: "Gi1/0/1", x: 0.12, y: 1, side: "bottom", type: "copper", poe: true },
+      ...buildCopperPorts("Gi1/0/", 8, 0.06, 0.74),
+      { id: "Gi1/0/23", x: 0.82, y: 1, side: "bottom", type: "copper", poe: true },
       { id: "Gi1/0/24", x: 0.88, y: 1, side: "bottom", type: "copper", poe: true },
+      { id: "Gi1/0/47", x: 0.92, y: 1, side: "bottom", type: "copper", poe: true },
+      { id: "Gi1/0/48", x: 0.98, y: 1, side: "bottom", type: "copper", poe: true },
       { id: "Te1/1/1", x: 0.25, y: 0, side: "top", type: "sfp", speed: "10G" },
       { id: "Te1/1/2", x: 0.75, y: 0, side: "top", type: "sfp", speed: "10G" },
       { id: "Mgmt", x: 0.5, y: 0, side: "top", type: "mgmt" }
     ],
     "switch-24": [
-      { id: "Gi1/0/1", x: 0.15, y: 1, side: "bottom", type: "copper", poe: true },
-      { id: "Gi1/0/24", x: 0.85, y: 1, side: "bottom", type: "copper", poe: true },
+      ...buildCopperPorts("Gi1/0/", 8, 0.08, 0.88),
+      { id: "Gi1/0/23", x: 0.92, y: 1, side: "bottom", type: "copper", poe: true },
+      { id: "Gi1/0/24", x: 0.98, y: 1, side: "bottom", type: "copper", poe: true },
       { id: "Te1/1/1", x: 0.5, y: 0, side: "top", type: "sfp", speed: "10G" }
+    ],
+    "switch-chassis": [
+      { id: "Te1/1/1", x: 0.3, y: 0, side: "top", type: "sfp", speed: "10G" },
+      { id: "Te1/1/2", x: 0.7, y: 0, side: "top", type: "sfp", speed: "10G" },
+      { id: "Gi1/0/1", x: 0.2, y: 1, side: "bottom", type: "copper", poe: true },
+      { id: "Gi1/0/48", x: 0.8, y: 1, side: "bottom", type: "copper", poe: true }
     ],
     "router-dual": [
       { id: "Gi0/0/0", x: 0.2, y: 1, side: "bottom", type: "copper" },
@@ -79,6 +98,7 @@
     "ap-single": [{ id: "ETH0", x: 0.5, y: 1, side: "bottom", type: "copper", poe: true }],
     "nexus-spine": [
       { id: "Eth1/1", x: 0.2, y: 1, side: "bottom", type: "fiber", speed: "40G" },
+      { id: "Eth1/2", x: 0.35, y: 1, side: "bottom", type: "fiber", speed: "40G" },
       { id: "Eth1/32", x: 0.8, y: 1, side: "bottom", type: "fiber", speed: "40G" },
       { id: "Eth1/33", x: 0.2, y: 0, side: "top", type: "fiber", speed: "40G" },
       { id: "Eth1/64", x: 0.8, y: 0, side: "top", type: "fiber", speed: "40G" }
@@ -110,7 +130,7 @@
   const NETWORK_DEVICES = {
     "c9500-core": { label: "C9500 Core", pid: "C9500-48Y4C", layer: "core", role: "core", shape: "switch", ports: "switch-48", w: 88, h: 48, poeW: 0, rackU: 1 },
     "c9500-core-2": { label: "C9500 Core (B)", pid: "C9500-48Y4C", layer: "core", role: "core", shape: "switch", ports: "switch-48", w: 88, h: 48 },
-    "c9400-dist": { label: "C9400 Dist", pid: "C9400-L-C9407R", layer: "distribution", role: "distribution", shape: "switch", ports: "switch-48", w: 88, h: 48, rackU: 7 },
+    "c9400-dist": { label: "C9400 Dist", pid: "C9400-L-C9407R", layer: "distribution", role: "distribution", shape: "switch", ports: "switch-chassis", w: 88, h: 48, rackU: 7 },
     "c9300-access": { label: "C9300 Access", pid: "C9300-48P", layer: "access", role: "access", shape: "switch", ports: "switch-48", w: 88, h: 48, poeW: 740, rackU: 1 },
     "c9200-access": { label: "C9200 Access", pid: "C9200-24P", layer: "access", role: "access", shape: "switch", ports: "switch-24", w: 80, h: 44, poeW: 370, rackU: 1 },
     "c9200-collab": { label: "C9200 Collab SW", pid: "C9200-24P", layer: "collab", role: "collab-switch", shape: "switch", ports: "switch-24", w: 80, h: 44, poeW: 370 },
@@ -151,7 +171,8 @@
     "display-86": { label: "Display 86\"", pid: "DISPLAY-86-4K", shape: "display", ports: "display-hdmi", w: 108, h: 62 },
     "credenza-rack": { label: "12U Credenza", pid: "RACK-12U-CRED", shape: "rack", ports: "generic", w: 56, h: 72 },
     "conf-table-12": { label: "Conf Table (12)", pid: "FURN-TABLE-12", shape: "table", ports: "generic", w: 120, h: 56 },
-    "conf-table-8": { label: "Huddle Table (8)", pid: "FURN-TABLE-8", shape: "table", ports: "generic", w: 88, h: 48 }
+    "conf-table-8": { label: "Huddle Table (8)", pid: "FURN-TABLE-8", shape: "table", ports: "generic", w: 88, h: 48 },
+    "c9200-collab": { label: "C9200 Collab SW", pid: "C9200-24P", shape: "switch", ports: "switch-24", w: 80, h: 44, poeW: 370, layer: "collab", role: "collab-switch" }
   };
 
   const FAMILY_TO_STENCIL = {
@@ -170,11 +191,16 @@
   }
 
   function getDef(stencilId, mode) {
-    if (mode === "room") return ROOM_DEVICES[stencilId];
+    if (ROOM_DEVICES[stencilId]) return ROOM_DEVICES[stencilId];
     if (NETWORK_DEVICES[stencilId]) return NETWORK_DEVICES[stencilId];
     const mapped = FAMILY_TO_STENCIL[stencilId];
-    if (mapped) return NETWORK_DEVICES[mapped];
+    if (mapped && NETWORK_DEVICES[mapped]) return NETWORK_DEVICES[mapped];
     return null;
+  }
+
+  function portExists(stencilId, mode, portId) {
+    if (!portId) return true;
+    return getPorts(stencilId, mode).some(p => p.id === portId);
   }
 
   function portXY(node, portId) {
@@ -257,7 +283,7 @@
 
   window.__DS_STENCILS = {
     NETWORK_DEVICES, ROOM_DEVICES, FAMILY_TO_STENCIL, PORT_PRESETS,
-    getDef, getPorts, portXY, renderDeviceSvg, renderPorts,
+    getDef, getPorts, portXY, portExists, renderDeviceSvg, renderPorts,
     buildCatalogStencils, buildRoomStencils, suggestMedia, DEVICE_SVG
   };
 })();
