@@ -487,13 +487,13 @@
       category: "Small",
       ct: "Traditional Huddle Room Design Guide",
       ctUrl: "https://www.cisco.com/c/dam/en/us/solutions/collateral/hybrid-work/webex-nyc-design-guide-traditional-huddle-room.pdf",
-      w: 440, h: 360,
-      zones: { display: { x: 180, y: 28, w: 200, h: 100 }, table: { x: 100, y: 150, w: 200, h: 110 }, rack: { x: 24, y: 280, w: 160, h: 72 } },
+      w: 500, h: 420,
+      zones: { display: { x: 160, y: 32, w: 240, h: 128 }, table: { x: 100, y: 188, w: 240, h: 132 }, rack: { x: 32, y: 340, w: 200, h: 88 } },
       items: [
-        { stencilId: "room-bar", zone: "display", relX: 0.5, relY: 0.35, label: "Room Bar" },
+        { stencilId: "room-bar", zone: "display", relX: 0.5, relY: 0.32, label: "Room Bar" },
         { stencilId: "display-75", zone: "display", relX: 0.5, relY: 0.78, label: "Display" },
         { stencilId: "conf-table-8", zone: "table", relX: 0.5, relY: 0.55, label: "Table" },
-        { stencilId: "c9200-collab", zone: "rack", relX: 0.35, relY: 0.55, label: "PoE Switch" }
+        { stencilId: "c9200-collab", zone: "rack", relX: 0.5, relY: 0.5, label: "PoE Switch" }
       ],
       links: [
         { fi: 3, ti: 0, media: "cat6", label: "PoE-Bar", fromPort: "Gi1/0/1", toPort: "LAN" },
@@ -505,12 +505,12 @@
       category: "Medium",
       ct: "Medium Collaboration Room — Single Display",
       ctUrl: "https://www.cisco.com/c/dam/en/us/solutions/collateral/hybrid-work/webex-nyc-design-guide-medium-collaboration-room-single-display.pdf",
-      w: 560, h: 420,
+      w: 620, h: 500,
       zones: {
-        display: { x: 150, y: 20, w: 280, h: 110 },
-        ceiling: { x: 80, y: 128, w: 340, h: 32 },
-        table: { x: 80, y: 168, w: 340, h: 150 },
-        rack: { x: 24, y: 328, w: 280, h: 88 }
+        display: { x: 140, y: 28, w: 320, h: 140 },
+        ceiling: { x: 80, y: 188, w: 400, h: 48 },
+        table: { x: 80, y: 256, w: 400, h: 168 },
+        rack: { x: 32, y: 440, w: 360, h: 104 }
       },
       items: [
         { stencilId: "quad-cam", zone: "display", relX: 0.5, relY: 0.22, label: "Quad Cam" },
@@ -538,11 +538,11 @@
       category: "Large",
       ct: "Medium Collaboration Room — Video Centric",
       ctUrl: "https://www.cisco.com/c/dam/en/us/solutions/collateral/hybrid-work/webex-nyc-design-guide-medium-collaboration-room-video-centric.pdf",
-      w: 600, h: 440,
+      w: 680, h: 520,
       zones: {
-        display: { x: 160, y: 20, w: 320, h: 110 },
-        table: { x: 80, y: 140, w: 400, h: 180 },
-        rack: { x: 24, y: 328, w: 300, h: 96 }
+        display: { x: 140, y: 28, w: 400, h: 140 },
+        table: { x: 60, y: 196, w: 480, h: 200 },
+        rack: { x: 32, y: 420, w: 380, h: 112 }
       },
       items: [
         { stencilId: "board-pro", zone: "display", relX: 0.35, relY: 0.62, label: "Board Pro" },
@@ -571,8 +571,8 @@
       category: "Medium",
       ct: "Small Collaboration Room Design Guide",
       ctUrl: "https://www.cisco.com/c/dam/en/us/solutions/collateral/hybrid-work/webex-nyc-design-guide-small-collaboration-room.pdf",
-      w: 560, h: 420,
-      zones: { display: { x: 200, y: 30, w: 220, h: 90 }, table: { x: 60, y: 140, w: 440, h: 200 }, rack: { x: 30, y: 350, w: 160, h: 70 } },
+      w: 620, h: 500,
+      zones: { display: { x: 180, y: 32, w: 260, h: 120 }, table: { x: 48, y: 180, w: 520, h: 220 }, rack: { x: 32, y: 428, w: 220, h: 96 } },
       items: [
         { stencilId: "board-pro", zone: "display", relX: 0.5, relY: 0.5, label: "Board Pro 75" },
         { stencilId: "c9200-collab", zone: "rack", relX: 0.35, relY: 0.55, label: "Collab Switch" },
@@ -590,12 +590,12 @@
     executive: {
       name: "Executive Office",
       category: "Small",
-      w: 360, h: 300,
-      zones: { desk: { x: 80, y: 120, w: 200, h: 120 }, wall: { x: 80, y: 30, w: 200, h: 70 } },
+      w: 420, h: 360,
+      zones: { desk: { x: 80, y: 140, w: 260, h: 140 }, wall: { x: 80, y: 32, w: 260, h: 88 } },
       items: [
-        { stencilId: "desk-pro", zone: "desk", relX: 0.5, relY: 0.5, label: "Desk Pro" },
-        { stencilId: "display-75", zone: "wall", relX: 0.5, relY: 0.5, label: "Wall Display" },
-        { stencilId: "c9200-collab", zone: "desk", relX: 0.15, relY: 0.85, label: "PoE SW" }
+        { stencilId: "desk-pro", zone: "desk", relX: 0.5, relY: 0.45, label: "Desk Pro" },
+        { stencilId: "display-75", zone: "wall", relX: 0.5, relY: 0.55, label: "Wall Display" },
+        { stencilId: "c9200-collab", zone: "desk", relX: 0.5, relY: 0.88, label: "PoE SW" }
       ],
       links: [
         { fi: 2, ti: 0, media: "cat6", label: "PoE", fromPort: "Gi1/0/1", toPort: "LAN" },
@@ -605,11 +605,11 @@
     teamsRoom: {
       name: "Microsoft Teams Room",
       category: "Medium",
-      w: 520, h: 400,
+      w: 580, h: 460,
       zones: {
-        display: { x: 160, y: 30, w: 220, h: 90 },
-        table: { x: 100, y: 140, w: 300, h: 130 },
-        rack: { x: 24, y: 288, w: 260, h: 96 }
+        display: { x: 140, y: 32, w: 300, h: 120 },
+        table: { x: 80, y: 180, w: 380, h: 156 },
+        rack: { x: 32, y: 360, w: 340, h: 112 }
       },
       items: [
         { stencilId: "display-75", zone: "display", relX: 0.5, relY: 0.55, label: "Teams Display" },
@@ -629,11 +629,11 @@
     zoomRoom: {
       name: "Zoom Room",
       category: "Medium",
-      w: 520, h: 400,
+      w: 580, h: 460,
       zones: {
-        display: { x: 160, y: 30, w: 220, h: 100 },
-        table: { x: 100, y: 140, w: 300, h: 130 },
-        rack: { x: 24, y: 288, w: 220, h: 96 }
+        display: { x: 140, y: 32, w: 300, h: 128 },
+        table: { x: 80, y: 188, w: 380, h: 156 },
+        rack: { x: 32, y: 368, w: 300, h: 112 }
       },
       items: [
         { stencilId: "display-75", zone: "display", relX: 0.5, relY: 0.65, label: "Zoom Display" },
@@ -655,8 +655,8 @@
       category: "Large",
       ct: "Cisco hybrid work — divisible spaces",
       ctUrl: "https://www.cisco.com/c/en/us/solutions/collaboration/workplace-transformation/hybrid-work-design-guides.html",
-      w: 640, h: 460,
-      zones: { display: { x: 120, y: 20, w: 400, h: 100 }, table: { x: 60, y: 140, w: 520, h: 200 }, rack: { x: 30, y: 360, w: 110, h: 80 } },
+      w: 720, h: 540,
+      zones: { display: { x: 80, y: 28, w: 560, h: 128 }, table: { x: 48, y: 180, w: 620, h: 228 }, rack: { x: 32, y: 440, w: 200, h: 104 } },
       items: [
         { stencilId: "display-86", zone: "display", relX: 0.25, relY: 0.5, label: "Display-A" },
         { stencilId: "display-86", zone: "display", relX: 0.75, relY: 0.5, label: "Display-B" },
@@ -681,11 +681,11 @@
       category: "Small",
       ct: "Small Collaboration Room Design Guide",
       ctUrl: "https://www.cisco.com/c/dam/en/us/solutions/collateral/hybrid-work/webex-nyc-design-guide-small-collaboration-room.pdf",
-      w: 540, h: 420,
+      w: 580, h: 480,
       zones: {
-        display: { x: 130, y: 16, w: 280, h: 148 },
-        table: { x: 90, y: 188, w: 360, h: 158 },
-        rack: { x: 40, y: 362, w: 320, h: 72 }
+        display: { x: 120, y: 24, w: 340, h: 168 },
+        table: { x: 72, y: 216, w: 436, h: 176 },
+        rack: { x: 48, y: 412, w: 380, h: 96 }
       },
       items: [
         { stencilId: "room-bar", zone: "display", relX: 0.5, relY: 0.2, label: "Room Bar" },
@@ -707,11 +707,11 @@
       category: "Medium",
       ct: "Medium Collaboration Room — Video Centric",
       ctUrl: "https://www.cisco.com/c/dam/en/us/solutions/collateral/hybrid-work/webex-nyc-design-guide-medium-collaboration-room-video-centric.pdf",
-      w: 600, h: 420,
+      w: 660, h: 500,
       zones: {
-        display: { x: 120, y: 20, w: 360, h: 110 },
-        table: { x: 100, y: 150, w: 360, h: 150 },
-        rack: { x: 24, y: 320, w: 280, h: 88 }
+        display: { x: 100, y: 28, w: 460, h: 140 },
+        table: { x: 80, y: 196, w: 420, h: 176 },
+        rack: { x: 32, y: 400, w: 360, h: 108 }
       },
       items: [
         { stencilId: "display-75", zone: "display", relX: 0.3, relY: 0.55, label: "People Display" },

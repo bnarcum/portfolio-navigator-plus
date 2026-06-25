@@ -23,9 +23,13 @@
   const LAYER_COL_W = 132;
   const LAYER_START_Y = 100;
   const LAYER_ROW_H = 104;
-  const ROOM_LAYOUT_OX = 80;
-  const ROOM_LAYOUT_OY = 60;
-  const ROOM_ZONE_GAP = 36;
+  const ROOM_LAYOUT_OX = 96;
+  const ROOM_LAYOUT_OY = 72;
+  const ROOM_ZONE_GAP = 52;
+  const ROOM_ZONE_MIN_H = 96;
+  const ROOM_ZONE_PAD = 24;
+  const ROOM_ITEM_GAP = 32;
+  const ROOM_ROW_GAP = 28;
   /** @deprecated kept for minimap compat */
   const LAYER_Y = { wan: 40, security: 120, core: 200, distribution: 300, access: 400, mgmt: 500, collab: 580, dc: 260 };
 
@@ -175,11 +179,11 @@
     return `M ${ax} ${ay} L ${ax} ${my} L ${bx} ${my} L ${bx} ${by}`;
   }
 
-  function linkLabelPos(a, b, offset) {
+  function linkLabelPos(a, b, offset, roomMode) {
     const dx = b.x - a.x, dy = b.y - a.y;
     const len = Math.hypot(dx, dy) || 1;
     const px = -dy / len, py = dx / len;
-    const lift = 16;
+    const lift = roomMode ? 24 : 16;
     const midx = (a.x + b.x) / 2, midy = (a.y + b.y) / 2;
     if (Math.abs(dx) >= Math.abs(dy)) return { x: midx + offset, y: midy - lift };
     return { x: midx + px * lift, y: midy + offset + py * lift - 8 };
@@ -208,8 +212,10 @@
   }
 
   function layoutZoneEntries(zone, entries, baseX, baseY, snapGrid) {
-    const pad = 14;
-    const gap = 22;
+    const pad = ROOM_ZONE_PAD;
+    const gap = ROOM_ITEM_GAP;
+    const rowGap = ROOM_ROW_GAP;
+    const labelHead = 18;
     if (!entries.length) return;
     const sized = entries.map(e => {
       const def = STN()?.getDef?.(e.n.stencilId, "room");
@@ -222,23 +228,38 @@
       rowMap.get(band).push(e);
     });
     const rowKeys = [...rowMap.keys()].sort((a, b) => a - b);
-    let yCursor = zone.y + pad;
-    const zoneMidX = zone.x + zone.w / 2;
+    let yCursor = zone.y + pad + labelHead;
+    const innerW = Math.max(zone.w - pad * 2, 48);
     rowKeys.forEach(band => {
       const row = rowMap.get(band);
       row.sort((a, b) => a.item.relX - b.item.relX);
-      const rowH = Math.max(...row.map(e => e.nh)) + gap;
+      const rowH = Math.max(...row.map(e => e.nh));
       const totalW = row.reduce((s, e) => s + e.nw, 0) + gap * Math.max(0, row.length - 1);
-      let xCursor = row.length === 1
-        ? zone.x + row[0].item.relX * Math.max(zone.w - row[0].nw, 1) - row[0].nw / 2
-        : zoneMidX - totalW / 2;
-      xCursor = Math.max(zone.x + pad, Math.min(xCursor, zone.x + zone.w - pad - (row.length === 1 ? row[0].nw : totalW)));
-      row.forEach(e => {
-        e.n.x = snapGrid ? snap(baseX + xCursor) : baseX + xCursor;
+      const spreadRelX = row.length > 1 && new Set(row.map(e => Math.round(e.item.relX * 8))).size > 1;
+      if (spreadRelX) {
+        row.forEach(e => {
+          const centerX = zone.x + pad + e.item.relX * innerW;
+          let x = centerX - e.nw / 2;
+          x = Math.max(zone.x + pad, Math.min(x, zone.x + zone.w - pad - e.nw));
+          e.n.x = snapGrid ? snap(baseX + x) : baseX + x;
+          e.n.y = snapGrid ? snap(baseY + yCursor) : baseY + yCursor;
+        });
+      } else if (row.length === 1) {
+        const e = row[0];
+        const centerX = zone.x + pad + e.item.relX * innerW;
+        let x = centerX - e.nw / 2;
+        x = Math.max(zone.x + pad, Math.min(x, zone.x + zone.w - pad - e.nw));
+        e.n.x = snapGrid ? snap(baseX + x) : baseX + x;
         e.n.y = snapGrid ? snap(baseY + yCursor) : baseY + yCursor;
-        xCursor += e.nw + gap;
-      });
-      yCursor += rowH;
+      } else {
+        let xCursor = zone.x + pad + Math.max(0, (innerW - totalW) / 2);
+        row.forEach(e => {
+          e.n.x = snapGrid ? snap(baseX + xCursor) : baseX + xCursor;
+          e.n.y = snapGrid ? snap(baseY + yCursor) : baseY + yCursor;
+          xCursor += e.nw + gap;
+        });
+      }
+      yCursor += rowH + rowGap;
     });
   }
 
@@ -262,26 +283,42 @@
     });
     const zoneNames = Object.keys(tpl.zones).sort((a, b) => tpl.zones[a].y - tpl.zones[b].y);
     let yShift = 0;
+    let prevZoneBottom = 0;
     const computedZones = {};
     zoneNames.forEach(zoneName => {
       const tz = tpl.zones[zoneName];
       const entries = byZone[zoneName];
-      const zoneY = tz.y + yShift;
-      const zone = { x: tz.x, y: zoneY, w: tz.w, h: Math.max(tz.h, 72) };
+      let zoneY = tz.y + yShift;
+      if (prevZoneBottom > 0 && zoneY < prevZoneBottom + ROOM_ZONE_GAP) {
+        yShift += prevZoneBottom + ROOM_ZONE_GAP - zoneY;
+        zoneY = tz.y + yShift;
+      }
+      const zone = { x: tz.x, y: zoneY, w: tz.w, h: Math.max(tz.h, ROOM_ZONE_MIN_H) };
       if (entries?.length) {
         layoutZoneEntries(zone, entries, baseX, baseY, false);
         const bottoms = entries.map(e => {
           const def = STN()?.getDef?.(e.n.stencilId, "room");
           return e.n.y + (e.n.h || def?.h || 46);
         });
+        const rights = entries.map(e => {
+          const def = STN()?.getDef?.(e.n.stencilId, "room");
+          return e.n.x + (e.n.w || def?.w || 76);
+        });
+        const lefts = entries.map(e => e.n.x);
         const contentBottom = Math.max(...bottoms);
+        const bottomPad = ROOM_ZONE_PAD;
         const zoneScreenBottom = baseY + zoneY + zone.h;
-        const overflow = contentBottom + 12 - zoneScreenBottom;
-        if (overflow > 0) yShift += overflow + ROOM_ZONE_GAP;
-        const contentH = contentBottom - (baseY + zoneY) + 16;
-        computedZones[zoneName] = { x: tz.x, y: zoneY, w: tz.w, h: Math.max(tz.h, contentH) };
+        const overflow = contentBottom + bottomPad - zoneScreenBottom;
+        if (overflow > 0) yShift += overflow;
+        const contentH = contentBottom - (baseY + zoneY) + bottomPad;
+        const contentW = Math.max(...rights) - Math.min(...lefts) + ROOM_ZONE_PAD * 2;
+        const finalH = Math.max(tz.h, ROOM_ZONE_MIN_H, contentH);
+        const finalW = Math.max(tz.w, contentW);
+        computedZones[zoneName] = { x: tz.x, y: zoneY, w: finalW, h: finalH };
+        prevZoneBottom = zoneY + finalH;
       } else {
-        computedZones[zoneName] = { x: tz.x, y: zoneY, w: tz.w, h: tz.h };
+        computedZones[zoneName] = { x: tz.x, y: zoneY, w: tz.w, h: Math.max(tz.h, ROOM_ZONE_MIN_H) };
+        prevZoneBottom = zoneY + computedZones[zoneName].h;
       }
     });
     room.layoutOrigin = { x: baseX, y: baseY };
@@ -1179,7 +1216,7 @@ Account: ${this.design.account}`;
         const { a, b } = this.linkEndpoints(l);
         const off = (this._linkOffsets && this._linkOffsets.get(l.id)) || 0;
         const path = linkRoute(a.x, a.y, b.x, b.y, off);
-        const lp = linkLabelPos(a, b, off);
+        const lp = linkLabelPos(a, b, off, this.tab === "room");
         g.querySelector(".ds-link-path")?.setAttribute("d", path);
         const grp = g.querySelector(".ds-link-label-group");
         if (grp) grp.setAttribute("transform", `translate(${lp.x},${lp.y})`);
@@ -1226,7 +1263,7 @@ Account: ${this.design.account}`;
         const hl = selNode && (l.from === selNode || l.to === selNode) ? " highlighted" : "";
         const dim = selNode && !hl && !sel ? " dimmed" : "";
         const path = linkRoute(a.x, a.y, b.x, b.y, off);
-        const lp = linkLabelPos(a, b, off);
+        const lp = linkLabelPos(a, b, off, this.tab === "room");
         const lbl = linkDisplayLabel(links, l);
         const showLbl = lbl && !this.presentation && this.shouldShowLinkLabel(links, l.id);
         const portDetail = sel && l.fromPort && l.toPort ? `${l.fromPort} → ${l.toPort}` : "";
@@ -1501,8 +1538,8 @@ Account: ${this.design.account}`;
       const xs = nodes.flatMap(n => [n.x, n.x + (n.w || 76)]);
       const ys = nodes.flatMap(n => [n.y, n.y + (n.h || 46)]);
       const rect = document.getElementById("ds-svg").getBoundingClientRect();
-      const pad = this.tab === "room" ? 100 : 80, w = Math.max(...xs) - Math.min(...xs) + pad * 2, h = Math.max(...ys) - Math.min(...ys) + pad * 2;
-      const maxZoom = this.tab === "room" ? 1.35 : 1.1;
+      const pad = this.tab === "room" ? 120 : 80, w = Math.max(...xs) - Math.min(...xs) + pad * 2, h = Math.max(...ys) - Math.min(...ys) + pad * 2;
+      const maxZoom = this.tab === "room" ? 1.25 : 1.1;
       this.pan.zoom = Math.max(0.25, Math.min(rect.width / w, rect.height / h, maxZoom));
       this.pan.x = pad - Math.min(...xs) * this.pan.zoom;
       this.pan.y = pad - Math.min(...ys) * this.pan.zoom;
