@@ -433,6 +433,7 @@
       document.body.appendChild(root);
       this.el = root;
       this.buildToolbar();
+      this.ensureSymbolDefs();
       this.wireEvents();
       this.populateTemplates();
       this.populateArchPresets();
@@ -817,7 +818,8 @@ Account: ${this.design.account}`;
       const clone = vp.cloneNode(true);
       clone.querySelectorAll(".ds-ports, .ds-port, .ds-layer-band, .ds-layer-title").forEach(el => el.remove());
       const bbox = vp.getBBox?.() || { x: 0, y: 0, width: 1200, height: 800 };
-      const svg = `<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="${bbox.x - 24} ${bbox.y - 24} ${bbox.width + 48} ${bbox.height + 48}" style="background:#0a1628;font-family:system-ui,sans-serif">${clone.innerHTML}</svg>`;
+      const symDefs = window.CPN_CISCO_SYMBOLS ? `<defs>${window.CPN_CISCO_SYMBOLS}</defs>` : "";
+      const svg = `<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="${bbox.x - 24} ${bbox.y - 24} ${bbox.width + 48} ${bbox.height + 48}" style="background:#0a1628;font-family:system-ui,sans-serif">${symDefs}${clone.innerHTML}</svg>`;
       window.__cpnV2?.helpers?.downloadBlob?.(`Topology_${(this.design.account || "design").replace(/[^\w-]+/g, "-")}.svg`, "image/svg+xml", svg);
       this.toast("SVG exported");
     }
@@ -918,9 +920,11 @@ Account: ${this.design.account}`;
       if (this.paletteFilter) stencils = stencils.filter(s => (s.label + s.id + (s.pid || "")).toLowerCase().includes(this.paletteFilter));
       grid.innerHTML = stencils.slice(0, 72).map(s => {
         const def = STN()?.getDef?.(s.id, this.tab === "room" ? "room" : "network");
-        const shape = def?.shape || "switch";
+        const symbolId = s.symbolId || STN()?.resolveSymbolId?.(def, s.id) || "switch";
+        const accent = s.accent || STN()?.resolveAccent?.(def) || "#02C8FF";
+        const icon = STN()?.renderSymbolPreview?.(symbolId, accent, 22) || "▣";
         return `<div class="ds-stencil" draggable="true" data-stencil="${s.id}" title="${escapeHtml(s.label)} · ${escapeHtml(s.pid || "")}">
-          <span class="ds-st-icon ds-shape-${shape}">${s.icon || "▣"}</span>${escapeHtml(s.label.slice(0, 14))}</div>`;
+          <span class="ds-st-icon">${icon}</span>${escapeHtml(s.label.slice(0, 14))}</div>`;
       }).join("") || `<div class="ds-empty">No stencils match</div>`;
       grid.querySelectorAll(".ds-stencil").forEach(el => {
         el.ondragstart = e => e.dataTransfer.setData("text/stencil", el.dataset.stencil);
@@ -1008,6 +1012,38 @@ Account: ${this.design.account}`;
       }
     }
 
+    ensureSymbolDefs() {
+      const sym = window.CPN_CISCO_SYMBOLS;
+      if (!sym) return;
+      if (!document.getElementById("ds-symbol-sprite")) {
+        const sprite = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        sprite.id = "ds-symbol-sprite";
+        sprite.setAttribute("aria-hidden", "true");
+        sprite.style.cssText = "position:absolute;width:0;height:0;overflow:hidden;pointer-events:none";
+        sprite.innerHTML = `<defs>${sym}</defs>`;
+        document.body.appendChild(sprite);
+      }
+      const svg = document.getElementById("ds-svg");
+      if (!svg) return;
+      let defs = svg.querySelector("defs#ds-visual-def");
+      if (!defs) {
+        defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+        defs.id = "ds-visual-def";
+        svg.insertBefore(defs, svg.firstChild);
+      }
+      if (!defs.dataset.symbols) {
+        defs.insertAdjacentHTML("afterbegin", sym);
+        defs.dataset.symbols = "1";
+      }
+      if (!defs.querySelector("#ds-glow")) {
+        defs.insertAdjacentHTML("beforeend", `
+          <filter id="ds-glow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="2.5" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>`);
+      }
+    }
+
     ensureLinkMarkers() {
       let defs = document.getElementById("ds-arrow-def");
       const svg = document.getElementById("ds-svg");
@@ -1077,6 +1113,7 @@ Account: ${this.design.account}`;
 
     renderCanvas() {
       if (this.tab === "intent") return;
+      this.ensureSymbolDefs();
       this.renderRoomZones();
       const nodes = this.visibleNodes();
       const nodeIds = new Set(nodes.map(n => n.id));
@@ -1148,7 +1185,7 @@ Account: ${this.design.account}`;
         const qty = n.qty > 1 ? ` ×${n.qty}` : "";
         const dispLabel = displayNodeLabel(n.label);
         const title = [n.label, n.pid || def?.pid].filter(Boolean).join(" · ");
-        const svgInner = STN()?.renderDeviceSvg?.(def, w, h, sel) || `<rect class="ds-node-box" width="${w}" height="${h}" rx="6"/>`;
+        const svgInner = STN()?.renderDeviceSvg?.(def, w, h, sel, n.stencilId) || `<rect class="ds-node-box" width="${w}" height="${h}" rx="6"/>`;
         const ports = this.showPortsOnNode(n) ? STN()?.renderPorts?.(n, mode, this.linkFrom === n.id ? this.linkFromPort : null) || "" : "";
         const showLayer = n.layer && this.tab === "network" && !showBands;
         const isHub = mode === "room" && /switch|9200|9300|collab/i.test(n.stencilId || "");

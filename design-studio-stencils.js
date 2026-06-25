@@ -1,55 +1,46 @@
 /**
- * Design Studio v3 — Stencil library with SVG silhouettes & port anchors
+ * Design Studio v3 — Stencil library with Cisco brand symbols & port anchors
  */
 (function () {
   "use strict";
 
-  const DEVICE_SVG = {
-    switch: `<rect x="4" y="8" width="68" height="32" rx="3" fill="#0d2847" stroke="#2a6090" stroke-width="1.5"/>
-      <rect x="8" y="12" width="4" height="4" rx="1" fill="#02c8ff" opacity=".7"/><rect x="14" y="12" width="4" height="4" rx="1" fill="#02c8ff" opacity=".7"/>
-      <rect x="20" y="12" width="4" height="4" rx="1" fill="#02c8ff" opacity=".7"/><rect x="26" y="12" width="4" height="4" rx="1" fill="#02c8ff" opacity=".7"/>
-      <rect x="32" y="12" width="4" height="4" rx="1" fill="#02c8ff" opacity=".7"/><rect x="38" y="12" width="4" height="4" rx="1" fill="#02c8ff" opacity=".7"/>
-      <rect x="44" y="12" width="4" height="4" rx="1" fill="#02c8ff" opacity=".7"/><rect x="50" y="12" width="4" height="4" rx="1" fill="#02c8ff" opacity=".7"/>
-      <rect x="56" y="12" width="4" height="4" rx="1" fill="#02c8ff" opacity=".7"/><rect x="62" y="12" width="4" height="4" rx="1" fill="#02c8ff" opacity=".7"/>
-      <rect x="58" y="28" width="10" height="6" rx="1" fill="#ff9000" opacity=".8"/>`,
-    router: `<rect x="6" y="10" width="64" height="28" rx="4" fill="#0d2847" stroke="#2a6090" stroke-width="1.5"/>
-      <circle cx="18" cy="24" r="3" fill="#02c8ff" opacity=".6"/><circle cx="30" cy="24" r="3" fill="#02c8ff" opacity=".6"/>
-      <circle cx="42" cy="24" r="3" fill="#02c8ff" opacity=".6"/><rect x="52" y="20" width="12" height="8" rx="2" fill="#ff9000" opacity=".7"/>`,
-    firewall: `<rect x="4" y="6" width="68" height="36" rx="3" fill="#1a0d0d" stroke="#803030" stroke-width="1.5"/>
-      <path d="M38 14 L48 24 L38 34 L28 24 Z" fill="none" stroke="#ff4444" stroke-width="1.5"/>
-      <rect x="8" y="30" width="8" height="4" rx="1" fill="#ff9000" opacity=".6"/><rect x="56" y="30" width="8" height="4" rx="1" fill="#02c8ff" opacity=".6"/>`,
-    ap: `<ellipse cx="38" cy="28" rx="28" ry="10" fill="#0d2847" stroke="#2a6090" stroke-width="1.5"/>
-      <circle cx="38" cy="22" r="6" fill="#02c8ff" opacity=".5"/>
-      <path d="M38 16 Q48 8 58 16" fill="none" stroke="#02c8ff" stroke-width="1.5" opacity=".4"/>
-      <path d="M38 16 Q28 8 18 16" fill="none" stroke="#02c8ff" stroke-width="1.5" opacity=".4"/>`,
-    nexus: `<rect x="2" y="6" width="72" height="38" rx="3" fill="#0a1a30" stroke="#4060a0" stroke-width="1.5"/>
-      <rect x="6" y="10" width="6" height="6" rx="1" fill="#6080ff" opacity=".8"/><rect x="14" y="10" width="6" height="6" rx="1" fill="#6080ff" opacity=".8"/>
-      <rect x="22" y="10" width="6" height="6" rx="1" fill="#6080ff" opacity=".8"/><rect x="30" y="10" width="6" height="6" rx="1" fill="#6080ff" opacity=".8"/>
-      <rect x="54" y="10" width="16" height="8" rx="1" fill="#ff9000" opacity=".9"/>`,
-    server: `<rect x="10" y="4" width="56" height="40" rx="2" fill="#0d2847" stroke="#2a6090" stroke-width="1.5"/>
-      <rect x="14" y="8" width="48" height="6" rx="1" fill="#1a3050"/><rect x="14" y="18" width="48" height="6" rx="1" fill="#1a3050"/>
-      <rect x="14" y="28" width="48" height="6" rx="1" fill="#1a3050"/><circle cx="56" cy="11" r="2" fill="#00cc66"/><circle cx="56" cy="21" r="2" fill="#00cc66"/>`,
-    codec: `<rect x="8" y="12" width="60" height="28" rx="4" fill="#0d2847" stroke="#2a6090" stroke-width="1.5"/>
-      <circle cx="24" cy="26" r="8" fill="none" stroke="#02c8ff" stroke-width="1.5"/>
-      <rect x="38" y="20" width="24" height="12" rx="2" fill="#1a3050" stroke="#406080"/>`,
-    display: `<rect x="6" y="8" width="64" height="36" rx="2" fill="#051020" stroke="#406080" stroke-width="2"/>
-      <rect x="10" y="12" width="56" height="28" rx="1" fill="#0a2040"/>
-      <rect x="32" y="44" width="12" height="4" rx="1" fill="#406080"/>`,
-    camera: `<rect x="12" y="16" width="52" height="24" rx="6" fill="#0d2847" stroke="#2a6090" stroke-width="1.5"/>
-      <circle cx="38" cy="28" r="10" fill="none" stroke="#02c8ff" stroke-width="2"/>
-      <circle cx="38" cy="28" r="4" fill="#02c8ff" opacity=".5"/>`,
-    mic: `<ellipse cx="38" cy="30" rx="20" ry="8" fill="#0d2847" stroke="#2a6090" stroke-width="1.5"/>
-      <rect x="34" y="10" width="8" height="14" rx="2" fill="#1a3050" stroke="#406080"/>`,
-    touch: `<rect x="14" y="8" width="48" height="36" rx="4" fill="#0d2847" stroke="#2a6090" stroke-width="1.5"/>
-      <rect x="18" y="12" width="40" height="28" rx="2" fill="#102840"/>`,
-    cloud: `<ellipse cx="38" cy="28" rx="30" ry="16" fill="#102840" stroke="#406080" stroke-width="1.5" stroke-dasharray="4 2"/>
-      <text x="38" y="32" text-anchor="middle" fill="#8899aa" font-size="9">CLOUD</text>`,
-    user: `<circle cx="38" cy="18" r="10" fill="#1a3050" stroke="#406080"/><path d="M18 44 Q38 30 58 44" fill="#1a3050" stroke="#406080"/>`,
-    rack: `<rect x="20" y="4" width="36" height="44" rx="2" fill="#0a1525" stroke="#406080" stroke-width="1.5"/>
-      <line x1="24" y1="12" x2="52" y2="12" stroke="#304060"/><line x1="24" y1="22" x2="52" y2="22" stroke="#304060"/>
-      <line x1="24" y1="32" x2="52" y2="32" stroke="#304060"/><line x1="24" y1="42" x2="52" y2="42" stroke="#304060"/>`,
-    table: `<rect x="8" y="20" width="60" height="24" rx="4" fill="#1a2535" stroke="#506070" stroke-width="1.5"/>
-      <ellipse cx="38" cy="20" rx="28" ry="8" fill="none" stroke="#506070" stroke-width="1" stroke-dasharray="3 2"/>`
+  const VW = 100;
+  const VH = 56;
+
+  const SHAPE_TO_SYMBOL = {
+    switch: "switch", router: "router", firewall: "shield", ap: "wifi",
+    nexus: "fabric", server: "server", codec: "telepresence", display: "monitor",
+    camera: "camera", mic: "headset", touch: "touch", cloud: "cloud", user: "endpoint"
+  };
+
+  const STENCIL_SYMBOL = {
+    "cat-center": "gear", vmanage: "globe", "ise-psn": "key", "ise-pan": "key",
+    "umbrella-va": "shield-network", "n9k-spine": "fabric", "n9k-leaf": "fabric",
+    apic: "cube", "ucs-x": "server", "fpr-2130": "shield", "fpr-1120": "shield",
+    cw9179f: "wifi", mr57: "wifi", "c8200-sdwan": "router", "c8200-sdwan-2": "router",
+    mx85: "router", internet: "cloud", mpls: "globe", "users-vlan": "endpoint",
+    "credenza-rack": "server", "amp-280": "telepresence"
+  };
+
+  const LAYER_ACCENT = {
+    wan: "#02C8FF", security: "#FF007F", core: "#0A60FF", distribution: "#3070E5",
+    access: "#02C8FF", dc: "#6080FF", mgmt: "#B4B9C0", collab: "#44CC88", logical: "#8899AA"
+  };
+
+  const ROLE_ACCENT = {
+    "wan-edge": "#02C8FF", firewall: "#FF007F", ise: "#FF007F", ap: "#02C8FF",
+    spine: "#6080FF", leaf: "#6080FF", cloud: "#02C8FF", "collab-switch": "#FF9000"
+  };
+
+  const FURNITURE_SVG = {
+    rack: `<rect class="ds-node-chassis" x="22" y="2" width="56" height="52" rx="4" fill="#0a1525" stroke="#506080" stroke-width="1.5"/>
+      <rect x="26" y="6" width="48" height="10" rx="2" fill="#12243a" stroke="#304860"/>
+      <rect x="26" y="20" width="48" height="10" rx="2" fill="#12243a" stroke="#304860"/>
+      <rect x="26" y="34" width="48" height="10" rx="2" fill="#12243a" stroke="#304860"/>
+      <circle cx="68" cy="11" r="2" fill="#44cc88"/><circle cx="68" cy="25" r="2" fill="#44cc88"/><circle cx="68" cy="39" r="2" fill="#ff9000"/>`,
+    table: `<ellipse cx="50" cy="18" rx="42" ry="10" fill="none" stroke="#506070" stroke-width="1.2" stroke-dasharray="4 3"/>
+      <rect class="ds-node-chassis" x="6" y="18" width="88" height="30" rx="6" fill="#1a2535" stroke="#506070" stroke-width="1.5"/>
+      <rect x="12" y="24" width="76" height="18" rx="4" fill="#122030" opacity=".6"/>`
   };
 
   function buildCopperPorts(prefix, count, startX, endX) {
@@ -217,11 +208,57 @@
     return { x: px, y: py };
   }
 
-  function renderDeviceSvg(def, w, h, selected) {
+  function resolveSymbolId(def, stencilId) {
+    if (stencilId && STENCIL_SYMBOL[stencilId]) return STENCIL_SYMBOL[stencilId];
     const shape = def?.shape || "switch";
-    const inner = DEVICE_SVG[shape] || DEVICE_SVG.switch;
-    const sel = selected ? ' class="ds-node-box selected-inner"' : "";
-    return `<g transform="scale(${w / 76}, ${h / 48})">${inner.replace("<rect", `<rect${sel}`)}</g>`;
+    if (shape === "table" || shape === "rack") return null;
+    return SHAPE_TO_SYMBOL[shape] || "switch";
+  }
+
+  function resolveAccent(def) {
+    return LAYER_ACCENT[def?.layer] || ROLE_ACCENT[def?.role] || "#02C8FF";
+  }
+
+  function renderSymbolPreview(symbolId, accent, size) {
+    const sym = symbolId || "switch";
+    const color = accent || "#02C8FF";
+    const sz = size || 22;
+    return `<svg class="ds-st-icon-svg" viewBox="0 0 80 80" width="${sz}" height="${sz}" aria-hidden="true" style="color:${color}">
+      <use href="#icon-${sym}"/></svg>`;
+  }
+
+  function renderDeviceSvg(def, w, h, selected, stencilId) {
+    const shape = def?.shape || "switch";
+    const sx = w / VW;
+    const sy = h / VH;
+
+    if (shape === "table" || shape === "rack") {
+      const inner = FURNITURE_SVG[shape] || FURNITURE_SVG.table;
+      const sel = selected ? " ds-node-selected" : "";
+      return `<g class="ds-device ds-furniture${sel}" transform="scale(${sx},${sy})">${inner}</g>`;
+    }
+
+    const sym = resolveSymbolId(def, stencilId) || "switch";
+    const accent = resolveAccent(def);
+    const gid = "dsg-" + String(stencilId || shape).replace(/[^a-z0-9]/gi, "").slice(0, 12);
+    const sel = selected ? " ds-node-selected" : "";
+
+    return `<g class="ds-device${sel}" transform="scale(${sx},${sy})">
+      <defs>
+        <linearGradient id="${gid}-bg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#142f52"/>
+          <stop offset="100%" stop-color="#07182D"/>
+        </linearGradient>
+      </defs>
+      <rect class="ds-node-chassis" x="1" y="1" width="${VW - 2}" height="${VH - 2}" rx="8"
+        fill="url(#${gid}-bg)" stroke="${accent}" stroke-width="1.25" opacity="0.98"/>
+      <rect x="0" y="9" width="5" height="${VH - 18}" rx="2" fill="${accent}" opacity="0.88"/>
+      <rect x="10" y="${VH - 9}" width="${VW - 20}" height="2.5" rx="1" fill="${accent}" opacity="0.22"/>
+      <g class="ds-node-symbol" style="color:${accent}" transform="translate(${(VW - 36) / 2},5) scale(0.45)">
+        <use href="#icon-${sym}" width="80" height="80"/>
+      </g>
+      ${selected ? `<rect x="0.5" y="0.5" width="${VW - 1}" height="${VH - 1}" rx="9" fill="none" stroke="${accent}" stroke-width="1.75" opacity="0.55"/>` : ""}
+    </g>`;
   }
 
   function renderPorts(node, mode, linkHot) {
@@ -235,8 +272,11 @@
       if (p.side === "right") cx = w;
       const hot = linkHot === p.id ? " hot" : "";
       const color = p.poe ? "#ff9000" : p.type === "fiber" ? "#6080ff" : p.type === "hdmi" ? "#44cc88" : "#8899aa";
-      return `<circle class="ds-port${hot}" data-port="${p.id}" cx="${cx}" cy="${cy}" r="4" fill="${color}" stroke="#fff" stroke-width=".5">
-        <title>${p.id}${p.speed ? " " + p.speed : ""}${p.poe ? " PoE" : ""}</title></circle>`;
+      return `<g class="ds-port-wrap">
+        <circle class="ds-port-halo" cx="${cx}" cy="${cy}" r="6" fill="${color}" opacity=".12"/>
+        <circle class="ds-port${hot}" data-port="${p.id}" cx="${cx}" cy="${cy}" r="3.5" fill="${color}" stroke="#fff" stroke-width=".75">
+          <title>${p.id}${p.speed ? " " + p.speed : ""}${p.poe ? " PoE" : ""}</title></circle>
+      </g>`;
     }).join("");
   }
 
@@ -245,17 +285,20 @@
     const seen = new Set(Object.keys(NETWORK_DEVICES));
     const out = Object.entries(NETWORK_DEVICES).map(([id, d]) => ({
       id, label: d.label, pid: d.pid, layer: d.layer, role: d.role,
-      icon: d.shape === "firewall" ? "🛡" : d.shape === "ap" ? "📶" : "▣",
+      symbolId: resolveSymbolId(d, id),
+      accent: resolveAccent(d),
       category: d.layer === "security" ? "security" : "networking", familyId: id, w: d.w, h: d.h
     }));
     families.forEach(f => {
       const sid = FAMILY_TO_STENCIL[f.id] || f.id;
       if (seen.has(sid)) return;
       seen.add(sid);
+      const def = NETWORK_DEVICES[sid];
       out.push({
         id: f.id, label: f.name.length > 22 ? f.name.slice(0, 20) + "…" : f.name,
         layer: f.category === "security" ? "security" : f.category === "collaboration" ? "collab" : "access",
-        pid: `PID-${f.id}`, icon: "▣", familyId: f.id, w: 76, h: 46
+        pid: `PID-${f.id}`, symbolId: resolveSymbolId(def, sid) || "switch",
+        accent: resolveAccent(def), familyId: f.id, w: 76, h: 46
       });
     });
     return out;
@@ -263,7 +306,9 @@
 
   function buildRoomStencils() {
     return Object.entries(ROOM_DEVICES).map(([id, d]) => ({
-      id, label: d.label, pid: d.pid, icon: d.shape === "display" ? "📺" : d.shape === "camera" ? "🎥" : "📹",
+      id, label: d.label, pid: d.pid,
+      symbolId: resolveSymbolId(d, id),
+      accent: resolveAccent(d),
       w: d.w, h: d.h, layer: "collab"
     }));
   }
@@ -284,6 +329,7 @@
   window.__DS_STENCILS = {
     NETWORK_DEVICES, ROOM_DEVICES, FAMILY_TO_STENCIL, PORT_PRESETS,
     getDef, getPorts, portXY, portExists, renderDeviceSvg, renderPorts,
-    buildCatalogStencils, buildRoomStencils, suggestMedia, DEVICE_SVG
+    buildCatalogStencils, buildRoomStencils, suggestMedia,
+    resolveSymbolId, resolveAccent, renderSymbolPreview, LAYER_ACCENT
   };
 })();

@@ -45,9 +45,11 @@
 #ds-palette{padding:8px 10px;border-bottom:1px solid var(--border);max-height:180px;overflow-y:auto}
 .ds-stencil-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .ds-stencil{padding:7px 4px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);
-  cursor:grab;text-align:center;font-size:9px;line-height:1.2;color:var(--muted);user-select:none}
-.ds-stencil:hover{border-color:var(--accent);color:var(--accent)}
-.ds-stencil .ds-st-icon{font-size:16px;display:block;margin-bottom:2px}
+  cursor:grab;text-align:center;font-size:9px;line-height:1.2;color:var(--muted);user-select:none;
+  display:flex;flex-direction:column;align-items:center}
+.ds-stencil:hover{border-color:var(--accent);color:var(--accent);background:rgba(2,200,255,.06)}
+.ds-stencil .ds-st-icon{display:flex;align-items:center;justify-content:center;min-height:24px;margin-bottom:3px}
+.ds-stencil .ds-st-icon-svg{display:block;color:var(--accent)}
 
 #ds-inspector{padding:10px 12px;border-bottom:1px solid var(--border);font-size:11px;max-height:200px;overflow-y:auto}
 #ds-inspector h4{font-size:10px;text-transform:uppercase;color:var(--subtle);margin:0 0 8px}
@@ -60,10 +62,20 @@
 
 #ds-canvas-wrap{flex:1;position:relative;overflow:hidden;background:#04101f}
 #ds-canvas-wrap.network-mode{
-  background-image:linear-gradient(rgba(2,200,255,.04) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(2,200,255,.04) 1px,transparent 1px);
-  background-size:24px 24px}
-#ds-canvas-wrap.room-mode{background:#0a1628}
+  background-color:#04101f;
+  background-image:
+    radial-gradient(ellipse 75% 55% at 50% 0%, rgba(10,96,255,.09), transparent 68%),
+    radial-gradient(ellipse 45% 35% at 100% 100%, rgba(2,200,255,.06), transparent),
+    linear-gradient(rgba(2,200,255,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(2,200,255,.035) 1px, transparent 1px);
+  background-size:100% 100%,100% 100%,24px 24px,24px 24px}
+#ds-canvas-wrap.room-mode{
+  background-color:#0a1628;
+  background-image:
+    radial-gradient(ellipse 60% 50% at 50% 20%, rgba(68,204,136,.07), transparent),
+    linear-gradient(rgba(68,204,136,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(68,204,136,.03) 1px, transparent 1px);
+  background-size:100% 100%,20px 20px,20px 20px}
 #ds-floorplan{position:absolute;inset:0;pointer-events:none;opacity:.35;background-size:contain;background-repeat:no-repeat;background-position:center}
 #ds-room-zones{pointer-events:none}
 .ds-room-title{font-size:13px;font-weight:700;fill:var(--text);opacity:.9;font-family:system-ui,sans-serif}
@@ -85,7 +97,10 @@
 #ds-svg{width:100%;height:100%;cursor:grab;touch-action:none}
 #ds-svg.linking{cursor:crosshair}
 #ds-svg .ds-node{cursor:move}
-#ds-svg .ds-node.selected .ds-node-hit{stroke:var(--accent);stroke-width:2;filter:drop-shadow(0 0 8px rgba(2,200,255,.35))}
+#ds-svg .ds-node-chassis{filter:drop-shadow(0 2px 6px rgba(0,0,0,.35))}
+#ds-svg .ds-node.selected .ds-node-chassis{filter:drop-shadow(0 0 10px rgba(2,200,255,.4)) drop-shadow(0 2px 6px rgba(0,0,0,.35))}
+#ds-svg .ds-node.selected .ds-node-hit{stroke:var(--accent);stroke-width:2}
+#ds-svg .ds-node-symbol{opacity:.95}
 #ds-svg .ds-node-hit{stroke:transparent;stroke-width:1.5;fill:transparent}
 #ds-svg .ds-node-label{fill:#e8f4ff;font-size:11px;font-weight:600;pointer-events:none}
 #ds-svg .ds-node-label-bg{fill:rgba(4,16,31,.88);stroke:rgba(255,255,255,.08);stroke-width:.5}
