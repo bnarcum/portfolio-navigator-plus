@@ -23,6 +23,9 @@
   const LAYER_COL_W = 132;
   const LAYER_START_Y = 100;
   const LAYER_ROW_H = 104;
+  const ROOM_LAYOUT_OX = 80;
+  const ROOM_LAYOUT_OY = 60;
+  const ROOM_ZONE_GAP = 36;
   /** @deprecated kept for minimap compat */
   const LAYER_Y = { wan: 40, security: 120, core: 200, distribution: 300, access: 400, mgmt: 500, collab: 580, dc: 260 };
 
@@ -205,30 +208,31 @@
   }
 
   function layoutZoneEntries(zone, entries, baseX, baseY, snapGrid) {
-    const pad = 12;
-    const gap = 18;
+    const pad = 14;
+    const gap = 22;
     if (!entries.length) return;
-    entries.sort((a, b) => a.item.relY - b.item.relY || a.item.relX - b.item.relX);
     const sized = entries.map(e => {
       const def = STN()?.getDef?.(e.n.stencilId, "room");
       return { ...e, nw: e.n.w || def?.w || 76, nh: e.n.h || def?.h || 46 };
     });
-    const rows = [];
-    const threshold = Math.max(0.1, 0.28 / Math.max(1, sized.length));
+    const rowMap = new Map();
     sized.forEach(e => {
-      const last = rows[rows.length - 1];
-      if (!last || Math.abs(last[0].item.relY - e.item.relY) > threshold) rows.push([e]);
-      else last.push(e);
+      const band = Math.round(e.item.relY * 5);
+      if (!rowMap.has(band)) rowMap.set(band, []);
+      rowMap.get(band).push(e);
     });
+    const rowKeys = [...rowMap.keys()].sort((a, b) => a - b);
     let yCursor = zone.y + pad;
     const zoneMidX = zone.x + zone.w / 2;
-    rows.forEach(row => {
+    rowKeys.forEach(band => {
+      const row = rowMap.get(band);
       row.sort((a, b) => a.item.relX - b.item.relX);
       const rowH = Math.max(...row.map(e => e.nh)) + gap;
       const totalW = row.reduce((s, e) => s + e.nw, 0) + gap * Math.max(0, row.length - 1);
       let xCursor = row.length === 1
-        ? zone.x + row[0].item.relX * zone.w - row[0].nw / 2
+        ? zone.x + row[0].item.relX * Math.max(zone.w - row[0].nw, 1) - row[0].nw / 2
         : zoneMidX - totalW / 2;
+      xCursor = Math.max(zone.x + pad, Math.min(xCursor, zone.x + zone.w - pad - (row.length === 1 ? row[0].nw : totalW)));
       row.forEach(e => {
         e.n.x = snapGrid ? snap(baseX + xCursor) : baseX + xCursor;
         e.n.y = snapGrid ? snap(baseY + yCursor) : baseY + yCursor;
@@ -241,21 +245,47 @@
   function autoLayoutRoom(design, roomId) {
     const room = design.rooms.find(r => r.id === roomId);
     const tpl = room ? TPL()?.ROOM_TEMPLATES?.[room.template] : null;
-    if (!tpl) return;
-    const baseX = 80, baseY = 60;
-    const snapGrid = design.snapGrid !== false;
+    if (!tpl?.zones) return;
+    const baseX = ROOM_LAYOUT_OX;
+    const baseY = ROOM_LAYOUT_OY;
     const nodes = design.nodes.filter(n => n.roomId === roomId);
+    const claimed = new Set();
     const byZone = {};
     nodes.forEach(n => {
-      const item = tpl.items.find(it => it.label === n.label) || tpl.items.find(it => it.stencilId === n.stencilId);
+      let item = tpl.items.find(it => it.label === n.label);
+      if (!item) {
+        item = tpl.items.find(it => it.stencilId === n.stencilId && !claimed.has(it.label));
+      }
       if (!item) return;
+      claimed.add(item.label);
       (byZone[item.zone] ||= []).push({ n, item });
     });
-    Object.entries(byZone).forEach(([zoneName, entries]) => {
-      const zone = tpl.zones[zoneName];
-      if (!zone) return;
-      layoutZoneEntries(zone, entries, baseX, baseY, snapGrid);
+    const zoneNames = Object.keys(tpl.zones).sort((a, b) => tpl.zones[a].y - tpl.zones[b].y);
+    let yShift = 0;
+    const computedZones = {};
+    zoneNames.forEach(zoneName => {
+      const tz = tpl.zones[zoneName];
+      const entries = byZone[zoneName];
+      const zoneY = tz.y + yShift;
+      const zone = { x: tz.x, y: zoneY, w: tz.w, h: Math.max(tz.h, 72) };
+      if (entries?.length) {
+        layoutZoneEntries(zone, entries, baseX, baseY, false);
+        const bottoms = entries.map(e => {
+          const def = STN()?.getDef?.(e.n.stencilId, "room");
+          return e.n.y + (e.n.h || def?.h || 46);
+        });
+        const contentBottom = Math.max(...bottoms);
+        const zoneScreenBottom = baseY + zoneY + zone.h;
+        const overflow = contentBottom + 12 - zoneScreenBottom;
+        if (overflow > 0) yShift += overflow + ROOM_ZONE_GAP;
+        const contentH = contentBottom - (baseY + zoneY) + 16;
+        computedZones[zoneName] = { x: tz.x, y: zoneY, w: tz.w, h: Math.max(tz.h, contentH) };
+      } else {
+        computedZones[zoneName] = { x: tz.x, y: zoneY, w: tz.w, h: tz.h };
+      }
     });
+    room.layoutOrigin = { x: baseX, y: baseY };
+    room.computedZones = computedZones;
   }
 
   function applyRoomTemplateToDesign(design, tplKey, roomId, roomName, ox, oy, nodesArr, linksArr) {
@@ -310,7 +340,7 @@
         const rtpl = TPL()?.ROOM_TEMPLATES?.[roomTpl];
         const roomName = roomCount > 1 ? `${rtpl?.name || "Room"} ${i + 1}` : (rtpl?.name || "Room 1");
         design.rooms.push({ id: roomId, name: roomName, template: roomTpl, width: rtpl?.w || 480, height: rtpl?.h || 360 });
-        applyRoomTemplateToDesign(design, roomTpl, roomId, roomName, 80, 80, design.nodes, design.links);
+        applyRoomTemplateToDesign(design, roomTpl, roomId, roomName, ROOM_LAYOUT_OX, ROOM_LAYOUT_OY, design.nodes, design.links);
         autoLayoutRoom(design, roomId);
       }
       if (design.rooms.length) design.activeRoomId = design.rooms[0].id;
@@ -685,7 +715,7 @@
       const roomId = uid();
       const name = `${tpl.name}${this.design.rooms.length ? " " + (this.design.rooms.length + 1) : ""}`;
       this.design.rooms.push({ id: roomId, name, template: tplKey, width: tpl.w, height: tpl.h });
-      applyRoomTemplateToDesign(this.design, tplKey, roomId, name, 80, 80, this.design.nodes, this.design.links);
+      applyRoomTemplateToDesign(this.design, tplKey, roomId, name, ROOM_LAYOUT_OX, ROOM_LAYOUT_OY, this.design.nodes, this.design.links);
       autoLayoutRoom(this.design, roomId);
       this.activeRoomId = roomId;
       this.design.activeRoomId = roomId;
@@ -938,6 +968,7 @@ Account: ${this.design.account}`;
 
     shouldShowLinkLabel(links, linkId) {
       if (this.selectedLink === linkId || this.linkMode) return true;
+      if (this.tab === "room") return links.length <= 4;
       return links.length <= 8;
     }
 
@@ -1026,12 +1057,14 @@ Account: ${this.design.account}`;
         if (!tpl?.zones) return;
         const roomNodes = this.design.nodes.filter(n => n.roomId === room.id);
         if (!roomNodes.length) return;
-        const minX = Math.min(...roomNodes.map(n => n.x)) - 24;
-        const minY = Math.min(...roomNodes.map(n => n.y)) - 36;
-        html += `<text class="ds-room-title" data-room="${room.id}" x="${minX}" y="${minY}">${escapeHtml(room.name)}</text>`;
-        Object.entries(tpl.zones).forEach(([name, z]) => {
+        const ox = room.layoutOrigin?.x ?? ROOM_LAYOUT_OX;
+        const oy = room.layoutOrigin?.y ?? ROOM_LAYOUT_OY;
+        const titleX = ox + (tpl.zones.display?.x ?? tpl.zones.table?.x ?? 24) - 8;
+        html += `<text class="ds-room-title" data-room="${room.id}" x="${titleX}" y="${oy - 12}">${escapeHtml(room.name)}</text>`;
+        const zones = room.computedZones || tpl.zones;
+        Object.entries(zones).forEach(([name, z]) => {
           const label = String(name).replace(/^\w/, c => c.toUpperCase());
-          html += `<g class="ds-zone" data-room="${room.id}" data-zone="${escapeAttr(name)}" transform="translate(${minX + z.x},${minY + z.y})">
+          html += `<g class="ds-zone" data-room="${room.id}" data-zone="${escapeAttr(name)}" transform="translate(${ox + z.x},${oy + z.y})">
             <rect class="ds-zone-rect" width="${z.w}" height="${z.h}" rx="8"/>
             <rect class="ds-zone-label-bg" x="6" y="4" width="${Math.min(label.length * 7 + 12, z.w - 8)}" height="16" rx="4"/>
             <text class="ds-zone-label-text" x="12" y="15">${escapeHtml(label)}</text>
@@ -1046,19 +1079,19 @@ Account: ${this.design.account}`;
       const room = this.design.rooms.find(r => r.id === roomId);
       const tpl = room ? TPL()?.ROOM_TEMPLATES?.[room.template] : null;
       if (!tpl?.zones) return;
-      const roomNodes = this.design.nodes.filter(n => n.roomId === roomId);
-      if (!roomNodes.length) return;
-      const minX = Math.min(...roomNodes.map(n => n.x)) - 24;
-      const minY = Math.min(...roomNodes.map(n => n.y)) - 36;
+      const ox = room.layoutOrigin?.x ?? ROOM_LAYOUT_OX;
+      const oy = room.layoutOrigin?.y ?? ROOM_LAYOUT_OY;
+      const zones = room.computedZones || tpl.zones;
       document.querySelectorAll(`#ds-room-zones .ds-zone[data-room="${roomId}"]`).forEach(el => {
         const name = el.dataset.zone;
-        const z = tpl.zones[name];
-        if (z) el.setAttribute("transform", `translate(${minX + z.x},${minY + z.y})`);
+        const z = zones[name];
+        if (z) el.setAttribute("transform", `translate(${ox + z.x},${oy + z.y})`);
       });
       const title = document.querySelector(`#ds-room-zones .ds-room-title[data-room="${roomId}"]`);
       if (title && room) {
-        title.setAttribute("x", minX);
-        title.setAttribute("y", minY);
+        const titleX = ox + (tpl.zones.display?.x ?? tpl.zones.table?.x ?? 24) - 8;
+        title.setAttribute("x", titleX);
+        title.setAttribute("y", oy - 12);
       }
     }
 

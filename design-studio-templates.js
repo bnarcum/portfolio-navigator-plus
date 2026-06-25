@@ -681,24 +681,24 @@
       category: "Small",
       ct: "Small Collaboration Room Design Guide",
       ctUrl: "https://www.cisco.com/c/dam/en/us/solutions/collateral/hybrid-work/webex-nyc-design-guide-small-collaboration-room.pdf",
-      w: 480, h: 380,
+      w: 540, h: 420,
       zones: {
-        display: { x: 160, y: 28, w: 200, h: 100 },
-        table: { x: 100, y: 150, w: 260, h: 120 },
-        rack: { x: 24, y: 290, w: 200, h: 76 }
+        display: { x: 130, y: 16, w: 280, h: 148 },
+        table: { x: 90, y: 188, w: 360, h: 158 },
+        rack: { x: 40, y: 362, w: 320, h: 72 }
       },
       items: [
-        { stencilId: "room-bar", zone: "display", relX: 0.5, relY: 0.3, label: "Room Bar" },
-        { stencilId: "display-75", zone: "display", relX: 0.5, relY: 0.78, label: "Wall Display" },
-        { stencilId: "touch-10", zone: "rack", relX: 0.35, relY: 0.45, label: "Room Navigator" },
-        { stencilId: "c9200-collab", zone: "rack", relX: 0.72, relY: 0.45, label: "PoE Switch" },
-        { stencilId: "table-mic", zone: "table", relX: 0.5, relY: 0.35, label: "Table Mic" },
-        { stencilId: "conf-table-8", zone: "table", relX: 0.5, relY: 0.7, label: "Table" }
+        { stencilId: "room-bar", zone: "display", relX: 0.5, relY: 0.2, label: "Room Bar" },
+        { stencilId: "display-75", zone: "display", relX: 0.5, relY: 0.82, label: "Wall Display" },
+        { stencilId: "table-mic", zone: "table", relX: 0.5, relY: 0.22, label: "Table Mic" },
+        { stencilId: "conf-table-8", zone: "table", relX: 0.5, relY: 0.78, label: "Table" },
+        { stencilId: "touch-10", zone: "rack", relX: 0.28, relY: 0.5, label: "Room Navigator" },
+        { stencilId: "c9200-collab", zone: "rack", relX: 0.72, relY: 0.5, label: "PoE Switch" }
       ],
       links: [
-        { fi: 3, ti: 0, media: "cat6", label: "PoE-Bar", fromPort: "Gi1/0/1", toPort: "LAN" },
-        { fi: 3, ti: 2, media: "cat6", label: "PoE-Nav", fromPort: "Gi1/0/2", toPort: "LAN" },
-        { fi: 3, ti: 4, media: "cat6", label: "PoE-Mic", fromPort: "Gi1/0/3", toPort: "ETH" },
+        { fi: 5, ti: 0, media: "cat6", label: "PoE-Bar", fromPort: "Gi1/0/1", toPort: "LAN" },
+        { fi: 5, ti: 4, media: "cat6", label: "PoE-Nav", fromPort: "Gi1/0/2", toPort: "LAN" },
+        { fi: 5, ti: 2, media: "cat6", label: "PoE-Mic", fromPort: "Gi1/0/3", toPort: "ETH" },
         { fi: 0, ti: 1, media: "hdmi", label: "Video", fromPort: "HDMI1", toPort: "HDMI1" }
       ]
     },
