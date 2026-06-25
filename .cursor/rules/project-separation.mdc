@@ -1,0 +1,25 @@
+---
+description: Keep Portfolio Navigator Plus isolated from production Cisco Portfolio Navigator
+alwaysApply: true
+---
+
+# Project separation — Portfolio Navigator Plus only
+
+This workspace is **Portfolio Navigator Plus**, a **separate repository and product** from Cisco Portfolio Navigator (production).
+
+## Always
+
+- Make all code changes, commits, and pushes in **this repo** (`bnarcum/portfolio-navigator-plus`).
+- Local path: `/Users/bnarcum/Projects/Portfolio Navigator Plus`
+- Push to: `git push origin main` on this repo only.
+- Read `PROJECT.md` for full boundaries.
+
+## Never (unless the user explicitly asks for a production release)
+
+- Edit, commit, or push to `/Users/bnarcum/Projects/Cursor Portfolio` or `cisco-portfolio-navigator`.
+- Use the `cisco-portfolio-navigator-preview` preview repo or dual-remote preview workflows.
+- Assume changes here affect https://bnarcum.github.io/cisco-portfolio-navigator/ — they do not.
+
+## Optional
+
+- Pull selected fixes from production via a read-only `upstream` remote (one-way, manual). See `PROJECT.md`.

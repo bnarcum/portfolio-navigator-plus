@@ -4,11 +4,13 @@
   <img src="docs/hero.png" alt="Portfolio Navigator Plus — interactive portfolio graph and Account Planner" width="100%">
 </p>
 
-A personal sandbox fork of [Cisco Portfolio Navigator](https://github.com/bnarcum/cisco-portfolio-navigator) for experimenting with enhancements without affecting the production tool.
+**Separate project and repository** — not a shared branch or preview of production. Plus started from the Cisco Portfolio Navigator codebase but has its own git history, roadmap, and deployment. All new development (including Design Studio) happens **here only**.
 
-**Live (this project):** https://bnarcum.github.io/portfolio-navigator-plus/
+**Live (Plus):** https://bnarcum.github.io/portfolio-navigator-plus/
 
-**Upstream production:** https://bnarcum.github.io/cisco-portfolio-navigator/
+**Production (different repo — do not push here):** https://bnarcum.github.io/cisco-portfolio-navigator/
+
+→ **[PROJECT.md](PROJECT.md)** — folder paths, git remotes, and rules so the two projects stay separate.
 
 ## What it does
 
@@ -40,15 +42,17 @@ python3 -m http.server 8765
 
 Optional tests: `npm install && npm test`
 
-## Git remotes
+## Git
 
-This repo is **independent** from production. To pull upstream fixes when you choose:
+Single remote for day-to-day work:
 
 ```bash
-git remote add upstream https://github.com/bnarcum/cisco-portfolio-navigator.git
-git fetch upstream
-git merge upstream/main
+git remote -v
+# origin → https://github.com/bnarcum/portfolio-navigator-plus.git
+git push origin main
 ```
+
+Optional one-way pull from production is documented in **[PROJECT.md](PROJECT.md)** — not required.
 
 ## License
 
