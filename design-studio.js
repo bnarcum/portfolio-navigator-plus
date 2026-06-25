@@ -47,6 +47,48 @@
     cat6: { stroke: "#c49050", w: 2 }
   };
 
+  /** One Cisco strategy — Design Studio Intent hero (self-contained; mirrors main app deck) */
+  const ONE_CISCO_STORY = {
+    eyebrow: "One Cisco",
+    headline: "Design validated solutions across all three pillars",
+    subhead:
+      "Cisco powers how people and technology work together across the physical and digital worlds — pick a pillar to prefill your brief, or describe your own opportunity below.",
+    connectivityLabel: "Secure global connectivity",
+    aiLabel: "Accelerated by Cisco AI",
+    pillars: [
+      {
+        id: "ai-dc",
+        label: "AI-Ready Data Centers",
+        shortLabel: "AI-Ready DC",
+        promise: "Transform data centers to power AI workloads anywhere",
+        color: "#0A60FF",
+        icon: "chip",
+        intent:
+          "AI-ready data center spine-leaf fabric: Nexus 9000 spine and leaf with VXLAN EVPN, 400G uplinks, UCS X-Series GPU compute clusters for LLM training, NDFC automation, HyperFlex storage, east-west microsegmentation with Nexus Dashboard. Include OOB management and observability for GPU workloads."
+      },
+      {
+        id: "workplaces",
+        label: "Future-Proofed Workplaces",
+        shortLabel: "Workplaces",
+        promise: "Modernize everywhere people and technology work",
+        color: "#2dce5c",
+        icon: "telepresence",
+        intent:
+          "Future-proofed hybrid campus and collaboration: Catalyst 9300/9500 access and distribution, Catalyst wireless, Catalyst Center automation, 18 Webex rooms — Board Pro 75 and Room Kit EQ in conference rooms, Room Bar in huddles, ceiling mics, Room Navigator. Umbrella DNS security for remote workers."
+      },
+      {
+        id: "resilience",
+        label: "Digital Resilience",
+        shortLabel: "Resilience",
+        promise: "Securely up and running through any disruption",
+        color: "#FF9000",
+        icon: "shield-network",
+        intent:
+          "Digital resilience and zero trust: Catalyst SD-WAN with dual uplinks and application-aware routing, Secure Firewall HA at HQ and branches, ISE policy for wired and wireless, Duo MFA, Umbrella SIG, encrypted site-to-site VPN fallback. Catalyst Center visibility and ThousandEyes monitoring."
+      }
+    ]
+  };
+
   const MEDIA_TYPES = [
     { id: "cat6", label: "Cat6 UTP", maxMbps: 1000 },
     { id: "cat6a", label: "Cat6A", maxMbps: 10000 },
@@ -139,6 +181,47 @@
 
   function linkMediaStyle(mediaId) {
     return LINK_MEDIA_STYLE[mediaId] || LINK_MEDIA_STYLE.cat6;
+  }
+
+  function oneCiscoPillarCard(p, wide) {
+    const cls = wide ? "ds-oc-pillar ds-oc-pillar-wide ds-oc-pillar-resilience" : "ds-oc-pillar";
+    return `<button type="button" class="${cls}" data-pillar="${escapeAttr(p.id)}"
+      style="--pillar-color:${escapeAttr(p.color)}"
+      title="${escapeAttr(p.promise)} — click to prefill brief">
+      <svg class="ds-oc-icon" aria-hidden="true"><use href="#icon-${escapeAttr(p.icon)}"/></svg>
+      <span class="ds-oc-pillar-text">
+        <strong class="ds-oc-pillar-label">${escapeHtml(p.label)}</strong>
+        <span class="ds-oc-pillar-promise">${escapeHtml(p.promise)}</span>
+      </span>
+    </button>`;
+  }
+
+  function buildOneCiscoHeroHtml() {
+    const S = ONE_CISCO_STORY;
+    const top = S.pillars.filter(p => p.id !== "resilience");
+    const res = S.pillars.find(p => p.id === "resilience");
+    return `
+      <section class="ds-one-cisco" aria-labelledby="ds-oc-title">
+        <p class="ds-oc-eyebrow">${escapeHtml(S.eyebrow)}</p>
+        <h2 class="ds-oc-headline" id="ds-oc-title">${escapeHtml(S.headline)}</h2>
+        <p class="ds-oc-sub">${escapeHtml(S.subhead)}</p>
+        <div class="ds-oc-deck" id="ds-one-cisco-deck">
+          <div class="ds-oc-row ds-oc-top">
+            ${top.map(p => oneCiscoPillarCard(p, false)).join("")}
+          </div>
+          <div class="ds-oc-spine" aria-hidden="true">
+            <span class="ds-oc-spine-line ds-oc-spine-line-l"></span>
+            <span class="ds-oc-spine-label">${escapeHtml(S.connectivityLabel)}</span>
+            <span class="ds-oc-spine-line ds-oc-spine-line-r"></span>
+          </div>
+          ${res ? oneCiscoPillarCard(res, true) : ""}
+          <div class="ds-oc-ai" aria-hidden="true">
+            <span class="ds-oc-chevron ds-oc-chevron-l">‹ ‹ ‹</span>
+            <span class="ds-oc-ai-label">${escapeHtml(S.aiLabel)}</span>
+            <span class="ds-oc-chevron ds-oc-chevron-r">› › ›</span>
+          </div>
+        </div>
+      </section>`;
   }
 
   function linkDisplayLabel(links, l) {
@@ -453,10 +536,7 @@
         <div id="ds-body">
           <div id="ds-main">
             <div id="ds-intent" hidden>
-              <div class="ds-intent-hero">
-                <h3>Describe the opportunity</h3>
-                <p>Natural language in — validated Cisco topology out. Network templates map to <a href="https://www.cisco.com/go/cvd" target="_blank" rel="noopener">Cisco Validated Designs</a>; room layouts follow <a href="https://www.cisco.com/c/en/us/solutions/collaboration/workplace-transformation/hybrid-work-design-guides.html" target="_blank" rel="noopener">Cisco Tested hybrid work guides</a>.</p>
-              </div>
+              ${buildOneCiscoHeroHtml()}
               <label class="ds-intent-label" for="ds-intent-text">Opportunity brief</label>
               <textarea id="ds-intent-text" placeholder="e.g. Training classroom with Board Pro 75, ceiling mics, PoE switch — or campus + SD-WAN + 8 conference rooms with Room Kit EQ…"></textarea>
               <div class="ds-intent-section">
@@ -518,6 +598,7 @@
       this.buildToolbar();
       this.ensureSymbolDefs();
       this.wireEvents();
+      this.wireOneCiscoPillars();
       this.populateTemplates();
       this.populateArchPresets();
       this.buildGallery();
@@ -632,6 +713,24 @@
         if (e.key === "]" && this.tab === "room") this.cycleRoom(1);
         if (e.key === "/") { e.preventDefault(); $("ds-palette-search")?.focus(); }
         if (e.key === "Escape") { if (document.getElementById("ds-gallery-modal")?.hidden === false) this.closeGallery(); else this.close(); }
+      });
+    }
+
+    wireOneCiscoPillars() {
+      const deck = document.getElementById("ds-one-cisco-deck");
+      if (!deck) return;
+      const byId = Object.fromEntries(ONE_CISCO_STORY.pillars.map(p => [p.id, p]));
+      deck.querySelectorAll("[data-pillar]").forEach(btn => {
+        btn.onclick = () => {
+          const pillar = byId[btn.dataset.pillar];
+          if (!pillar?.intent) return;
+          const ta = document.getElementById("ds-intent-text");
+          if (ta) {
+            ta.value = pillar.intent;
+            ta.focus();
+          }
+          this.toast(`Brief loaded — ${pillar.shortLabel || pillar.label}`);
+        };
       });
     }
 
