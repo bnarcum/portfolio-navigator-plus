@@ -11,7 +11,7 @@
 #design-studio.open{display:flex}
 #design-studio.ds-present-mode #ds-sidebar,#design-studio.ds-present-mode #ds-toolbar{display:none}
 #design-studio.ds-present-mode #ds-header button:not(#ds-present):not(#ds-close){display:none}
-#design-studio.ds-present-mode #ds-minimap{display:none}
+#design-studio.ds-present-mode #ds-minimap,#design-studio.ds-present-mode #ds-legend{display:none}
 #design-studio.ds-present-mode .ds-ports{display:none}
 
 #ds-header{display:flex;align-items:center;gap:8px;padding:8px 12px;flex-wrap:wrap;
@@ -74,6 +74,12 @@
 #ds-minimap{position:absolute;bottom:12px;left:12px;width:130px;height:90px;z-index:3;
   background:rgba(7,24,45,.9);border:1px solid var(--border);border-radius:6px;padding:4px;pointer-events:none}
 #ds-minimap-svg{width:100%;height:100%}
+
+#ds-legend{position:absolute;bottom:12px;right:12px;z-index:3;display:flex;gap:10px;padding:6px 10px;
+  background:rgba(7,24,45,.9);border:1px solid var(--border);border-radius:6px;font-size:9px;color:var(--muted)}
+#ds-legend .ds-leg-item{display:flex;align-items:center;gap:4px;white-space:nowrap}
+#ds-legend .ds-leg-item i{display:inline-block;width:14px;height:3px;border-radius:2px}
+#ds-svg .ds-link.hover .ds-link-path{opacity:1;stroke-width:3!important}
 
 #ds-layer-bands{pointer-events:none}
 #ds-svg{width:100%;height:100%;cursor:grab;touch-action:none}

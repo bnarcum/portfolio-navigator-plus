@@ -191,7 +191,8 @@
     const tpl = room ? TPL()?.ROOM_TEMPLATES?.[room.template] : null;
     if (!tpl) return;
     const baseX = 80, baseY = 60;
-    design.nodes.filter(n => n.roomId === roomId).forEach(n => {
+    const nodes = design.nodes.filter(n => n.roomId === roomId);
+    nodes.forEach(n => {
       const item = tpl.items.find(it => it.label === n.label);
       if (!item) return;
       const zone = tpl.zones[item.zone];
@@ -199,6 +200,26 @@
       const pos = TPL().zonePos(zone, item.relX, item.relY);
       n.x = design.snapGrid !== false ? snap(baseX + pos.x) : baseX + pos.x;
       n.y = design.snapGrid !== false ? snap(baseY + pos.y) : baseY + pos.y;
+    });
+    // Spread stacked devices within the same zone horizontally
+    const byZone = {};
+    nodes.forEach(n => {
+      const item = tpl.items.find(it => it.label === n.label);
+      if (!item) return;
+      (byZone[item.zone] ||= []).push({ n, item });
+    });
+    Object.entries(byZone).forEach(([zoneName, entries]) => {
+      if (entries.length <= 1) return;
+      const zone = tpl.zones[zoneName];
+      if (!zone) return;
+      entries.sort((a, b) => a.item.relY - b.item.relY || a.item.relX - b.item.relX);
+      const step = zone.w / (entries.length + 1);
+      entries.forEach((e, i) => {
+        const nw = e.n.w || 76;
+        e.n.x = design.snapGrid !== false
+          ? snap(baseX + zone.x + step * (i + 1) - nw / 2)
+          : baseX + zone.x + step * (i + 1) - nw / 2;
+      });
     });
   }
 
@@ -372,6 +393,7 @@
               <div id="ds-floorplan"></div>
               <div id="ds-toolbar"></div>
               <div id="ds-minimap"><svg id="ds-minimap-svg"></svg></div>
+              <div id="ds-legend" hidden></div>
               <svg id="ds-svg" xmlns="http://www.w3.org/2000/svg">
                 <g id="ds-viewport">
                   <g id="ds-room-zones"></g>
@@ -717,7 +739,11 @@
     runJsonImport() {
       const raw = document.getElementById("ds-json-import").value.trim();
       if (!raw) { this.toast("Paste JSON first"); return; }
-      if (applyJsonDesign(raw, this.design)) { this.pushHistory(); this.render(); this.toast("AI JSON applied"); }
+      if (applyJsonDesign(raw, this.design)) {
+        if (this.design.nodes.some(n => n.canvas !== "room")) autoLayoutNetwork(this.design);
+        this.design.rooms.forEach(r => autoLayoutRoom(this.design, r.id));
+        this.pushHistory(); this.render(); this.fitView(); this.toast("AI JSON applied");
+      }
       else this.toast("Invalid JSON");
     }
 
@@ -1099,6 +1125,20 @@ Account: ${this.design.account}`;
 
       this.ensureLinkMarkers();
 
+      const legend = document.getElementById("ds-legend");
+      if (legend) {
+        const showLeg = !this.presentation && this.tab !== "intent" && links.length > 0;
+        legend.hidden = !showLeg;
+        if (showLeg) {
+          const types = [...new Set(links.map(l => l.media || "cat6"))].slice(0, 5);
+          legend.innerHTML = types.map(id => {
+            const ms = linkMediaStyle(id);
+            const lbl = MEDIA_TYPES.find(m => m.id === id)?.label?.split(" ")[0] || id;
+            return `<span class="ds-leg-item"><i style="background:${ms.stroke}"></i>${escapeHtml(lbl)}</span>`;
+          }).join("");
+        }
+      }
+
       const nodesG = document.getElementById("ds-nodes");
       const mode = this.tab === "room" ? "room" : "network";
       nodesG.innerHTML = nodes.map(n => {
@@ -1125,6 +1165,8 @@ Account: ${this.design.account}`;
       }).join("");
 
       linksG.querySelectorAll(".ds-link").forEach(el => {
+        el.onmouseenter = () => { el.classList.add("hover"); };
+        el.onmouseleave = () => { el.classList.remove("hover"); };
         el.onclick = e => { e.stopPropagation(); this.selectedLink = el.dataset.link; this.selectedNode = null; this.renderInspector(); this.renderCanvas(); };
       });
 
