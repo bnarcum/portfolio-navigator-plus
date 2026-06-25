@@ -101,7 +101,9 @@
       const mode = n.canvas === "room" ? "room" : "network";
       const def = STN()?.getDef?.(n.stencilId, mode);
       const st = stencilFor(n.stencilId, mode);
-      add(n.pid || def?.pid || st?.pid, n.label || def?.label || st?.label, qty, "hardware");
+      const pid = n.pid || def?.pid || st?.pid;
+      if (!STN()?.isCcwEligible?.(def, pid)) return;
+      add(pid, n.label || def?.label || st?.label, qty, "hardware");
       if (/9200|9300|9179|meraki|ms250|c9200|c9300/i.test(n.stencilId + (n.pid || "")))
         add("DNA-A-48P-3Y", "Cisco DNA Advantage 48P (3yr)", qty, "license");
       if (/ise/i.test(n.stencilId)) add("ISE-PLR-LIC", "ISE Premier (500 endpoints)", 1, "license");
@@ -186,40 +188,51 @@
     return offsets;
   }
 
+  function layoutZoneEntries(zone, entries, baseX, baseY, snapGrid) {
+    const pad = 10;
+    const rowThreshold = 0.18;
+    entries.sort((a, b) => a.item.relY - b.item.relY || a.item.relX - b.item.relX);
+    const rows = [];
+    entries.forEach(e => {
+      const last = rows[rows.length - 1];
+      if (!last || Math.abs(last[0].item.relY - e.item.relY) > rowThreshold) rows.push([e]);
+      else last.push(e);
+    });
+    rows.forEach((row, ri) => {
+      const rowH = (zone.h - pad * 2) / rows.length;
+      const yCenter = zone.y + pad + rowH * ri + rowH / 2;
+      row.forEach((e, ci) => {
+        const def = STN()?.getDef?.(e.n.stencilId, "room");
+        const nw = e.n.w || def?.w || 76, nh = e.n.h || def?.h || 46;
+        let xCenter;
+        if (row.length === 1) xCenter = zone.x + e.item.relX * zone.w;
+        else {
+          const step = (zone.w - pad * 2) / row.length;
+          xCenter = zone.x + pad + step * ci + step / 2;
+        }
+        e.n.x = snapGrid ? snap(baseX + xCenter - nw / 2) : baseX + xCenter - nw / 2;
+        e.n.y = snapGrid ? snap(baseY + yCenter - nh / 2) : baseY + yCenter - nh / 2;
+      });
+    });
+  }
+
   function autoLayoutRoom(design, roomId) {
     const room = design.rooms.find(r => r.id === roomId);
     const tpl = room ? TPL()?.ROOM_TEMPLATES?.[room.template] : null;
     if (!tpl) return;
     const baseX = 80, baseY = 60;
+    const snapGrid = design.snapGrid !== false;
     const nodes = design.nodes.filter(n => n.roomId === roomId);
-    nodes.forEach(n => {
-      const item = tpl.items.find(it => it.label === n.label);
-      if (!item) return;
-      const zone = tpl.zones[item.zone];
-      if (!zone) return;
-      const pos = TPL().zonePos(zone, item.relX, item.relY);
-      n.x = design.snapGrid !== false ? snap(baseX + pos.x) : baseX + pos.x;
-      n.y = design.snapGrid !== false ? snap(baseY + pos.y) : baseY + pos.y;
-    });
-    // Spread stacked devices within the same zone horizontally
     const byZone = {};
     nodes.forEach(n => {
-      const item = tpl.items.find(it => it.label === n.label);
+      const item = tpl.items.find(it => it.label === n.label) || tpl.items.find(it => it.stencilId === n.stencilId);
       if (!item) return;
       (byZone[item.zone] ||= []).push({ n, item });
     });
     Object.entries(byZone).forEach(([zoneName, entries]) => {
-      if (entries.length <= 1) return;
       const zone = tpl.zones[zoneName];
       if (!zone) return;
-      entries.sort((a, b) => a.item.relY - b.item.relY || a.item.relX - b.item.relX);
-      const step = zone.w / (entries.length + 1);
-      entries.forEach((e, i) => {
-        const nw = e.n.w || 76;
-        e.n.x = design.snapGrid !== false
-          ? snap(baseX + zone.x + step * (i + 1) - nw / 2)
-          : baseX + zone.x + step * (i + 1) - nw / 2;
-      });
+      layoutZoneEntries(zone, entries, baseX, baseY, snapGrid);
     });
   }
 
@@ -376,18 +389,29 @@
         <div id="ds-body">
           <div id="ds-main">
             <div id="ds-intent" hidden>
-              <h3 style="margin:0 0 8px;font-size:14px;color:var(--accent)">Describe the opportunity</h3>
-              <textarea id="ds-intent-text" placeholder="200-bed hospital, redundant core, SD-WAN at 8 branches, 12 conference rooms with Room Kit EQ…"></textarea>
-              <div class="ds-templates" id="ds-templates"></div>
-              <p style="font-size:11px;color:var(--muted);margin:8px 0 4px">Reference architectures — open <strong>Gallery</strong> for full library</p>
-              <div class="ds-arch-row" id="ds-arch-presets"></div>
-              <div style="display:flex;gap:8px;margin:12px 0;flex-wrap:wrap">
+              <div class="ds-intent-hero">
+                <h3>Describe the opportunity</h3>
+                <p>Natural language in — validated Cisco topology out. Reference architectures and room templates follow Cisco CVD / Webex room system guidance.</p>
+              </div>
+              <label class="ds-intent-label" for="ds-intent-text">Opportunity brief</label>
+              <textarea id="ds-intent-text" placeholder="e.g. Training classroom with Board Pro 75, ceiling mics, PoE switch — or campus + SD-WAN + 8 conference rooms with Room Kit EQ…"></textarea>
+              <div class="ds-intent-section">
+                <div class="ds-intent-section-head"><strong>Quick start</strong><span>Click to fill the brief</span></div>
+                <div class="ds-templates" id="ds-templates"></div>
+              </div>
+              <div class="ds-intent-section">
+                <div class="ds-intent-section-head"><strong>Reference architectures</strong><span>Or open <em>Gallery</em> for full library</span></div>
+                <div class="ds-arch-row" id="ds-arch-presets"></div>
+              </div>
+              <div class="ds-intent-actions">
                 <button type="button" class="ds-btn primary" id="ds-generate">Generate Draft</button>
                 <button type="button" class="ds-btn" id="ds-import-json">Apply AI JSON</button>
                 <button type="button" class="ds-btn" id="ds-clear">Clear</button>
               </div>
-              <label style="font-size:11px;color:var(--muted)">Paste AI JSON response</label>
-              <textarea id="ds-json-import" class="ds-json-area" placeholder='{"nodes":[...],"links":[...]}'></textarea>
+              <details class="ds-intent-advanced">
+                <summary>Paste AI JSON response</summary>
+                <textarea id="ds-json-import" class="ds-json-area" placeholder='{"nodes":[...],"links":[...]}'></textarea>
+              </details>
             </div>
             <div id="ds-canvas-wrap" class="network-mode">
               <div id="ds-floorplan"></div>
@@ -552,21 +576,32 @@
     }
 
     populateTemplates() {
-      const tpls = [
-        "200-bed hospital, redundant core, ISE, 12 conference rooms Room Kit EQ",
-        "SD-WAN HQ + 8 branches with Secure Firewall and Catalyst Center",
-        "24 huddle rooms Room Bar, PoE switch per room",
-        "DC spine-leaf VXLAN, UCS compute, border firewall",
-        "K-12 district hub, 9179F in gymnasiums, Umbrella",
-        "Retail 50 stores Meraki MX SD-WAN MR57",
-        "Zero trust SASE with Umbrella and Duo",
-        "Boardroom 14 seats Room Kit Pro, dual display, ceiling mics"
+      const groups = [
+        { title: "Campus & WAN", items: [
+          "200-bed hospital, redundant core, ISE, 12 conference rooms Room Kit EQ",
+          "SD-WAN HQ + 8 branches with Secure Firewall and Catalyst Center",
+          "DC spine-leaf VXLAN, UCS compute, border firewall",
+          "K-12 district hub, 9179F in gymnasiums, Umbrella",
+          "Retail 50 stores Meraki MX SD-WAN MR57",
+          "Zero trust SASE with Umbrella and Duo"
+        ]},
+        { title: "Collaboration", items: [
+          "Training classroom Board Pro 75, ceiling mics, PoE collab switch",
+          "Boardroom 14 seats Board Pro 75, aux display, Quad Camera, ceiling mics",
+          "24 huddle rooms Room Bar, PoE switch per room",
+          "Conference room Room Kit EQ, 75in display, ceiling mics"
+        ]}
       ];
       const box = document.getElementById("ds-templates");
-      tpls.forEach(t => {
-        const b = document.createElement("button"); b.type = "button"; b.className = "ds-tpl"; b.textContent = t;
-        b.onclick = () => { document.getElementById("ds-intent-text").value = t; };
-        box.appendChild(b);
+      box.innerHTML = groups.map(g => `
+        <div class="ds-tpl-group">
+          <div class="ds-tpl-group-title">${escapeHtml(g.title)}</div>
+          <div class="ds-tpl-group-grid">${g.items.map(t =>
+            `<button type="button" class="ds-tpl" data-tpl="${escapeAttr(t)}">${escapeHtml(t)}</button>`
+          ).join("")}</div>
+        </div>`).join("");
+      box.querySelectorAll(".ds-tpl").forEach(b => {
+        b.onclick = () => { document.getElementById("ds-intent-text").value = b.dataset.tpl; };
       });
     }
 
@@ -1189,7 +1224,8 @@ Account: ${this.design.account}`;
         const ports = this.showPortsOnNode(n) ? STN()?.renderPorts?.(n, mode, this.linkFrom === n.id ? this.linkFromPort : null) || "" : "";
         const showLayer = n.layer && this.tab === "network" && !showBands;
         const isHub = mode === "room" && /switch|9200|9300|collab/i.test(n.stencilId || "");
-        return `<g class="ds-node${sel}${isHub ? " ds-hub" : ""}" data-node="${n.id}" transform="translate(${n.x},${n.y})">
+        const isDeco = def?.decorative;
+        return `<g class="ds-node${sel}${isHub ? " ds-hub" : ""}${isDeco ? " ds-deco" : ""}" data-node="${n.id}" transform="translate(${n.x},${n.y})">
           <title>${escapeHtml(title)}</title>
           ${isHub ? `<rect class="ds-node-hub-ring" x="-4" y="-4" width="${w + 8}" height="${h + 8}" rx="10"/>` : ""}
           ${svgInner}
@@ -1308,10 +1344,16 @@ Account: ${this.design.account}`;
       const body = document.getElementById("ds-panel-body");
       if (this.panelTab === "bom") {
         const bom = computeBom(this.design);
+        const deco = this.design.nodes.filter(n => {
+          const def = STN()?.getDef?.(n.stencilId, n.canvas === "room" ? "room" : "network");
+          const pid = n.pid || def?.pid;
+          return def?.decorative || !STN()?.isCcwEligible?.(def, pid);
+        });
         body.innerHTML = bom.length ? `
           <table class="ds-table"><thead><tr><th>Item</th><th>PID</th><th>Qty</th></tr></thead>
           <tbody>${bom.map(b => `<tr><td title="${escapeAttr(b.pid)}">${escapeHtml((b.desc || b.pid).slice(0, 42))}</td><td class="ds-pid-cell">${escapeHtml(b.pid)}</td><td>${b.qty}</td></tr>`).join("")}</tbody></table>
-          <div class="ds-bom-total">${bom.length} lines · ${bom.reduce((s, b) => s + b.qty, 0)} qty</div>
+          <div class="ds-bom-total">${bom.length} CCW lines · ${bom.reduce((s, b) => s + b.qty, 0)} qty</div>
+          ${deco.length ? `<div class="ds-bom-deco">${deco.length} layout-only item(s) on canvas (tables, generic displays, credenza) — not in CCW export.</div>` : ""}
           <div style="padding:8px 12px"><button type="button" class="ds-btn" id="ds-add-bom">+ Manual BOM</button></div>` : `<div class="ds-empty">Generate from Intent or Gallery</div>`;
         document.getElementById("ds-add-bom")?.addEventListener("click", () => {
           const pid = prompt("PID:"); if (!pid) return;

@@ -158,11 +158,11 @@
     "table-mic": { label: "Table Mic Pro", pid: "CS-TABLEMIC", shape: "mic", ports: "mic-poe", w: 68, h: 36, poeW: 10 },
     "touch-10": { label: "Touch 10", pid: "CS-TOUCH10", shape: "touch", ports: "touch-lan", w: 64, h: 48, poeW: 12 },
     "amp-280": { label: "Room Amp 280", pid: "CS-AMP-280", shape: "codec", ports: "amp-spk", w: 56, h: 44 },
-    "display-75": { label: "Display 75\"", pid: "DISPLAY-75-4K", shape: "display", ports: "display-hdmi", w: 100, h: 58 },
-    "display-86": { label: "Display 86\"", pid: "DISPLAY-86-4K", shape: "display", ports: "display-hdmi", w: 108, h: 62 },
-    "credenza-rack": { label: "12U Credenza", pid: "RACK-12U-CRED", shape: "rack", ports: "generic", w: 56, h: 72 },
-    "conf-table-12": { label: "Conf Table (12)", pid: "FURN-TABLE-12", shape: "table", ports: "generic", w: 120, h: 56 },
-    "conf-table-8": { label: "Huddle Table (8)", pid: "FURN-TABLE-8", shape: "table", ports: "generic", w: 88, h: 48 },
+    "display-75": { label: "Display 75\"", pid: "DISPLAY-75-4K", shape: "display", ports: "display-hdmi", w: 100, h: 58, ccwEligible: false, decorative: true },
+    "display-86": { label: "Display 86\"", pid: "DISPLAY-86-4K", shape: "display", ports: "display-hdmi", w: 108, h: 62, ccwEligible: false, decorative: true },
+    "credenza-rack": { label: "12U Credenza", pid: "RACK-12U-CRED", shape: "rack", ports: "generic", w: 56, h: 72, ccwEligible: false, decorative: true },
+    "conf-table-12": { label: "Conf Table (12)", pid: "FURN-TABLE-12", shape: "table", ports: "generic", w: 120, h: 56, ccwEligible: false, decorative: true },
+    "conf-table-8": { label: "Huddle Table (8)", pid: "FURN-TABLE-8", shape: "table", ports: "generic", w: 88, h: 48, ccwEligible: false, decorative: true },
     "c9200-collab": { label: "C9200 Collab SW", pid: "C9200-24P", shape: "switch", ports: "switch-24", w: 80, h: 44, poeW: 370, layer: "collab", role: "collab-switch" }
   };
 
@@ -217,6 +217,14 @@
 
   function resolveAccent(def) {
     return LAYER_ACCENT[def?.layer] || ROLE_ACCENT[def?.role] || "#02C8FF";
+  }
+
+  function isCcwEligible(def, pid) {
+    const p = pid || def?.pid || "";
+    if (!p || p.startsWith("N/A")) return false;
+    if (def?.ccwEligible === false || def?.decorative) return false;
+    if (/^(DISPLAY-|FURN-|RACK-)/i.test(p)) return false;
+    return true;
   }
 
   function renderSymbolPreview(symbolId, accent, size) {
@@ -330,6 +338,6 @@
     NETWORK_DEVICES, ROOM_DEVICES, FAMILY_TO_STENCIL, PORT_PRESETS,
     getDef, getPorts, portXY, portExists, renderDeviceSvg, renderPorts,
     buildCatalogStencils, buildRoomStencils, suggestMedia,
-    resolveSymbolId, resolveAccent, renderSymbolPreview, LAYER_ACCENT
+    resolveSymbolId, resolveAccent, renderSymbolPreview, LAYER_ACCENT, isCcwEligible
   };
 })();

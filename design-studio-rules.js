@@ -51,12 +51,45 @@
     return issues;
   }
 
+  function isAioCollab(stencilId) {
+    return /board-pro|room-bar|desk-pro/i.test(stencilId || "");
+  }
+
+  function isExternalCodec(stencilId) {
+    return /room-kit|kit-eq|kitpro|codec/i.test(stencilId || "");
+  }
+
+  function validateRoomArchitecture(design) {
+    const issues = [];
+    (design.rooms || []).forEach(room => {
+      const nodes = design.nodes.filter(n => n.roomId === room.id);
+      const aios = nodes.filter(n => isAioCollab(n.stencilId));
+      const codecs = nodes.filter(n => isExternalCodec(n.stencilId));
+      if (aios.length && codecs.length) {
+        issues.push({
+          id: "room-aio-codec-" + room.id,
+          msg: `${room.name}: Cisco Board Pro / Room Bar / Desk Pro are all-in-one — remove Room Kit codec (per Webex room system guidance).`,
+          severity: "error"
+        });
+      }
+      if (codecs.length > 1 && room.template !== "divisible") {
+        issues.push({
+          id: "room-dup-codec-" + room.id,
+          msg: `${room.name}: multiple codecs (${codecs.map(c => c.label).join(", ")}) — use one codec per space unless divisible room.`,
+          severity: "error"
+        });
+      }
+    });
+    return issues;
+  }
+
   function validateDesign(design) {
     const w = [], tips = [];
     const network = nets(design);
     const roomNodes = rooms(design);
 
     w.push(...validateLinkPorts(design));
+    w.push(...validateRoomArchitecture(design));
 
     const cores = network.filter(n => /core|c9500|n9k-spine|spine/i.test(n.stencilId + n.label));
     const fws = network.filter(n => /fpr|firewall|sf-/i.test(n.stencilId));
@@ -105,6 +138,12 @@
         if (from && to && !/display|board|kit|codec|cam|bar|hdmi/i.test((from.stencilId || "") + (to.stencilId || "")))
           tips.push({ id: "hdmi-" + l.id, msg: `HDMI link ${l.label}: verify AV endpoint.` });
       }
+    });
+
+    roomNodes.forEach(n => {
+      const def = nodeDef(n);
+      if (def?.decorative)
+        tips.push({ id: "deco-" + n.id, msg: `${n.label} is layout-only (not a CCW orderable PID).` });
     });
 
     if (ise.length === 0 && network.length >= 8)

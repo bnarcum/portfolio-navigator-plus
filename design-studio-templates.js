@@ -330,51 +330,46 @@
       name: "Boardroom (14–20 seats)",
       category: "Large",
       w: 600, h: 440,
-      zones: { display: { x: 160, y: 20, w: 320, h: 100 }, table: { x: 80, y: 140, w: 400, h: 180 }, credenza: { x: 30, y: 340, w: 120, h: 80 } },
+      zones: { display: { x: 160, y: 20, w: 320, h: 100 }, table: { x: 80, y: 140, w: 400, h: 180 }, credenza: { x: 30, y: 340, w: 200, h: 80 } },
       items: [
         { stencilId: "board-pro", zone: "display", relX: 0.35, relY: 0.5, label: "Board Pro" },
-        { stencilId: "display-86", zone: "display", relX: 0.75, relY: 0.5, label: "Aux Display" },
+        { stencilId: "display-86", zone: "display", relX: 0.78, relY: 0.5, label: "Aux Display" },
         { stencilId: "quad-cam", zone: "display", relX: 0.35, relY: 0.12, label: "Primary Cam" },
-        { stencilId: "room-kit-pro", zone: "credenza", relX: 0.5, relY: 0.25, label: "Room Kit Pro" },
-        { stencilId: "touch-10", zone: "credenza", relX: 0.5, relY: 0.5, label: "Touch 10" },
-        { stencilId: "c9200-collab", zone: "credenza", relX: 0.5, relY: 0.75, label: "Collab Switch" },
-        { stencilId: "credenza-rack", zone: "credenza", relX: 0.5, relY: 0.95, label: "12U Rack" },
+        { stencilId: "touch-10", zone: "credenza", relX: 0.2, relY: 0.5, label: "Touch 10" },
+        { stencilId: "c9200-collab", zone: "credenza", relX: 0.5, relY: 0.5, label: "Collab Switch" },
+        { stencilId: "amp-280", zone: "credenza", relX: 0.8, relY: 0.5, label: "Amp" },
         { stencilId: "conf-table-12", zone: "table", relX: 0.5, relY: 0.55, label: "Board Table" },
         { stencilId: "ceiling-mic", zone: "table", relX: 0.3, relY: 0.15, label: "Mic-1" },
         { stencilId: "ceiling-mic", zone: "table", relX: 0.5, relY: 0.1, label: "Mic-2" },
-        { stencilId: "ceiling-mic", zone: "table", relX: 0.7, relY: 0.15, label: "Mic-3" },
-        { stencilId: "amp-280", zone: "credenza", relX: 0.5, relY: 0.6, label: "Amp" }
+        { stencilId: "ceiling-mic", zone: "table", relX: 0.7, relY: 0.15, label: "Mic-3" }
       ],
       links: [
-        { fi: 5, ti: 3, media: "cat6", label: "PoE-Codec", fromPort: "Gi1/0/1", toPort: "LAN" },
-        { fi: 5, ti: 4, media: "cat6", label: "PoE-Touch", fromPort: "Gi1/0/2", toPort: "LAN" },
-        { fi: 5, ti: 8, media: "cat6", label: "PoE-Mic1", fromPort: "Gi1/0/3", toPort: "ETH" },
-        { fi: 5, ti: 9, media: "cat6", label: "PoE-Mic2", fromPort: "Gi1/0/4", toPort: "ETH" },
-        { fi: 5, ti: 10, media: "cat6", label: "PoE-Mic3", fromPort: "Gi1/0/5", toPort: "ETH" },
-        { fi: 3, ti: 0, media: "hdmi", label: "Board Video", fromPort: "HDMI1", toPort: "HDMI1" },
-        { fi: 3, ti: 1, media: "hdmi", label: "Aux Video", fromPort: "HDMI2", toPort: "HDMI1" },
-        { fi: 3, ti: 2, media: "hdmi", label: "Camera", fromPort: "HDMI2", toPort: "HDMI" },
-        { fi: 5, ti: 11, media: "cat6", label: "Amp-Control", fromPort: "Gi1/0/6", toPort: "LAN" }
+        { fi: 4, ti: 3, media: "cat6", label: "PoE-Touch", fromPort: "Gi1/0/1", toPort: "LAN" },
+        { fi: 4, ti: 7, media: "cat6", label: "PoE-Mic1", fromPort: "Gi1/0/2", toPort: "ETH" },
+        { fi: 4, ti: 8, media: "cat6", label: "PoE-Mic2", fromPort: "Gi1/0/3", toPort: "ETH" },
+        { fi: 4, ti: 9, media: "cat6", label: "PoE-Mic3", fromPort: "Gi1/0/4", toPort: "ETH" },
+        { fi: 4, ti: 5, media: "cat6", label: "Amp-Control", fromPort: "Gi1/0/5", toPort: "LAN" },
+        { fi: 0, ti: 1, media: "hdmi", label: "Aux Video", fromPort: "HDMI1", toPort: "HDMI1" },
+        { fi: 0, ti: 2, media: "hdmi", label: "Camera", fromPort: "HDMI2", toPort: "HDMI" }
       ]
     },
     training: {
       name: "Training Room",
       category: "Medium",
       w: 560, h: 420,
-      zones: { display: { x: 200, y: 30, w: 220, h: 90 }, table: { x: 60, y: 140, w: 440, h: 200 }, credenza: { x: 40, y: 350, w: 100, h: 60 } },
+      zones: { display: { x: 200, y: 30, w: 220, h: 90 }, table: { x: 60, y: 140, w: 440, h: 200 }, rack: { x: 30, y: 350, w: 160, h: 70 } },
       items: [
         { stencilId: "board-pro", zone: "display", relX: 0.5, relY: 0.5, label: "Board Pro 75" },
-        { stencilId: "room-kit-eq", zone: "credenza", relX: 0.5, relY: 0.4, label: "Room Kit" },
-        { stencilId: "c9200-collab", zone: "credenza", relX: 0.5, relY: 0.8, label: "Switch" },
+        { stencilId: "c9200-collab", zone: "rack", relX: 0.35, relY: 0.55, label: "Collab Switch" },
+        { stencilId: "touch-10", zone: "rack", relX: 0.75, relY: 0.55, label: "Touch 10" },
         { stencilId: "ceiling-mic", zone: "table", relX: 0.25, relY: 0.2, label: "Mic-1" },
         { stencilId: "ceiling-mic", zone: "table", relX: 0.75, relY: 0.2, label: "Mic-2" },
-        { stencilId: "conf-table-12", zone: "table", relX: 0.5, relY: 0.6, label: "Training Tables" }
+        { stencilId: "conf-table-12", zone: "table", relX: 0.5, relY: 0.65, label: "Training Tables" }
       ],
       links: [
-        { fi: 2, ti: 1, media: "cat6", label: "PoE", fromPort: "Gi1/0/1", toPort: "LAN" },
-        { fi: 2, ti: 3, media: "cat6", label: "Mic-1", fromPort: "Gi1/0/2", toPort: "ETH" },
-        { fi: 2, ti: 4, media: "cat6", label: "Mic-2", fromPort: "Gi1/0/3", toPort: "ETH" },
-        { fi: 1, ti: 0, media: "hdmi", label: "Video", fromPort: "HDMI1", toPort: "HDMI1" }
+        { fi: 1, ti: 2, media: "cat6", label: "PoE-Touch", fromPort: "Gi1/0/1", toPort: "LAN" },
+        { fi: 1, ti: 3, media: "cat6", label: "Mic-1", fromPort: "Gi1/0/2", toPort: "ETH" },
+        { fi: 1, ti: 4, media: "cat6", label: "Mic-2", fromPort: "Gi1/0/3", toPort: "ETH" }
       ]
     },
     executive: {
@@ -458,8 +453,9 @@
     }
   };
 
-  function zonePos(zone, relX, relY) {
-    return { x: zone.x + relX * zone.w - 40, y: zone.y + relY * zone.h - 24 };
+  function zonePos(zone, relX, relY, w, h) {
+    const nw = w || 76, nh = h || 46;
+    return { x: zone.x + relX * zone.w - nw / 2, y: zone.y + relY * zone.h - nh / 2 };
   }
 
   function applyNetworkTemplate(design, key, offsetX, offsetY, STENCILS) {
@@ -494,8 +490,8 @@
     const idxMap = [];
     tpl.items.forEach(item => {
       const zone = tpl.zones[item.zone];
-      const pos = zone ? zonePos(zone, item.relX, item.relY) : { x: item.x || 0, y: item.y || 0 };
       const def = STENCILS?.getDef?.(item.stencilId, "room");
+      const pos = zone ? zonePos(zone, item.relX, item.relY, def?.w, def?.h) : { x: item.x || 0, y: item.y || 0 };
       const id = "ds-" + Math.random().toString(36).slice(2, 10);
       idxMap.push(id);
       nodesArr.push({
