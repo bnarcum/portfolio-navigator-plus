@@ -1,0 +1,24 @@
+{
+  "name": "portfolio-navigator-plus",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:icons": "node scripts/build-cisco-icons.mjs",
+    "build:heroes": "node scripts/build-family-heroes.mjs",
+    "build:assets": "npm run build:icons && npm run build:heroes",
+    "test:pillar-layout": "node scripts/test-pillar-layout.mjs",
+    "test:composition": "node scripts/test-composition-view.mjs",
+    "test:composition-spatial": "node scripts/test-composition-spatial.mjs",
+    "test:panel-hero": "node scripts/test-panel-hero.mjs",
+    "test:spatial-labels": "node scripts/test-spatial-labels.mjs",
+    "test:spatial-filtered-photos": "node scripts/test-spatial-filtered-photos.mjs",
+    "test:planner-ui": "node scripts/test-planner-ui.mjs",
+    "test:matrix-embed": "node scripts/test-matrix-embed.mjs",
+    "test:dcloud-learning": "node scripts/test-dcloud-learning.mjs",
+    "test": "npm run test:pillar-layout && npm run test:composition && npm run test:composition-spatial && npm run test:panel-hero && npm run test:spatial-labels && npm run test:spatial-filtered-photos && npm run test:planner-ui && npm run test:matrix-embed && npm run test:dcloud-learning"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0",
+    "pngjs": "^7.0.0"
+  }
+}
