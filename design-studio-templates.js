@@ -286,58 +286,66 @@
     huddle: {
       name: "Huddle (4–6 seats)",
       category: "Small",
-      w: 400, h: 320,
-      zones: { display: { x: 200, y: 40, w: 160, h: 80 }, table: { x: 120, y: 160, w: 160, h: 100 }, credenza: { x: 40, y: 240, w: 80, h: 60 } },
+      w: 440, h: 360,
+      zones: { display: { x: 180, y: 28, w: 200, h: 100 }, table: { x: 100, y: 150, w: 200, h: 110 }, rack: { x: 24, y: 280, w: 160, h: 72 } },
       items: [
-        { stencilId: "display-75", zone: "display", relX: 0.5, relY: 0.5, label: "Display" },
-        { stencilId: "room-bar", zone: "display", relX: 0.5, relY: 0.85, label: "Room Bar" },
-        { stencilId: "conf-table-8", zone: "table", relX: 0.5, relY: 0.5, label: "Table" },
-        { stencilId: "c9200-collab", zone: "credenza", relX: 0.5, relY: 0.3, label: "PoE Switch" },
-        { stencilId: "credenza-rack", zone: "credenza", relX: 0.5, relY: 0.7, label: "Credenza" }
+        { stencilId: "room-bar", zone: "display", relX: 0.5, relY: 0.35, label: "Room Bar" },
+        { stencilId: "display-75", zone: "display", relX: 0.5, relY: 0.78, label: "Display" },
+        { stencilId: "conf-table-8", zone: "table", relX: 0.5, relY: 0.55, label: "Table" },
+        { stencilId: "c9200-collab", zone: "rack", relX: 0.35, relY: 0.55, label: "PoE Switch" }
       ],
       links: [
-        { fi: 3, ti: 1, media: "cat6", label: "PoE-Bar", fromPort: "Gi1/0/1", toPort: "LAN" },
-        { fi: 1, ti: 0, media: "hdmi", label: "Video", fromPort: "HDMI1", toPort: "HDMI1" }
+        { fi: 3, ti: 0, media: "cat6", label: "PoE-Bar", fromPort: "Gi1/0/1", toPort: "LAN" },
+        { fi: 0, ti: 1, media: "hdmi", label: "Video", fromPort: "HDMI1", toPort: "HDMI1" }
       ]
     },
     conference: {
       name: "Conference (8–12 seats)",
       category: "Medium",
-      w: 520, h: 400,
-      zones: { display: { x: 180, y: 30, w: 200, h: 90 }, table: { x: 100, y: 150, w: 280, h: 140 }, credenza: { x: 40, y: 310, w: 100, h: 70 }, ceiling: { x: 100, y: 130, w: 280, h: 30 } },
+      w: 560, h: 420,
+      zones: {
+        display: { x: 150, y: 20, w: 280, h: 110 },
+        ceiling: { x: 80, y: 128, w: 340, h: 32 },
+        table: { x: 80, y: 168, w: 340, h: 150 },
+        rack: { x: 24, y: 328, w: 280, h: 88 }
+      },
       items: [
-        { stencilId: "display-75", zone: "display", relX: 0.5, relY: 0.45, label: "Primary Display" },
-        { stencilId: "quad-cam", zone: "display", relX: 0.5, relY: 0.15, label: "Quad Cam" },
-        { stencilId: "room-kit-eq", zone: "credenza", relX: 0.5, relY: 0.35, label: "Room Kit EQ" },
-        { stencilId: "touch-10", zone: "credenza", relX: 0.5, relY: 0.65, label: "Touch 10" },
-        { stencilId: "c9200-collab", zone: "credenza", relX: 0.5, relY: 0.9, label: "Collab Switch" },
-        { stencilId: "conf-table-12", zone: "table", relX: 0.5, relY: 0.55, label: "Conference Table" },
-        { stencilId: "ceiling-mic", zone: "ceiling", relX: 0.35, relY: 0.5, label: "Ceiling Mic L" },
-        { stencilId: "ceiling-mic", zone: "ceiling", relX: 0.65, relY: 0.5, label: "Ceiling Mic R" },
-        { stencilId: "amp-280", zone: "credenza", relX: 0.5, relY: 0.55, label: "Amp 280" }
+        { stencilId: "quad-cam", zone: "display", relX: 0.5, relY: 0.22, label: "Quad Cam" },
+        { stencilId: "display-75", zone: "display", relX: 0.5, relY: 0.72, label: "Primary Display" },
+        { stencilId: "room-kit-eq", zone: "rack", relX: 0.18, relY: 0.38, label: "Room Kit EQ" },
+        { stencilId: "touch-10", zone: "rack", relX: 0.42, relY: 0.38, label: "Touch 10" },
+        { stencilId: "amp-280", zone: "rack", relX: 0.66, relY: 0.38, label: "Amp 280" },
+        { stencilId: "c9200-collab", zone: "rack", relX: 0.5, relY: 0.82, label: "Collab Switch" },
+        { stencilId: "conf-table-12", zone: "table", relX: 0.5, relY: 0.62, label: "Conference Table" },
+        { stencilId: "ceiling-mic", zone: "ceiling", relX: 0.32, relY: 0.5, label: "Ceiling Mic L" },
+        { stencilId: "ceiling-mic", zone: "ceiling", relX: 0.68, relY: 0.5, label: "Ceiling Mic R" }
       ],
       links: [
-        { fi: 4, ti: 2, media: "cat6", label: "PoE-Codec", fromPort: "Gi1/0/1", toPort: "LAN" },
-        { fi: 4, ti: 3, media: "cat6", label: "PoE-Touch", fromPort: "Gi1/0/2", toPort: "LAN" },
-        { fi: 4, ti: 6, media: "cat6", label: "PoE-Mic-L", fromPort: "Gi1/0/3", toPort: "ETH" },
-        { fi: 4, ti: 7, media: "cat6", label: "PoE-Mic-R", fromPort: "Gi1/0/4", toPort: "ETH" },
-        { fi: 2, ti: 0, media: "hdmi", label: "Primary Video", fromPort: "HDMI1", toPort: "HDMI1" },
-        { fi: 2, ti: 1, media: "hdmi", label: "Camera", fromPort: "HDMI2", toPort: "HDMI" },
-        { fi: 4, ti: 8, media: "cat6", label: "Amp-Control", fromPort: "Gi1/0/5", toPort: "LAN" }
+        { fi: 5, ti: 2, media: "cat6", label: "PoE-Codec", fromPort: "Gi1/0/1", toPort: "LAN" },
+        { fi: 5, ti: 3, media: "cat6", label: "PoE-Touch", fromPort: "Gi1/0/2", toPort: "LAN" },
+        { fi: 5, ti: 7, media: "cat6", label: "PoE-Mic-L", fromPort: "Gi1/0/3", toPort: "ETH" },
+        { fi: 5, ti: 8, media: "cat6", label: "PoE-Mic-R", fromPort: "Gi1/0/4", toPort: "ETH" },
+        { fi: 2, ti: 1, media: "hdmi", label: "Primary Video", fromPort: "HDMI1", toPort: "HDMI1" },
+        { fi: 2, ti: 0, media: "hdmi", label: "Camera", fromPort: "HDMI2", toPort: "HDMI" },
+        { fi: 5, ti: 4, media: "cat6", label: "Amp-Control", fromPort: "Gi1/0/5", toPort: "LAN" }
       ]
     },
     boardroom: {
       name: "Boardroom (14–20 seats)",
       category: "Large",
       w: 600, h: 440,
-      zones: { display: { x: 160, y: 20, w: 320, h: 100 }, table: { x: 80, y: 140, w: 400, h: 180 }, credenza: { x: 30, y: 340, w: 200, h: 80 } },
+      zones: {
+        display: { x: 160, y: 20, w: 320, h: 110 },
+        table: { x: 80, y: 140, w: 400, h: 180 },
+        rack: { x: 24, y: 328, w: 300, h: 96 }
+      },
       items: [
-        { stencilId: "board-pro", zone: "display", relX: 0.35, relY: 0.5, label: "Board Pro" },
-        { stencilId: "display-86", zone: "display", relX: 0.78, relY: 0.5, label: "Aux Display" },
-        { stencilId: "quad-cam", zone: "display", relX: 0.35, relY: 0.12, label: "Primary Cam" },
-        { stencilId: "touch-10", zone: "credenza", relX: 0.2, relY: 0.5, label: "Touch 10" },
-        { stencilId: "c9200-collab", zone: "credenza", relX: 0.5, relY: 0.5, label: "Collab Switch" },
-        { stencilId: "amp-280", zone: "credenza", relX: 0.8, relY: 0.5, label: "Amp" },
+        { stencilId: "board-pro", zone: "display", relX: 0.35, relY: 0.62, label: "Board Pro" },
+        { stencilId: "display-86", zone: "display", relX: 0.78, relY: 0.62, label: "Aux Display" },
+        { stencilId: "quad-cam", zone: "display", relX: 0.35, relY: 0.2, label: "Primary Cam" },
+        { stencilId: "touch-10", zone: "rack", relX: 0.2, relY: 0.4, label: "Touch 10" },
+        { stencilId: "c9200-collab", zone: "rack", relX: 0.5, relY: 0.4, label: "Collab Switch" },
+        { stencilId: "amp-280", zone: "rack", relX: 0.8, relY: 0.4, label: "Amp" },
         { stencilId: "conf-table-12", zone: "table", relX: 0.5, relY: 0.55, label: "Board Table" },
         { stencilId: "ceiling-mic", zone: "table", relX: 0.3, relY: 0.15, label: "Mic-1" },
         { stencilId: "ceiling-mic", zone: "table", relX: 0.5, relY: 0.1, label: "Mic-2" },
@@ -390,15 +398,19 @@
     teamsRoom: {
       name: "Microsoft Teams Room",
       category: "Medium",
-      w: 500, h: 380,
-      zones: { display: { x: 160, y: 30, w: 200, h: 85 }, table: { x: 100, y: 140, w: 280, h: 130 }, rack: { x: 40, y: 290, w: 90, h: 70 } },
+      w: 520, h: 400,
+      zones: {
+        display: { x: 160, y: 30, w: 220, h: 90 },
+        table: { x: 100, y: 140, w: 300, h: 130 },
+        rack: { x: 24, y: 288, w: 260, h: 96 }
+      },
       items: [
-        { stencilId: "display-75", zone: "display", relX: 0.5, relY: 0.5, label: "Teams Display" },
-        { stencilId: "room-kit-eq", zone: "rack", relX: 0.5, relY: 0.35, label: "MTR Codec" },
-        { stencilId: "touch-10", zone: "rack", relX: 0.5, relY: 0.65, label: "Teams Panel" },
-        { stencilId: "c9200-collab", zone: "rack", relX: 0.5, relY: 0.9, label: "Switch" },
+        { stencilId: "display-75", zone: "display", relX: 0.5, relY: 0.55, label: "Teams Display" },
+        { stencilId: "room-kit-eq", zone: "rack", relX: 0.22, relY: 0.38, label: "MTR Codec" },
+        { stencilId: "touch-10", zone: "rack", relX: 0.5, relY: 0.38, label: "Teams Panel" },
+        { stencilId: "c9200-collab", zone: "rack", relX: 0.78, relY: 0.38, label: "Switch" },
         { stencilId: "ceiling-mic", zone: "table", relX: 0.5, relY: 0.15, label: "Teams Mic" },
-        { stencilId: "conf-table-12", zone: "table", relX: 0.5, relY: 0.6, label: "Table" }
+        { stencilId: "conf-table-12", zone: "table", relX: 0.5, relY: 0.62, label: "Table" }
       ],
       links: [
         { fi: 3, ti: 1, media: "cat6", label: "PoE-Codec", fromPort: "Gi1/0/1", toPort: "LAN" },
@@ -410,13 +422,17 @@
     zoomRoom: {
       name: "Zoom Room",
       category: "Medium",
-      w: 500, h: 380,
-      zones: { display: { x: 160, y: 30, w: 200, h: 85 }, table: { x: 100, y: 140, w: 280, h: 130 }, rack: { x: 40, y: 290, w: 90, h: 70 } },
+      w: 520, h: 400,
+      zones: {
+        display: { x: 160, y: 30, w: 220, h: 100 },
+        table: { x: 100, y: 140, w: 300, h: 130 },
+        rack: { x: 24, y: 288, w: 220, h: 96 }
+      },
       items: [
-        { stencilId: "display-75", zone: "display", relX: 0.5, relY: 0.5, label: "Zoom Display" },
-        { stencilId: "room-bar", zone: "display", relX: 0.5, relY: 0.88, label: "Zoom Bar" },
-        { stencilId: "touch-10", zone: "rack", relX: 0.5, relY: 0.5, label: "Zoom Controller" },
-        { stencilId: "c9200-collab", zone: "rack", relX: 0.5, relY: 0.9, label: "Switch" },
+        { stencilId: "display-75", zone: "display", relX: 0.5, relY: 0.65, label: "Zoom Display" },
+        { stencilId: "room-bar", zone: "display", relX: 0.5, relY: 0.22, label: "Zoom Bar" },
+        { stencilId: "touch-10", zone: "rack", relX: 0.35, relY: 0.45, label: "Zoom Controller" },
+        { stencilId: "c9200-collab", zone: "rack", relX: 0.72, relY: 0.45, label: "Switch" },
         { stencilId: "table-mic", zone: "table", relX: 0.5, relY: 0.4, label: "Table Mic" },
         { stencilId: "conf-table-12", zone: "table", relX: 0.5, relY: 0.65, label: "Table" }
       ],

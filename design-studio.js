@@ -19,10 +19,10 @@
     security: "Security", mgmt: "Management", collab: "Collaboration", dc: "Data Center"
   };
   /** Left-to-right professional topology columns */
-  const LAYER_X = { wan: 60, security: 200, core: 340, distribution: 480, dc: 480, access: 620, mgmt: 620, collab: 760 };
-  const LAYER_COL_W = 130;
-  const LAYER_START_Y = 90;
-  const LAYER_ROW_H = 88;
+  const LAYER_X = { wan: 40, security: 188, core: 336, distribution: 484, dc: 632, access: 780, mgmt: 928, collab: 1076 };
+  const LAYER_COL_W = 132;
+  const LAYER_START_Y = 100;
+  const LAYER_ROW_H = 104;
   /** @deprecated kept for minimap compat */
   const LAYER_Y = { wan: 40, security: 120, core: 200, distribution: 300, access: 400, mgmt: 500, collab: 580, dc: 260 };
 
@@ -174,8 +174,43 @@
 
   function linkLabelPos(a, b, offset) {
     const dx = b.x - a.x, dy = b.y - a.y;
-    if (Math.abs(dx) >= Math.abs(dy)) return { x: (a.x + b.x) / 2 + offset, y: (a.y + b.y) / 2 - 10 };
-    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 + offset - 10 };
+    const len = Math.hypot(dx, dy) || 1;
+    const px = -dy / len, py = dx / len;
+    const lift = 16;
+    const midx = (a.x + b.x) / 2, midy = (a.y + b.y) / 2;
+    if (Math.abs(dx) >= Math.abs(dy)) return { x: midx + offset, y: midy - lift };
+    return { x: midx + px * lift, y: midy + offset + py * lift - 8 };
+  }
+
+  function layerTitleSvg(layer, cx, y) {
+    const raw = LAYER_LABELS[layer] || layer;
+    const parts = String(raw).split(/\s*\/\s*/);
+    if (parts.length === 1) {
+      return `<text class="ds-layer-title" x="${cx}" y="${y}" text-anchor="middle">${escapeHtml(parts[0])}</text>`;
+    }
+    const tspans = parts.map((p, i) =>
+      `<tspan x="${cx}" dy="${i ? 11 : 0}">${escapeHtml(p.trim())}</tspan>`
+    ).join("");
+    return `<text class="ds-layer-title" x="${cx}" y="${y - 6}" text-anchor="middle">${tspans}</text>`;
+  }
+
+  function unwrapJsonDesign(data) {
+    if (!data || typeof data !== "object") return data;
+    if (Array.isArray(data.nodes)) return data;
+    for (const key of ["design", "data", "content", "result", "output"]) {
+      const inner = data[key];
+      if (inner && Array.isArray(inner.nodes)) return inner;
+    }
+    return data;
+  }
+
+  function syncRoomsFromNodes(design, prevRooms) {
+    const prev = new Map((prevRooms || []).map(r => [r.id, r]));
+    const roomIds = [...new Set(design.nodes.filter(n => n.roomId).map(n => n.roomId))];
+    if (!roomIds.length) { design.rooms = []; return; }
+    design.rooms = roomIds.map(id => prev.get(id) || {
+      id, name: "Room", template: "conference", width: 560, height: 420
+    });
   }
 
   function computeLinkOffsets(links) {
@@ -183,36 +218,42 @@
     const byFrom = {};
     links.forEach(l => { (byFrom[l.from] ||= []).push(l); });
     Object.values(byFrom).forEach(bucket => {
-      bucket.forEach((l, i) => offsets.set(l.id, (i - (bucket.length - 1) / 2) * 20));
+      bucket.forEach((l, i) => offsets.set(l.id, (i - (bucket.length - 1) / 2) * 32));
     });
     return offsets;
   }
 
   function layoutZoneEntries(zone, entries, baseX, baseY, snapGrid) {
-    const pad = 10;
-    const rowThreshold = 0.18;
+    const pad = 12;
+    const gap = 18;
+    if (!entries.length) return;
     entries.sort((a, b) => a.item.relY - b.item.relY || a.item.relX - b.item.relX);
+    const sized = entries.map(e => {
+      const def = STN()?.getDef?.(e.n.stencilId, "room");
+      return { ...e, nw: e.n.w || def?.w || 76, nh: e.n.h || def?.h || 46 };
+    });
     const rows = [];
-    entries.forEach(e => {
+    const threshold = Math.max(0.1, 0.28 / Math.max(1, sized.length));
+    sized.forEach(e => {
       const last = rows[rows.length - 1];
-      if (!last || Math.abs(last[0].item.relY - e.item.relY) > rowThreshold) rows.push([e]);
+      if (!last || Math.abs(last[0].item.relY - e.item.relY) > threshold) rows.push([e]);
       else last.push(e);
     });
-    rows.forEach((row, ri) => {
-      const rowH = (zone.h - pad * 2) / rows.length;
-      const yCenter = zone.y + pad + rowH * ri + rowH / 2;
-      row.forEach((e, ci) => {
-        const def = STN()?.getDef?.(e.n.stencilId, "room");
-        const nw = e.n.w || def?.w || 76, nh = e.n.h || def?.h || 46;
-        let xCenter;
-        if (row.length === 1) xCenter = zone.x + e.item.relX * zone.w;
-        else {
-          const step = (zone.w - pad * 2) / row.length;
-          xCenter = zone.x + pad + step * ci + step / 2;
-        }
-        e.n.x = snapGrid ? snap(baseX + xCenter - nw / 2) : baseX + xCenter - nw / 2;
-        e.n.y = snapGrid ? snap(baseY + yCenter - nh / 2) : baseY + yCenter - nh / 2;
+    let yCursor = zone.y + pad;
+    const zoneMidX = zone.x + zone.w / 2;
+    rows.forEach(row => {
+      row.sort((a, b) => a.item.relX - b.item.relX);
+      const rowH = Math.max(...row.map(e => e.nh)) + gap;
+      const totalW = row.reduce((s, e) => s + e.nw, 0) + gap * Math.max(0, row.length - 1);
+      let xCursor = row.length === 1
+        ? zone.x + row[0].item.relX * zone.w - row[0].nw / 2
+        : zoneMidX - totalW / 2;
+      row.forEach(e => {
+        e.n.x = snapGrid ? snap(baseX + xCursor) : baseX + xCursor;
+        e.n.y = snapGrid ? snap(baseY + yCursor) : baseY + yCursor;
+        xCursor += e.nw + gap;
       });
+      yCursor += rowH;
     });
   }
 
@@ -290,30 +331,70 @@
     return design;
   }
 
+  function extractJsonText(raw) {
+    const t = String(raw || "").trim();
+    if (!t) return "";
+    const fenced = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fenced) return fenced[1].trim();
+    const start = t.indexOf("{");
+    const end = t.lastIndexOf("}");
+    if (start >= 0 && end > start) return t.slice(start, end + 1);
+    return t;
+  }
+
+  function resolveNodeRef(design, ref) {
+    if (!ref) return null;
+    const byId = design.nodes.find(n => n.id === ref);
+    if (byId) return byId.id;
+    const byLabel = design.nodes.find(n => n.label === ref || n.stencilId === ref);
+    return byLabel?.id || null;
+  }
+
   function applyJsonDesign(json, design) {
-    let data = json;
-    if (typeof json === "string") {
-      try { data = JSON.parse(json.replace(/^```json?\s*|\s*```$/g, "").trim()); } catch (e) { return false; }
+    let data;
+    try {
+      const parsed = typeof json === "string" ? JSON.parse(extractJsonText(json)) : json;
+      data = unwrapJsonDesign(parsed);
+    } catch (e) {
+      return { ok: false, error: e.message || "Invalid JSON" };
     }
-    if (!data || !Array.isArray(data.nodes)) return false;
+    if (!data || !Array.isArray(data.nodes) || !data.nodes.length)
+      return { ok: false, error: "JSON must include a non-empty nodes array" };
+
+    const prevRooms = design.rooms || [];
     const labelToId = new Map();
     design.nodes = data.nodes.map(n => {
       const id = n.id || uid();
-      labelToId.set(n.label, id);
+      if (n.label) labelToId.set(n.label, id);
       const mode = n.canvas === "room" ? "room" : "network";
       const def = STN()?.getDef?.(n.stencilId, mode);
-      return { id, stencilId: n.stencilId, label: n.label || def?.label, pid: n.pid || def?.pid,
+      return {
+        id, stencilId: n.stencilId, label: n.label || def?.label, pid: n.pid || def?.pid,
         layer: n.layer || def?.layer || "access", x: n.x || 100, y: n.y || 100, canvas: mode,
-        qty: n.qty || 1, w: n.w || def?.w, h: n.h || def?.h, roomId: n.roomId };
+        qty: n.qty || 1, w: n.w || def?.w, h: n.h || def?.h, roomId: n.roomId
+      };
     });
     design.links = (data.links || []).map(l => {
-      const from = design.nodes.find(n => n.label === l.fromLabel)?.id || l.from || labelToId.get(l.fromLabel);
-      const to = design.nodes.find(n => n.label === l.toLabel)?.id || l.to || labelToId.get(l.toLabel);
+      const from = resolveNodeRef(design, l.from) || resolveNodeRef(design, l.fromLabel) || labelToId.get(l.fromLabel || l.from);
+      const to = resolveNodeRef(design, l.to) || resolveNodeRef(design, l.toLabel) || labelToId.get(l.toLabel || l.to);
       if (!from || !to) return null;
-      return { id: l.id || uid(), from, to, media: l.media || "cat6", label: l.label || "Link", length: l.length || "3m", fromPort: l.fromPort || "", toPort: l.toPort || "" };
+      return {
+        id: l.id || uid(), from, to, media: l.media || "cat6", label: l.label || "Link",
+        length: l.length || "3m", fromPort: l.fromPort || "", toPort: l.toPort || ""
+      };
     }).filter(Boolean);
-    if (data.rooms) design.rooms = data.rooms.map(r => ({ ...r, id: r.id || uid() }));
-    return true;
+
+    if (Array.isArray(data.rooms)) {
+      design.rooms = data.rooms.map(r => ({ ...r, id: r.id || uid() }));
+    } else {
+      syncRoomsFromNodes(design, prevRooms);
+    }
+    if (data.account) design.account = data.account;
+    const skipped = (data.links || []).length - design.links.length;
+    if (skipped > 0) {
+      return { ok: true, warn: `${skipped} link(s) skipped — check fromLabel/toLabel match node labels` };
+    }
+    return { ok: true };
   }
 
   function autoLayoutNetwork(design) {
@@ -324,10 +405,12 @@
       const group = byLayer[layer];
       if (!group) return;
       const x = LAYER_X[layer] || 400;
-      const startY = LAYER_START_Y + Math.max(0, (6 - group.length) * (LAYER_ROW_H / 2));
+      group.sort((a, b) => String(a.label).localeCompare(String(b.label)));
       group.forEach((n, i) => {
+        const def = STN()?.getDef?.(n.stencilId, "network");
+        const nh = n.h || def?.h || 48;
         n.x = x;
-        n.y = startY + i * LAYER_ROW_H;
+        n.y = LAYER_START_Y + i * Math.max(LAYER_ROW_H, nh + 28);
         if (design.snapGrid !== false) { n.x = snap(n.x); n.y = snap(n.y); }
       });
     });
@@ -719,6 +802,11 @@
       if (acct) this.design.account = acct;
       if (this.design.floorPlan) document.getElementById("ds-floorplan").style.backgroundImage = `url(${this.design.floorPlan})`;
       this.activeRoomId = this.design.activeRoomId || this.design.rooms?.[0]?.id || null;
+      if (this.design.nodes.length) {
+        if (this.design.nodes.some(n => n.canvas !== "room")) autoLayoutNetwork(this.design);
+        this.design.rooms.forEach(r => autoLayoutRoom(this.design, r.id));
+        saveDesign(this.design);
+      }
       ["ds-snap", "ds-layers-band"].forEach(id => document.getElementById(id)?.classList.add("active"));
       document.getElementById("ds-ports")?.classList.remove("active");
       this.history.snapshot();
@@ -773,14 +861,32 @@
     }
 
     runJsonImport() {
-      const raw = document.getElementById("ds-json-import").value.trim();
-      if (!raw) { this.toast("Paste JSON first"); return; }
-      if (applyJsonDesign(raw, this.design)) {
-        if (this.design.nodes.some(n => n.canvas !== "room")) autoLayoutNetwork(this.design);
-        this.design.rooms.forEach(r => autoLayoutRoom(this.design, r.id));
-        this.pushHistory(); this.render(); this.fitView(); this.toast("AI JSON applied");
+      const box = document.getElementById("ds-json-import");
+      let raw = box?.value?.trim() || "";
+      if (!raw) raw = extractJsonText(document.getElementById("ds-intent-text")?.value || "");
+      if (!raw) {
+        this.toast("Paste JSON in the box below first");
+        document.querySelector(".ds-intent-advanced")?.setAttribute("open", "");
+        box?.focus();
+        return;
       }
-      else this.toast("Invalid JSON");
+      const result = applyJsonDesign(raw, this.design);
+      if (!result.ok) {
+        this.toast("JSON error: " + (result.error || "Invalid"));
+        document.querySelector(".ds-intent-advanced")?.setAttribute("open", "");
+        return;
+      }
+      if (result.warn) this.toast(result.warn);
+      if (this.design.nodes.some(n => n.canvas !== "room")) autoLayoutNetwork(this.design);
+      this.design.rooms.forEach(r => autoLayoutRoom(this.design, r.id));
+      this.activeRoomId = this.design.rooms[0]?.id || this.design.activeRoomId || null;
+      this.design.activeRoomId = this.activeRoomId;
+      this.pushHistory();
+      const roomOnly = this.design.rooms.length > 0 && !this.design.nodes.some(n => n.canvas !== "room");
+      this.setTab(roomOnly ? "room" : "network");
+      this.render();
+      this.fitView();
+      this.toast(`Applied ${this.design.nodes.length} devices · ${this.design.links.length} links`);
     }
 
     importStack() {
@@ -923,7 +1029,7 @@ Account: ${this.design.account}`;
 
     shouldShowLinkLabel(links, linkId) {
       if (this.selectedLink === linkId || this.linkMode) return true;
-      return links.length <= 14;
+      return links.length <= 8;
     }
 
     render() {
@@ -1159,11 +1265,12 @@ Account: ${this.design.account}`;
       if (this.tab === "network" && this.design.showLayerBands !== false && !this.presentation) {
         const activeLayers = [...new Set(nodes.map(n => n.layer).filter(Boolean))];
         bandsG.innerHTML = LAYERS.filter(l => activeLayers.includes(l)).map(layer => {
-          const x = (LAYER_X[layer] || 400) - 20;
+          const x = (LAYER_X[layer] || 400) - 12;
           const layerNodes = nodes.filter(n => n.layer === layer);
-          const maxY = layerNodes.length ? Math.max(...layerNodes.map(n => n.y + (n.h || 46))) + 24 : 520;
-          return `<rect class="ds-layer-band" x="${x}" y="72" width="${LAYER_COL_W}" height="${Math.max(400, maxY - 60)}"/>
-            <text class="ds-layer-title" x="${x + 6}" y="64">${LAYER_LABELS[layer]}</text>`;
+          const maxY = layerNodes.length ? Math.max(...layerNodes.map(n => n.y + (n.h || 46))) + 32 : 520;
+          const title = LAYER_LABELS[layer] || layer;
+          return `<rect class="ds-layer-band" x="${x}" y="80" width="${LAYER_COL_W}" height="${Math.max(420, maxY - 68)}"/>
+            ${layerTitleSvg(layer, x + LAYER_COL_W / 2, 74)}`;
         }).join("");
       } else bandsG.innerHTML = "";
 
