@@ -83,6 +83,18 @@ const poe = RULES.computePoeBudget(conf);
 if (poe.switches !== 1)
   issues.push(`PoE: conference expected 1 switch, got ${poe.switches}`);
 
+// No fabricated product IDs in orderable stencils
+const allDevices = { ...STN.NETWORK_DEVICES, ...STN.ROOM_DEVICES };
+for (const [id, def] of Object.entries(allDevices)) {
+  if (def.decorative || def.ccwEligible === false || def.bomEligible === false) continue;
+  const pid = def.pid || "";
+  if (!pid || pid.startsWith("N/A")) continue;
+  if (!STN.isCcwEligible(def, pid))
+    issues.push(`Stencil ${id}: PID ${pid} is not CCW-eligible (fabricated or placeholder)`);
+}
+if (STN.ROOM_DEVICES["amp-280"])
+  issues.push("Fabricated amp-280 stencil must not exist");
+
 if (issues.length) {
   console.error("Design Studio validation FAILED (" + issues.length + " issues):\n");
   issues.forEach(i => console.error("  -", i));

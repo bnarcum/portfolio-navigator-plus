@@ -48,17 +48,17 @@
   };
 
   const MEDIA_TYPES = [
-    { id: "cat6", label: "Cat6 UTP", cablePid: "CAB-CAT6-3M", maxMbps: 1000 },
-    { id: "cat6a", label: "Cat6A", cablePid: "CAB-CAT6A-5M", maxMbps: 10000 },
+    { id: "cat6", label: "Cat6 UTP", maxMbps: 1000 },
+    { id: "cat6a", label: "Cat6A", maxMbps: 10000 },
     { id: "fiber-sm", label: "SM Fiber 10G", cablePid: "SFP-10G-LR-S", maxMbps: 10000 },
     { id: "fiber-mm", label: "MM Fiber 10G", cablePid: "SFP-10G-SR-S", maxMbps: 10000 },
     { id: "fiber-40g", label: "SM Fiber 40G", cablePid: "QSFP-40G-LR4-S", maxMbps: 40000 },
     { id: "dac", label: "DAC 10G", cablePid: "SFP-H10GB-CU3M", maxMbps: 10000 },
-    { id: "hdmi", label: "HDMI 2.1", cablePid: "CAB-HDMI-3M", maxMbps: 48000 },
-    { id: "usb-c", label: "USB-C", cablePid: "CAB-USBC-2M", maxMbps: 40000 },
-    { id: "speaker", label: "Speaker wire", cablePid: "CAB-SPK-10M", maxMbps: 0 },
-    { id: "control", label: "Control RS232", cablePid: "CAB-CON-5M", maxMbps: 0 },
-    { id: "wireless", label: "Wireless RF", cablePid: "N/A-RF", maxMbps: 0 }
+    { id: "hdmi", label: "HDMI 2.1", maxMbps: 48000 },
+    { id: "usb-c", label: "USB-C", maxMbps: 40000 },
+    { id: "speaker", label: "Speaker wire", maxMbps: 0 },
+    { id: "control", label: "Control RS232", maxMbps: 0 },
+    { id: "wireless", label: "Wireless RF", maxMbps: 0 }
   ];
 
   function buildNetworkStencils() { return STN()?.buildCatalogStencils?.() || []; }
@@ -111,23 +111,12 @@
       const pid = n.pid || def?.pid || st?.pid;
       if (!STN()?.isCcwEligible?.(def, pid)) return;
       add(pid, n.label || def?.label || st?.label, qty, "hardware");
-      if (/9200|9300|9179|meraki|ms250|c9200|c9300/i.test(n.stencilId + (n.pid || "")))
-        add("DNA-A-48P-3Y", "Cisco DNA Advantage 48P (3yr)", qty, "license");
-      if (/ise/i.test(n.stencilId)) add("ISE-PLR-LIC", "ISE Premier (500 endpoints)", 1, "license");
-      if (/fpr|firewall|sf-/i.test(n.stencilId)) add("FPR-SUP-2130", "Secure Firewall TD license", qty, "license");
-      if (/room-kit|board|desk|bar|kit-eq|kitpro/i.test(n.stencilId)) add("A-FLEX-ROOM", "Webex Room license", qty, "license");
-      if (/ceiling-mic|table-mic/i.test(n.stencilId)) add("A-FLEX-MIC", "Webex Mic license", qty, "license");
     });
     design.links.forEach(l => {
       const m = MEDIA_TYPES.find(x => x.id === l.media) || MEDIA_TYPES[0];
-      if (m.cablePid && !m.cablePid.startsWith("N/A")) add(m.cablePid, `${m.label} — ${l.label || "link"}`, 1, "cable");
+      if (m.cablePid && STN()?.isCcwEligible?.({ pid: m.cablePid }, m.cablePid))
+        add(m.cablePid, `${m.label} — ${l.label || "link"}`, 1, "optic");
     });
-    const netCount = design.nodes.filter(n => n.canvas !== "room").length;
-    if (netCount >= 2) {
-      add("CON-PREM-SVC", "Solution Support (SSPT)", 1, "service");
-      add("CON-PS-8HR", "Professional Services 8hr", Math.max(1, Math.ceil(netCount / 5)), "service");
-    }
-    if (netCount >= 8) add("SMARTNET-24X7X4", "Smart Net 24x7x4 (placeholder)", netCount, "service");
     (design.bomOverrides || []).forEach(o => add(o.pid, o.desc, o.qty || 1, o.type || "manual"));
     return [...lines.values()].sort((a, b) => a.type.localeCompare(b.type));
   }
@@ -138,7 +127,7 @@
       const to = design.nodes.find(n => n.id === l.to);
       const media = MEDIA_TYPES.find(m => m.id === l.media) || MEDIA_TYPES[0];
       return { id: l.id, from: from?.label || l.from, to: to?.label || l.to, fromPort: l.fromPort || "—", toPort: l.toPort || "—",
-        media: media.label, cablePid: media.cablePid, length: l.length || "3m", label: l.label || `LINK-${String(i + 1).padStart(3, "0")}` };
+        media: media.label, cablePid: media.cablePid || "—", length: l.length || "3m", label: l.label || `LINK-${String(i + 1).padStart(3, "0")}` };
     });
   }
 
@@ -1440,6 +1429,7 @@ Account: ${this.design.account}`;
           <tbody>${bom.map(b => `<tr><td title="${escapeAttr(b.pid)}">${escapeHtml((b.desc || b.pid).slice(0, 42))}</td><td class="ds-pid-cell">${escapeHtml(b.pid)}</td><td>${b.qty}</td></tr>`).join("")}</tbody></table>
           <div class="ds-bom-total">${bom.length} CCW lines · ${bom.reduce((s, b) => s + b.qty, 0)} qty</div>
           ${deco.length ? `<div class="ds-bom-deco">${deco.length} layout-only item(s) on canvas (tables, generic displays, credenza) — not in CCW export.</div>` : ""}
+          <div class="ds-bom-deco">BOM lists orderable hardware PIDs from the canvas only. Licenses, Smart Net, copper/AV cabling, and services — quote in CCW or use Manual BOM.</div>
           <div style="padding:8px 12px"><button type="button" class="ds-btn" id="ds-add-bom">+ Manual BOM</button></div>` : `<div class="ds-empty">Generate from Intent or Gallery</div>`;
         document.getElementById("ds-add-bom")?.addEventListener("click", () => {
           const pid = prompt("PID:"); if (!pid) return;

@@ -19,7 +19,7 @@
     apic: "cube", "ucs-x": "server", "fpr-2130": "shield", "fpr-1120": "shield",
     cw9179f: "wifi", mr57: "wifi", "c8200-sdwan": "router", "c8200-sdwan-2": "router",
     mx85: "router", internet: "cloud", mpls: "globe", "users-vlan": "endpoint",
-    "credenza-rack": "server", "amp-280": "telepresence"
+    "credenza-rack": "server"
   };
 
   const LAYER_ACCENT = {
@@ -107,11 +107,6 @@
     "cam-hdmi": [{ id: "HDMI", x: 0.5, y: 1, side: "bottom", type: "hdmi" }],
     "mic-poe": [{ id: "ETH", x: 0.5, y: 1, side: "bottom", type: "copper", poe: true }],
     "touch-lan": [{ id: "LAN", x: 0.5, y: 1, side: "bottom", type: "copper", poe: true }],
-    "amp-spk": [
-      { id: "SPK1", x: 0.25, y: 1, side: "bottom", type: "speaker" },
-      { id: "SPK2", x: 0.75, y: 1, side: "bottom", type: "speaker" },
-      { id: "LAN", x: 0.5, y: 0, side: "top", type: "copper" }
-    ],
     "generic": [
       { id: "Port1", x: 0.3, y: 1, side: "bottom", type: "copper" },
       { id: "Port2", x: 0.7, y: 1, side: "bottom", type: "copper" }
@@ -129,7 +124,7 @@
     "mr57": { label: "MR57 AP", pid: "MR57-HW", layer: "access", role: "ap", shape: "ap", ports: "ap-single", w: 72, h: 44, poeW: 25 },
     "c8200-sdwan": { label: "C8200 SD-WAN", pid: "C8200-1N-4T", layer: "wan", role: "wan-edge", shape: "router", ports: "router-dual", w: 84, h: 44 },
     "c8200-sdwan-2": { label: "C8200 SD-WAN (B)", pid: "C8200-1N-4T", layer: "wan", role: "wan-edge", shape: "router", ports: "router-dual", w: 84, h: 44 },
-    "vmanage": { label: "vManage", pid: "SD-WAN-VMS-SMALL", layer: "mgmt", role: "controller", shape: "server", ports: "generic", w: 72, h: 48 },
+    "vmanage": { label: "vManage", pid: "SD-WAN-VMS-SMALL", layer: "mgmt", role: "controller", shape: "server", ports: "generic", w: 72, h: 48, bomEligible: false },
     "cat-center": { label: "Catalyst Center", pid: "DN3-HW-APL", layer: "mgmt", role: "management", shape: "server", ports: "generic", w: 80, h: 48 },
     "ise-psn": { label: "ISE PSN", pid: "ISE-VM-K9", layer: "security", role: "ise", shape: "server", ports: "generic", w: 72, h: 48 },
     "ise-pan": { label: "ISE PAN", pid: "ISE-VM-K9", layer: "security", role: "ise", shape: "server", ports: "generic", w: 72, h: 48 },
@@ -141,7 +136,7 @@
     "ucs-x": { label: "UCS X210c", pid: "UCSX-210C-M7SN", layer: "dc", role: "compute", shape: "server", ports: "generic", w: 72, h: 52 },
     "mx85": { label: "Meraki MX85", pid: "MX85-HW", layer: "wan", role: "wan-edge", shape: "router", ports: "router-dual", w: 80, h: 44 },
     "ms250": { label: "MS250 Switch", pid: "MS250-48FP-HW", layer: "access", role: "access", shape: "switch", ports: "switch-48", w: 88, h: 48, poeW: 740 },
-    "umbrella-va": { label: "Umbrella VA", pid: "UMB-VA-VM", layer: "security", role: "dns", shape: "cloud", ports: "generic", w: 76, h: 44 },
+    "umbrella-va": { label: "Umbrella VA", pid: "UMB-VA-VM", layer: "security", role: "dns", shape: "cloud", ports: "generic", w: 76, h: 44, bomEligible: false },
     "internet": { label: "Internet / DIA", pid: "N/A-INTERNET", layer: "wan", role: "cloud", shape: "cloud", ports: "generic", w: 80, h: 44 },
     "mpls": { label: "MPLS WAN", pid: "N/A-MPLS", layer: "wan", role: "cloud", shape: "cloud", ports: "generic", w: 80, h: 44 },
     "users-vlan": { label: "Users / VLAN", pid: "N/A-VLAN", layer: "access", role: "logical", shape: "user", ports: "generic", w: 72, h: 48 }
@@ -153,11 +148,11 @@
     "room-bar": { label: "Room Bar", pid: "CS-BAR-K9", shape: "codec", ports: "codec-av", w: 84, h: 48, poeW: 45 },
     "board-pro": { label: "Board Pro 75", pid: "CS-BRD-75-K9", shape: "display", ports: "display-hdmi", w: 104, h: 60, poeW: 0 },
     "desk-pro": { label: "Desk Pro", pid: "CS-DESKPRO-K9", shape: "codec", ports: "codec-av", w: 76, h: 48, poeW: 30 },
-    "quad-cam": { label: "Quad Camera", pid: "CS-QUADCAM", shape: "camera", ports: "cam-hdmi", w: 56, h: 52 },
-    "ceiling-mic": { label: "Ceiling Mic Pro", pid: "CS-CEILINGMIC", shape: "mic", ports: "mic-poe", w: 72, h: 40, poeW: 15 },
-    "table-mic": { label: "Table Mic Pro", pid: "CS-TABLEMIC", shape: "mic", ports: "mic-poe", w: 68, h: 36, poeW: 10 },
-    "touch-10": { label: "Touch 10", pid: "CS-TOUCH10", shape: "touch", ports: "touch-lan", w: 64, h: 48, poeW: 12 },
-    "amp-280": { label: "Room Amp 280", pid: "CS-AMP-280", shape: "codec", ports: "amp-spk", w: 56, h: 44 },
+    "quad-cam": { label: "Quad Camera", pid: "CS-QUADCAM-K9", shape: "camera", ports: "cam-hdmi", w: 56, h: 52 },
+    "ceiling-mic": { label: "Ceiling Mic Pro", pid: "CS-MIC-CLG-P", shape: "mic", ports: "mic-poe", w: 72, h: 40, poeW: 15 },
+    "table-mic": { label: "Table Mic Pro", pid: "CS-MIC-TBL-P", shape: "mic", ports: "mic-poe", w: 68, h: 36, poeW: 10 },
+    "touch-10": { label: "Touch 10", pid: "CS-TOUCH10-K9", shape: "touch", ports: "touch-lan", w: 64, h: 48, poeW: 12 },
+    "room-navigator": { label: "Room Navigator", pid: "CS-NAV-T-K9", shape: "touch", ports: "touch-lan", w: 64, h: 48, poeW: 12 },
     "display-75": { label: "Display 75\"", pid: "DISPLAY-75-4K", shape: "display", ports: "display-hdmi", w: 100, h: 58, ccwEligible: false, decorative: true },
     "display-86": { label: "Display 86\"", pid: "DISPLAY-86-4K", shape: "display", ports: "display-hdmi", w: 108, h: 62, ccwEligible: false, decorative: true },
     "credenza-rack": { label: "12U Credenza", pid: "RACK-12U-CRED", shape: "rack", ports: "generic", w: 56, h: 72, ccwEligible: false, decorative: true },
@@ -219,11 +214,13 @@
     return LAYER_ACCENT[def?.layer] || ROLE_ACCENT[def?.role] || "#02C8FF";
   }
 
+  const BLOCKED_BOM_PID = /^(DISPLAY-|FURN-|RACK-|CAB-|A-FLEX-|CON-|PID-|CS-AMP|UMB-VA|SD-WAN-VMS)/i;
+
   function isCcwEligible(def, pid) {
     const p = pid || def?.pid || "";
     if (!p || p.startsWith("N/A")) return false;
-    if (def?.ccwEligible === false || def?.decorative) return false;
-    if (/^(DISPLAY-|FURN-|RACK-)/i.test(p)) return false;
+    if (def?.ccwEligible === false || def?.decorative || def?.bomEligible === false) return false;
+    if (BLOCKED_BOM_PID.test(p)) return false;
     return true;
   }
 
@@ -305,7 +302,7 @@
       out.push({
         id: f.id, label: f.name.length > 22 ? f.name.slice(0, 20) + "…" : f.name,
         layer: f.category === "security" ? "security" : f.category === "collaboration" ? "collab" : "access",
-        pid: `PID-${f.id}`, symbolId: resolveSymbolId(def, sid) || "switch",
+        pid: def?.pid || "", bomEligible: !!def?.pid, symbolId: resolveSymbolId(def, sid) || "switch",
         accent: resolveAccent(def), familyId: f.id, w: 76, h: 46
       });
     });
