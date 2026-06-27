@@ -476,31 +476,34 @@
   function buildCeilingMic(THREE, opts) {
     const { theme, scale } = opts;
     const g = new THREE.Group();
-    const mount = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.06 * scale, 0.08 * scale, 0.12 * scale, 12),
+    // Ceiling mount plate at the top (where the PoE cable runs into the plenum).
+    const plate = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.11 * scale, 0.11 * scale, 0.05 * scale, 16),
       stdMat(THREE, 0x3a4450, { metalness: 0.85, roughness: 0.25 })
     );
-    mount.position.y = 0.85 * scale;
-    g.add(mount);
-    const puck = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.18 * scale, 0.2 * scale, 0.06 * scale, 24),
-      stdMat(THREE, 0xf0f4f8, { metalness: 0.4, roughness: 0.42 })
-    );
-    puck.position.y = 0.75 * scale;
-    g.add(puck);
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(0.14 * scale, 0.012 * scale, 8, 24),
-      accentMat(THREE, theme, { emissiveIntensity: 0.55 })
-    );
-    ring.rotation.x = Math.PI / 2;
-    ring.position.y = 0.78 * scale;
-    g.add(ring);
+    plate.position.y = 0.9 * scale;
+    g.add(plate);
+    // Drop stem hanging the mic down from the ceiling.
     const stem = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.025 * scale, 0.03 * scale, 0.7 * scale, 8),
+      new THREE.CylinderGeometry(0.025 * scale, 0.025 * scale, 0.55 * scale, 8),
       stdMat(THREE, 0x4a5565, { metalness: 0.8, roughness: 0.3 })
     );
-    stem.position.y = 0.35 * scale;
+    stem.position.y = 0.6 * scale;
     g.add(stem);
+    // Mic capsule facing down toward the table.
+    const puck = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.22 * scale, 0.18 * scale, 0.08 * scale, 24),
+      stdMat(THREE, 0xf0f4f8, { metalness: 0.4, roughness: 0.42 })
+    );
+    puck.position.y = 0.25 * scale;
+    g.add(puck);
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.17 * scale, 0.014 * scale, 8, 24),
+      accentMat(THREE, theme, { emissiveIntensity: 0.6 })
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.22 * scale;
+    g.add(ring);
     return fitGroup(g, 0.95 * scale);
   }
 

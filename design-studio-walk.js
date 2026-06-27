@@ -422,6 +422,19 @@
   // other (mirrors 3d-force-graph's linkCurveRotation technique).
   const _pairCount = {};
 
+  // Height at which a cable plugs into a device, derived from the device's
+  // zone lift so cables terminate ON the device (ceiling mics/APs float high,
+  // table mics sit low) instead of a fixed mid-air height.
+  function cablePortY(ch) {
+    const kind = state.graph?.kind || "room";
+    const z = (ch?.zone || "").toLowerCase();
+    const lift = podLift(z, kind);
+    if (kind !== "room") return lift + 0.4;    // network chassis: into the body
+    if (z === "ceiling") return lift + 0.55;   // plug into the stem of a hanging mic/AP
+    if (z === "wall" || z === "display") return lift + 0.15;
+    return lift + 0.45;                        // table / rack / default: into the body
+  }
+
   function makeCableRun(THREE, cor) {
     const ax = cor.from.pos.x, az = cor.from.pos.z;
     const bx = cor.to.pos.x, bz = cor.to.pos.z;
@@ -430,21 +443,25 @@
     const g = new THREE.Group();
     const color = cor.color ?? 0x02c8ff;
 
-    // Endpoints lift to the device "port" height so cables read as plugged in.
-    const portY = 1.35;
-    const a = new THREE.Vector3(ax, portY, az);
-    const b = new THREE.Vector3(bx, portY, bz);
+    // Each end plugs in at its own device height so the cable visibly reaches
+    // the device (ceiling mics sit ~3m up, table mics low, switches mid).
+    const ya = cablePortY(cor.from);
+    const yb = cablePortY(cor.to);
+    const a = new THREE.Vector3(ax, ya, az);
+    const b = new THREE.Vector3(bx, yb, bz);
 
-    // Arc the cable up and over. Longer runs arc higher; siblings between the
-    // same pair are nudged sideways + up so every connection stays traceable.
+    // Arc the cable up and over the higher endpoint. Longer runs arc higher;
+    // siblings between the same pair are nudged sideways + up so every
+    // connection stays traceable.
     const pairKey = [cor.from.id, cor.to.id].sort().join("|");
     const sib = _pairCount[pairKey] = (_pairCount[pairKey] || 0) + 1;
-    const arch = Math.min(Math.max(len * 0.28, 1.6), 5.5) + (sib - 1) * 0.9;
+    const baseY = Math.max(ya, yb);
+    const arch = Math.min(Math.max(len * 0.26, 1.2), 5.0) + (sib - 1) * 0.85;
     const perp = new THREE.Vector3(-dz, 0, dx).normalize();
     const lateral = ((sib - 1) % 2 === 0 ? 1 : -1) * Math.ceil((sib - 1) / 2) * 1.1;
     const mid = new THREE.Vector3(
       (ax + bx) / 2 + perp.x * lateral,
-      portY + arch,
+      baseY + arch,
       (az + bz) / 2 + perp.z * lateral
     );
     const curve = new THREE.QuadraticBezierCurve3(a, mid, b);
@@ -458,14 +475,13 @@
     );
     g.add(tube);
 
-    // Connector collars where the cable meets each device.
+    // Short connector collar right where the cable plugs into each device.
     [a, b].forEach(p => {
       const collar = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.22, 0.28, 0.34, 14),
-        new THREE.MeshStandardMaterial({ color: 0x14202e, emissive: color, emissiveIntensity: 0.4, metalness: 0.6, roughness: 0.35 })
+        new THREE.CylinderGeometry(0.13, 0.16, 0.3, 14),
+        new THREE.MeshStandardMaterial({ color: 0x14202e, emissive: color, emissiveIntensity: 0.45, metalness: 0.6, roughness: 0.35 })
       );
-      collar.position.set(p.x, portY * 0.5, p.z);
-      collar.scale.y = portY / 0.34;
+      collar.position.set(p.x, p.y, p.z);
       g.add(collar);
     });
 
@@ -1501,10 +1517,16 @@
       <div class="ds-walk-links" id="ds-walk-links" hidden></div>
       <div class="ds-walk-legend" id="ds-walk-legend" hidden></div>
       <div class="ds-walk-mission" id="ds-walk-mission"></div>
-      <div class="ds-walk-devices" id="ds-walk-devices"></div>
       <div class="ds-walk-focus" id="ds-walk-focus" hidden></div>
       <div class="ds-walk-status" id="ds-walk-status">Mission briefing loading…</div>
     </div>`;
+  }
+
+  // The device hotbar lives as a direct child of the overlay (not inside the
+  // compact, absolutely-positioned top bar) so it anchors to the bottom-center
+  // of the full screen instead of floating over the HUD.
+  function hudPanelsHtml() {
+    return `<div class="ds-walk-devices" id="ds-walk-devices"></div>`;
   }
 
   function bindDpad() {
@@ -1812,7 +1834,8 @@
           <canvas id="ds-walk-canvas"></canvas>
         </div>
         <aside class="ds-field-panel" id="ds-field-panel" hidden aria-label="Device inspect"></aside>
-      </div>`;
+      </div>
+      ${hudPanelsHtml()}`;
     bindHud();
 
     const canvas = overlay.querySelector("#ds-walk-canvas");
