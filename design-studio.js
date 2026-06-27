@@ -25,11 +25,11 @@
   const LAYER_ROW_H = 104;
   const ROOM_LAYOUT_OX = 96;
   const ROOM_LAYOUT_OY = 72;
-  const ROOM_ZONE_GAP = 52;
-  const ROOM_ZONE_MIN_H = 96;
-  const ROOM_ZONE_PAD = 24;
-  const ROOM_ITEM_GAP = 32;
-  const ROOM_ROW_GAP = 28;
+  const ROOM_ZONE_GAP = 56;
+  const ROOM_ZONE_MIN_H = 112;
+  const ROOM_ZONE_PAD = 28;
+  const ROOM_ITEM_GAP = 36;
+  const ROOM_ROW_GAP = 32;
   /** @deprecated kept for minimap compat */
   const LAYER_Y = { wan: 40, security: 120, core: 200, distribution: 300, access: 400, mgmt: 500, collab: 580, dc: 260 };
 
@@ -293,53 +293,22 @@
 
   function layoutZoneEntries(zone, entries, baseX, baseY, snapGrid) {
     const pad = ROOM_ZONE_PAD;
-    const gap = ROOM_ITEM_GAP;
-    const rowGap = ROOM_ROW_GAP;
-    const labelHead = 18;
+    const labelHead = 22;
     if (!entries.length) return;
-    const sized = entries.map(e => {
+    const innerW = Math.max(zone.w - pad * 2, 96);
+    const innerH = Math.max(zone.h - pad * 2 - labelHead, 64);
+    entries.forEach(e => {
       const def = STN()?.getDef?.(e.n.stencilId, "room");
-      return { ...e, nw: e.n.w || def?.w || 76, nh: e.n.h || def?.h || 46 };
-    });
-    const rowMap = new Map();
-    sized.forEach(e => {
-      const band = Math.round(e.item.relY * 5);
-      if (!rowMap.has(band)) rowMap.set(band, []);
-      rowMap.get(band).push(e);
-    });
-    const rowKeys = [...rowMap.keys()].sort((a, b) => a - b);
-    let yCursor = zone.y + pad + labelHead;
-    const innerW = Math.max(zone.w - pad * 2, 48);
-    rowKeys.forEach(band => {
-      const row = rowMap.get(band);
-      row.sort((a, b) => a.item.relX - b.item.relX);
-      const rowH = Math.max(...row.map(e => e.nh));
-      const totalW = row.reduce((s, e) => s + e.nw, 0) + gap * Math.max(0, row.length - 1);
-      const spreadRelX = row.length > 1 && new Set(row.map(e => Math.round(e.item.relX * 8))).size > 1;
-      if (spreadRelX) {
-        row.forEach(e => {
-          const centerX = zone.x + pad + e.item.relX * innerW;
-          let x = centerX - e.nw / 2;
-          x = Math.max(zone.x + pad, Math.min(x, zone.x + zone.w - pad - e.nw));
-          e.n.x = snapGrid ? snap(baseX + x) : baseX + x;
-          e.n.y = snapGrid ? snap(baseY + yCursor) : baseY + yCursor;
-        });
-      } else if (row.length === 1) {
-        const e = row[0];
-        const centerX = zone.x + pad + e.item.relX * innerW;
-        let x = centerX - e.nw / 2;
-        x = Math.max(zone.x + pad, Math.min(x, zone.x + zone.w - pad - e.nw));
-        e.n.x = snapGrid ? snap(baseX + x) : baseX + x;
-        e.n.y = snapGrid ? snap(baseY + yCursor) : baseY + yCursor;
-      } else {
-        let xCursor = zone.x + pad + Math.max(0, (innerW - totalW) / 2);
-        row.forEach(e => {
-          e.n.x = snapGrid ? snap(baseX + xCursor) : baseX + xCursor;
-          e.n.y = snapGrid ? snap(baseY + yCursor) : baseY + yCursor;
-          xCursor += e.nw + gap;
-        });
-      }
-      yCursor += rowH + rowGap;
+      const nw = e.n.w || def?.w || 76;
+      const nh = e.n.h || def?.h || 46;
+      const cx = zone.x + pad + e.item.relX * innerW;
+      const cy = zone.y + pad + labelHead + e.item.relY * innerH;
+      let x = cx - nw / 2;
+      let y = cy - nh / 2;
+      x = Math.max(zone.x + pad, Math.min(x, zone.x + zone.w - pad - nw));
+      y = Math.max(zone.y + pad + labelHead, Math.min(y, zone.y + zone.h - pad - nh));
+      e.n.x = snapGrid ? snap(baseX + x) : baseX + x;
+      e.n.y = snapGrid ? snap(baseY + y) : baseY + y;
     });
   }
 
@@ -889,8 +858,30 @@
       wrap.classList.toggle("room-mode", tab === "room");
       wrap.classList.toggle("network-mode", tab === "network");
       this.updateRoomPicker();
+      this.renderRoomGuide();
       if (tab !== "intent") { this.renderPalette(); this.renderCanvas(); if (tab === "room") this.fitView(); }
       this.renderPanel();
+    }
+
+    renderRoomGuide() {
+      let bar = document.getElementById("ds-room-guide");
+      if (!bar) {
+        bar = document.createElement("div");
+        bar.id = "ds-room-guide";
+        document.getElementById("ds-canvas-wrap")?.prepend(bar);
+      }
+      if (this.tab !== "room" || !this.activeRoomId) { bar.hidden = true; return; }
+      const room = this.design.rooms.find(r => r.id === this.activeRoomId);
+      const tpl = room ? TPL()?.ROOM_TEMPLATES?.[room.template] : null;
+      if (!tpl) { bar.hidden = true; return; }
+      const cite = tpl.ctUrl || "";
+      const citeLabel = tpl.ct || "Cisco hybrid work design guide";
+      const idx = this.design.rooms.findIndex(r => r.id === this.activeRoomId) + 1;
+      const total = this.design.rooms.length;
+      bar.hidden = false;
+      bar.innerHTML = `<span class="ds-room-guide-title">${escapeHtml(room.name)}</span>
+        <span class="ds-room-guide-meta">${idx} of ${total} · ${escapeHtml(tpl.category || "Room")} · PoE switch feeds endpoints per CT</span>
+        ${cite ? `<a class="ds-room-guide-link" href="${escapeAttr(cite)}" target="_blank" rel="noopener">${escapeHtml(citeLabel)} ↗</a>` : ""}`;
     }
 
     updateRoomPicker() {
@@ -930,10 +921,16 @@
         rat.innerHTML = INT.renderRationaleHtml(plan, score, fixes);
       }
       this.previewIntent();
+      const roomTotal = plan.roomPlan.reduce((s, r) => s + r.count, 0);
       const citeCount = plan.citations?.length || 0;
-      this.toast(`Draft generated · Score ${score}/100 · ${citeCount} cited reference${citeCount === 1 ? "" : "s"}`);
-      const roomOnly = this.design.rooms.length > 0 && !this.design.nodes.some(n => n.canvas !== "room");
-      this.setTab(roomOnly ? "room" : "network");
+      this.toast(`Draft generated · ${roomTotal ? roomTotal + " rooms · " : ""}Score ${score}/100`);
+      const hasNet = this.design.nodes.some(n => n.canvas !== "room");
+      if (roomTotal > 0) {
+        this.activeRoomId = this.design.activeRoomId;
+        this.setTab("room");
+      } else if (hasNet) {
+        this.setTab("network");
+      }
       this.fitView();
     }
 
@@ -1646,13 +1643,27 @@ Account: ${this.design.account}`;
 
     fitView() {
       const nodes = this.visibleNodes();
-      if (!nodes.length) { this.pan = { x: 40, y: 40, zoom: 1 }; this.applyTransform(); return; }
-      const xs = nodes.flatMap(n => [n.x, n.x + (n.w || 76)]);
-      const ys = nodes.flatMap(n => [n.y, n.y + (n.h || 46)]);
-      const rect = document.getElementById("ds-svg").getBoundingClientRect();
-      const pad = this.tab === "room" ? 120 : 80, w = Math.max(...xs) - Math.min(...xs) + pad * 2, h = Math.max(...ys) - Math.min(...ys) + pad * 2;
-      const maxZoom = this.tab === "room" ? 1.25 : 1.1;
-      this.pan.zoom = Math.max(0.25, Math.min(rect.width / w, rect.height / h, maxZoom));
+      const rect = document.getElementById("ds-svg")?.getBoundingClientRect();
+      if (!nodes.length || !rect?.width) { this.pan = { x: 40, y: 40, zoom: 1 }; this.applyTransform(); return; }
+      let xs = nodes.flatMap(n => [n.x, n.x + (n.w || 76)]);
+      let ys = nodes.flatMap(n => [n.y, n.y + (n.h || 46)]);
+      if (this.tab === "room" && this.activeRoomId) {
+        const room = this.design.rooms.find(r => r.id === this.activeRoomId);
+        const ox = room?.layoutOrigin?.x ?? ROOM_LAYOUT_OX;
+        const oy = room?.layoutOrigin?.y ?? ROOM_LAYOUT_OY;
+        const zones = room?.computedZones || TPL()?.ROOM_TEMPLATES?.[room?.template]?.zones;
+        if (zones) {
+          Object.values(zones).forEach(z => {
+            xs.push(ox + z.x, ox + z.x + z.w);
+            ys.push(oy + z.y, oy + z.y + z.h);
+          });
+        }
+      }
+      const pad = this.tab === "room" ? 48 : 80;
+      const w = Math.max(...xs) - Math.min(...xs) + pad * 2;
+      const h = Math.max(...ys) - Math.min(...ys) + pad * 2;
+      const maxZoom = this.tab === "room" ? 1.05 : 1.1;
+      this.pan.zoom = Math.max(0.35, Math.min(rect.width / w, rect.height / h, maxZoom));
       this.pan.x = pad - Math.min(...xs) * this.pan.zoom;
       this.pan.y = pad - Math.min(...ys) * this.pan.zoom;
       this.applyTransform();

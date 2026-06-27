@@ -133,7 +133,7 @@ if (INT?.generateFromIntent) {
     { brief: "SD-WAN HQ with 8 branches vManage multi-site", net: "sdwanFull", rooms: [] },
     { brief: "Healthcare hospital clinical campus ISE", net: "healthcareCampus", rooms: [] },
     { brief: "Retail Meraki 40 stores", net: "retailMeraki", rooms: [] },
-    { brief: "6 huddle rooms and 4 boardrooms Webex", net: null, rooms: [{ key: "huddle", count: 6 }, { key: "boardroom", count: 4 }] },
+    { brief: "Future-proofed hybrid campus 18 Webex rooms Board Pro Room Kit EQ conference Room Bar huddles Catalyst Center", net: "snraCampus", rooms: [{ key: "boardroom", count: 5 }, { key: "conference", count: 7 }, { key: "huddle", count: 6 }] },
     { brief: "Zero trust SASE Umbrella SD-WAN", net: "zeroTrustEdge", rooms: [] }
   ];
 

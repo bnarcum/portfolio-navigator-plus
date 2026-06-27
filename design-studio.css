@@ -70,6 +70,13 @@
 .ds-port-chip{font-size:8px;padding:2px 6px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);color:var(--muted)}
 
 #ds-canvas-wrap{flex:1;position:relative;overflow:hidden;background:#04101f}
+#ds-room-guide{position:absolute;top:8px;left:12px;right:12px;z-index:12;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;
+  padding:8px 12px;border-radius:8px;border:1px solid rgba(2,200,255,.22);background:rgba(7,24,45,.88);pointer-events:auto}
+#ds-room-guide[hidden]{display:none!important}
+.ds-room-guide-title{font-size:12px;font-weight:700;color:var(--text)}
+.ds-room-guide-meta{font-size:10px;color:var(--muted)}
+.ds-room-guide-link{font-size:10px;font-weight:600;color:var(--accent);text-decoration:none}
+.ds-room-guide-link:hover{text-decoration:underline}
 #ds-canvas-wrap.network-mode{
   background-color:#04101f;
   background-image:

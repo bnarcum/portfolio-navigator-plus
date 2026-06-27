@@ -495,11 +495,11 @@
       category: "Small",
       ct: "Traditional Huddle Room Design Guide",
       ctUrl: "https://www.cisco.com/c/dam/en/us/solutions/collateral/hybrid-work/webex-nyc-design-guide-traditional-huddle-room.pdf",
-      w: 500, h: 420,
-      zones: { display: { x: 160, y: 32, w: 240, h: 128 }, table: { x: 100, y: 188, w: 240, h: 132 }, rack: { x: 32, y: 340, w: 200, h: 88 } },
+      w: 640, h: 520,
+      zones: { display: { x: 100, y: 20, w: 440, h: 180 }, table: { x: 80, y: 220, w: 480, h: 160 }, rack: { x: 80, y: 400, w: 480, h: 108 } },
       items: [
-        { stencilId: "room-bar", zone: "display", relX: 0.5, relY: 0.32, label: "Room Bar" },
-        { stencilId: "display-75", zone: "display", relX: 0.5, relY: 0.78, label: "Display" },
+        { stencilId: "room-bar", zone: "display", relX: 0.5, relY: 0.28, label: "Room Bar" },
+        { stencilId: "display-75", zone: "display", relX: 0.5, relY: 0.72, label: "Display" },
         { stencilId: "conf-table-8", zone: "table", relX: 0.5, relY: 0.55, label: "Table" },
         { stencilId: "c9200-collab", zone: "rack", relX: 0.5, relY: 0.5, label: "PoE Switch" }
       ],

@@ -20,19 +20,6 @@
     }
   };
 
-  const ROOM_ALIASES = {
-    huddle: /\bhuddle|small room\b/i,
-    conference: /\bconference|medium collab|room kit eq\b/i,
-    boardroom: /\bboardroom|board pro|executive board|large room|20 seat\b/i,
-    training: /\btraining|classroom\b/i,
-    executive: /\bexecutive office|exec office\b/i,
-    teamsRoom: /\bteams room|microsoft teams|mtr\b/i,
-    zoomRoom: /\bzoom room|\bzoom\b/i,
-    divisible: /\bdivisible|all-hands\b/i,
-    ctSmallCollab: /\bsmall collab|small collaboration\b/i,
-    ctMediumDualDisplay: /\bdual display|video centric\b/i
-  };
-
   const DEFAULT_CVD = {
     label: "Cisco Validated Designs",
     url: "https://www.cisco.com/go/cvd"
@@ -45,8 +32,8 @@
 
   /** Per-template scoring: keywords (+pts), pillar boost */
   const NET_SCORE_RULES = {
-    snraCampus: { kw: [/snra|secure network reference/i, /zero.?trust campus/i, /enterprise campus/i], pillar: "resilience", pillarPts: 4 },
-    campus3tierRedundant: { kw: [/3.?tier|redundant core|enterprise campus/i, /hospital|hq\b/i], pillar: "workplaces", pillarPts: 3 },
+    snraCampus: { kw: [/snra|secure network reference/i, /hybrid campus/i, /catalyst center/i, /future-?proofed/i, /c9300|c9500/i], pillar: "workplaces", pillarPts: 6 },
+    campus3tierRedundant: { kw: [/3.?tier|redundant core/i, /\bhq\b|headquarters/i], pillar: "workplaces", pillarPts: 3 },
     campusCollapsed: { kw: [/collapsed core|small campus|500 user|smb/i], pillar: "workplaces", pillarPts: 4 },
     sdwanFull: { kw: [/sd-?wan|vmanage|multi-?site/i, /hq.*branch|8 branch|headquarter/i], pillar: "resilience", pillarPts: 5 },
     branchStandard: { kw: [/\bbranch\b/i, /remote office/i], pillar: "resilience", pillarPts: 3 },
@@ -56,7 +43,7 @@
     dcAciPod: { kw: [/aci pod|\baci\b/i], pillar: "ai-dc", pillarPts: 6 },
     dcAiMlFabric: { kw: [/ai\/?ml|gpu|inference|training cluster|llm/i], pillar: "ai-dc", pillarPts: 8 },
     k12District: { kw: [/k-?12|school|district/i], pillar: "workplaces", pillarPts: 5 },
-    healthcareCampus: { kw: [/hospital|healthcare|clinical|medical/i], pillar: "workplaces", pillarPts: 6 },
+    healthcareCampus: { kw: [/hospital|healthcare|clinical|medical/i], pillar: null, pillarPts: 0 },
     zeroTrustEdge: { kw: [/zero trust|sase|umbrella|duo/i], pillar: "resilience", pillarPts: 7 },
     hyperflexEdge: { kw: [/hyperflex|\bhx\b/i], pillar: "ai-dc", pillarPts: 4 },
     universityCampus: { kw: [/university|higher.?ed|college campus/i], pillar: "workplaces", pillarPts: 6 },
@@ -101,43 +88,89 @@
     return best[1] > 0 ? best[0] : null;
   }
 
-  function parseNumbers(t) {
+  function parseNumbers(t, raw) {
     const branches = parseInt(t.match(/(\d+)\s*(branch|site|location)s?\b/i)?.[1] || "0", 10);
     const stores = parseInt(t.match(/(\d+)\s*(store|retail)s?\b/i)?.[1] || "0", 10);
     const users = parseInt(t.match(/(\d[\d,]*)\s*users?\b/i)?.[1]?.replace(/,/g, "") || "0", 10);
-    const roomsTotal = parseInt(t.match(/(\d+)\s*(room|conference|huddle|boardroom|meeting)s?\b/i)?.[1] || "0", 10);
+    const roomsTotal = parseRoomTotal(raw || t);
     return { branches, stores, users, roomsTotal };
   }
 
-  function parseRoomMix(t) {
+  function parseRoomTotal(raw) {
+    const m = raw.match(/(\d+)\s+(?:webex\s+)?rooms?\b/i);
+    if (m) return parseInt(m[1], 10);
+    const m2 = raw.match(/(\d+)\s*(?:conference|huddle|boardroom|meeting)\s*rooms?\b/i);
+    return m2 ? parseInt(m2[1], 10) : 0;
+  }
+
+  function mapRoomTypePhrase(phrase) {
+    const p = phrase.toLowerCase();
+    if (/boardroom/.test(p)) return "boardroom";
+    if (/huddle/.test(p)) return "huddle";
+    if (/training|classroom/.test(p)) return "training";
+    if (/executive/.test(p)) return "executive";
+    if (/teams/.test(p)) return "teamsRoom";
+    if (/zoom/.test(p)) return "zoomRoom";
+    if (/divisible|all-hands/.test(p)) return "divisible";
+    if (/dual display/.test(p)) return "ctMediumDualDisplay";
+    if (/small collab/.test(p)) return "ctSmallCollab";
+    return "conference";
+  }
+
+  function inferMixFromBrief(raw, total) {
+    const hasHuddle = /room bar|in huddles?|\bhuddles?\b/i.test(raw);
+    const hasConf = /conference rooms?|room kit eq/i.test(raw);
+    const hasBoard = /board pro/i.test(raw);
     const mix = [];
-    const re = /(\d+)\s*(conference|huddle|boardroom|training|executive|teams|zoom|divisible|small collab|dual display|classroom|meeting)\s*(room|rooms)?/gi;
+
+    if (hasHuddle && hasConf && total > 1) {
+      const huddleCount = Math.max(1, Math.round(total * 0.33));
+      const confTotal = total - huddleCount;
+      if (hasBoard && /room kit/i.test(raw)) {
+        const boardCount = Math.max(1, Math.round(confTotal * 0.4));
+        mix.push({ key: "boardroom", count: boardCount });
+        mix.push({ key: "conference", count: Math.max(1, confTotal - boardCount) });
+      } else if (hasBoard) {
+        mix.push({ key: "boardroom", count: confTotal });
+      } else {
+        mix.push({ key: "conference", count: confTotal });
+      }
+      mix.push({ key: "huddle", count: huddleCount });
+      return mix;
+    }
+    if (hasBoard) return [{ key: "boardroom", count: total }];
+    if (/room kit eq/i.test(raw)) return [{ key: "conference", count: total }];
+    if (hasHuddle) return [{ key: "huddle", count: total }];
+    if (hasConf) return [{ key: "conference", count: total }];
+    return [];
+  }
+
+  function parseRoomMix(raw) {
+    const t = raw.toLowerCase();
+    const mix = [];
+    const typeRe = /(\d+)\s*(boardrooms?|conferences?(?:\s+rooms?)?|huddles?|training(?:\s+rooms?)?|executive(?:\s+offices?)?|teams(?:\s+rooms?)?|zoom(?:\s+rooms?)?)/gi;
     let m;
-    while ((m = re.exec(t)) !== null) {
-      const phrase = (m[2] + " " + (m[3] || "")).toLowerCase();
-      let key = "conference";
-      if (/huddle|small/.test(phrase)) key = "huddle";
-      else if (/boardroom|board/.test(phrase)) key = "boardroom";
-      else if (/training|classroom/.test(phrase)) key = "training";
-      else if (/executive/.test(phrase)) key = "executive";
-      else if (/teams/.test(phrase)) key = "teamsRoom";
-      else if (/zoom/.test(phrase)) key = "zoomRoom";
-      else if (/divisible|all-hands/.test(phrase)) key = "divisible";
-      else if (/dual display/.test(phrase)) key = "ctMediumDualDisplay";
-      else if (/small collab/.test(phrase)) key = "ctSmallCollab";
-      mix.push({ key, count: Math.min(parseInt(m[1], 10), 24) });
+    while ((m = typeRe.exec(raw)) !== null) {
+      mix.push({ key: mapRoomTypePhrase(m[2]), count: Math.min(parseInt(m[1], 10), 24) });
     }
     if (mix.length) return mix;
 
-    const nums = parseNumbers(t);
-    const hasCollab = /room|webex|collab|hybrid|meeting|video|board|kit/i.test(t);
-    if (!hasCollab && nums.roomsTotal === 0) return [];
+    const total = parseRoomTotal(raw);
+    if (total > 0) {
+      const inferred = inferMixFromBrief(raw, total);
+      if (inferred.length) {
+        return inferred.map(x => ({ key: x.key, count: Math.min(x.count, 24) }));
+      }
+    }
+
+    const hasCollab = /room|webex|collab|hybrid|meeting|video|kit/i.test(t);
+    if (!hasCollab && total === 0) return [];
 
     let singleKey = "conference";
-    for (const [key, rx] of Object.entries(ROOM_ALIASES)) {
-      if (rx.test(t)) { singleKey = key; break; }
-    }
-    const count = nums.roomsTotal || (hasCollab ? 1 : 0);
+    if (/room bar|\bhuddle/i.test(t)) singleKey = "huddle";
+    else if (/room kit eq/i.test(t)) singleKey = "conference";
+    else if (/board pro|boardroom/i.test(t)) singleKey = "boardroom";
+    const count = total || (hasCollab ? 1 : 0);
     if (count > 0) mix.push({ key: singleKey, count: Math.min(count, 24) });
     return mix;
   }
@@ -153,8 +186,8 @@
     const raw = String(text || "").trim();
     const t = raw.toLowerCase();
     const pillar = detectPillar(t);
-    const nums = parseNumbers(t);
-    const roomMix = parseRoomMix(t);
+    const nums = parseNumbers(t, raw);
+    const roomMix = parseRoomMix(raw);
     const signals = [];
 
     if (pillar) signals.push({ id: "pillar", label: PILLARS[pillar].label, value: pillar });
@@ -272,7 +305,10 @@
     if (parsed.wantsNetwork && netRank && netRank.score < 5)
       clarifications.push("Network template chosen from One Cisco pillar default — add SNRA, SD-WAN, or vertical keywords for a tighter CVD match.");
     if (/room|webex|collab/i.test(parsed.t) && !roomPlan.length)
-      clarifications.push("Collaboration detected but no room count — add e.g. “18 conference rooms” or “6 huddles”.");
+      clarifications.push("Collaboration detected but no room count — add e.g. “18 Webex rooms” or “12 conference and 6 huddle”.");
+    const roomTotal = parsed.roomMix.reduce((s, r) => s + r.count, 0);
+    if (parsed.nums.roomsTotal > 1 && roomTotal > 1 && !/(\d+)\s+conference|\d+\s+huddle/i.test(parsed.raw))
+      clarifications.push(`Inferred ${roomPlan.map(r => `${r.count}× ${rooms[r.key]?.name || r.key}`).join(", ")} from ${parsed.nums.roomsTotal} Webex rooms — add explicit counts (e.g. “12 conference, 6 huddle”) to override.`);
 
     return {
       parsed, netKey, netRank, ranked: ranked.slice(0, 3),
@@ -343,7 +379,11 @@
       }
     });
 
-    if (design.rooms.length) design.activeRoomId = design.rooms[0].id;
+    if (design.rooms.length) {
+      const priority = ["conference", "boardroom", "training", "ctMediumDualDisplay", "ctSmallCollab", "huddle", "executive", "teamsRoom", "zoomRoom", "divisible"];
+      const pick = priority.map(k => design.rooms.find(r => r.template === k)).find(Boolean);
+      design.activeRoomId = pick?.id || design.rooms[0].id;
+    }
     design.requirements = design.requirements || {};
     design.requirements.notes = plan.parsed.raw.slice(0, 2000);
     design.intentPlan = {
@@ -391,6 +431,9 @@
       const extra = c.count ? ` <em>×${c.count}</em>` : (c.score ? ` <span class="ds-rat-score">fit ${c.score}</span>` : "");
       lines.push(`<li><span class="ds-rat-kind">${c.kind === "network" ? "CVD" : "Room"}</span> <strong>${escapeHtml(c.label)}</strong>${extra} — <a href="${escapeHtml(cite.url)}" target="_blank" rel="noopener">${escapeHtml(cite.label)}</a></li>`);
     });
+    const roomTotal = plan.roomPlan.reduce((s, r) => s + r.count, 0);
+    if (roomTotal > 1)
+      lines.push(`<li class="ds-rat-tip">📐 <strong>${roomTotal} collaboration spaces</strong> in your portfolio — use the room picker above the canvas to walk each floor plan. Devices match Cisco Tested hybrid-work guides.</li>`);
     if (plan.clarifications.length)
       plan.clarifications.forEach(c => lines.push(`<li class="ds-rat-tip">💡 ${escapeHtml(c)}</li>`));
     if (fixes?.length)
