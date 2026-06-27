@@ -129,6 +129,7 @@
           ${ciscoUrl ? `<a class="ds-walk-btn ds-btn-link" href="${ciscoUrl}" target="_blank" rel="noopener noreferrer">Cisco.com ↗</a>` : ""}
           ${docLink ? `<a class="ds-walk-btn ds-btn-link" href="${docLink.url}" target="_blank" rel="noopener noreferrer">${esc(docLink.label || "Design guide")} ↗</a>` : ""}
         </section>
+        <footer class="ds-fp-foot">Press <kbd>Esc</kbd> or click the room to keep walking</footer>
       </div>`;
 
     panel.dataset.chamberId = ch.id;
@@ -141,6 +142,7 @@
   function close() {
     const panel = document.getElementById("ds-field-panel");
     if (panel) { panel.hidden = true; panel.innerHTML = ""; delete panel.dataset.chamberId; }
+    document.getElementById("ds-walk-panel-backdrop")?.setAttribute("hidden", "");
     state?.overlay?.classList?.remove("ds-field-panel-open");
   }
 

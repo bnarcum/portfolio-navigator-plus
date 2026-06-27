@@ -301,61 +301,79 @@
     return sprite;
   }
 
-  async function makeDevicePod(THREE, ch, scale = 1) {
+  function podLift(zone, kind) {
+    if (kind !== "room") return 1.05;
+    const z = (zone || "").toLowerCase();
+    if (z === "ceiling") return 3.1;
+    if (z === "wall") return 2.0;
+    if (z === "display") return 1.55;
+    if (z === "rack") return 1.05;
+    if (z === "table") return 0.82;
+    return 1.1;
+  }
+
+  async function makeDevicePod(THREE, ch, scale = 1, kind = "room") {
     const theme = zoneTheme(ch.zone);
     const g = new THREE.Group();
     g.userData = { chamber: ch, kind: "pod" };
+    const lift = podLift(ch.zone, kind);
+    const pw = kind === "room" ? 1.85 : 1.45;
+    const ph = kind === "room" ? 1.12 : 0.88;
 
-    const plat = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.5 * scale, 1.75 * scale, 0.18 * scale, 24),
-      new THREE.MeshStandardMaterial({ color: theme.color, metalness: 0.55, roughness: 0.35, emissive: theme.accent, emissiveIntensity: 0.12 })
+    const metal = new THREE.MeshStandardMaterial({ color: 0x2a3440, metalness: 0.82, roughness: 0.28 });
+    const base = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.5 * scale, 0.62 * scale, 0.05 * scale, 32),
+      metal
     );
-    plat.position.y = 0.09 * scale;
-    g.add(plat);
+    base.position.y = 0.025 * scale;
+    g.add(base);
 
-    const pillar = new THREE.Mesh(
-      new THREE.BoxGeometry(2.6 * scale, 0.35 * scale, 1.6 * scale),
-      new THREE.MeshStandardMaterial({ color: 0x0a1828, metalness: 0.7, roughness: 0.25 })
+    const stem = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.08 * scale, 0.12 * scale, lift * 0.35 * scale, 12),
+      metal
     );
-    pillar.position.y = 0.35 * scale;
-    g.add(pillar);
+    stem.position.y = lift * 0.18 * scale;
+    g.add(stem);
 
-    const frame = new THREE.Mesh(
-      new THREE.BoxGeometry(1.9 * scale, 1.25 * scale, 0.1 * scale),
-      new THREE.MeshStandardMaterial({ color: 0x1a3050, metalness: 0.8, roughness: 0.2, emissive: theme.accent, emissiveIntensity: 0.06 })
+    const bezel = new THREE.Mesh(
+      new THREE.BoxGeometry(pw * scale + 0.1, ph * scale + 0.1, 0.07 * scale),
+      new THREE.MeshStandardMaterial({ color: 0x0a1018, metalness: 0.9, roughness: 0.15 })
     );
-    frame.position.set(0, 1.05 * scale, 0.72 * scale);
-    g.add(frame);
+    bezel.position.set(0, lift, 0.035 * scale);
+    g.add(bezel);
 
     let photoTex = await loadTexture(THREE, ch.photoUrl);
     if (!photoTex) photoTex = makeFallbackIconTexture(THREE, ch.label, theme);
     const photo = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.65 * scale, 1.0 * scale),
-      new THREE.MeshStandardMaterial({ map: photoTex, metalness: 0.15, roughness: 0.45, emissive: 0x111111, emissiveIntensity: 0.15 })
+      new THREE.PlaneGeometry(pw * scale, ph * scale),
+      new THREE.MeshStandardMaterial({
+        map: photoTex, metalness: 0.05, roughness: 0.38,
+        emissive: 0xffffff, emissiveMap: photoTex, emissiveIntensity: 0.12
+      })
     );
-    photo.position.set(0, 1.05 * scale, 0.78 * scale);
+    photo.position.set(0, lift, 0.075 * scale);
     g.add(photo);
 
     const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(1.65 * scale, 0.05 * scale, 8, 32),
-      new THREE.MeshBasicMaterial({ color: theme.accent, transparent: true, opacity: 0.65 })
+      new THREE.RingGeometry(0.55 * scale, 0.62 * scale, 32),
+      new THREE.MeshBasicMaterial({ color: theme.accent, transparent: true, opacity: 0.25, side: THREE.DoubleSide })
     );
-    ring.rotation.x = Math.PI / 2;
-    ring.position.y = 0.04 * scale;
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.03 * scale;
     g.add(ring);
 
-    const glow = new THREE.PointLight(theme.light, 0.9 * scale, 8 * scale);
-    glow.position.set(0, 1.8 * scale, 0.5 * scale);
+    const glow = new THREE.PointLight(theme.light, 0.35 * scale, 5 * scale);
+    glow.position.set(0, lift + 0.3 * scale, 0.15 * scale);
     g.add(glow);
 
     const label = makeLabelSprite(THREE, ch.label, ch.pid, theme);
-    label.position.set(0, 2.1 * scale, 0);
+    label.position.set(0, lift + ph * scale * 0.55 + 0.25, 0);
     label.visible = false;
     g.add(label);
 
     const zoneBadge = makeLabelSprite(THREE, (ch.zone || "device").toUpperCase(), "", theme);
-    zoneBadge.scale.set(1.4 * scale, 0.28 * scale, 1);
-    zoneBadge.position.set(0, 0.45 * scale, 1.0 * scale);
+    zoneBadge.scale.set(1.2 * scale, 0.24 * scale, 1);
+    zoneBadge.position.set(0, lift - ph * scale * 0.55 - 0.15, 0.05);
     zoneBadge.visible = false;
     g.add(zoneBadge);
 
@@ -363,26 +381,27 @@
     g.userData.zoneBadge = zoneBadge;
     g.userData.glowLight = glow;
     g.userData.ring = ring;
+    g.userData.photoMesh = photo;
 
     const shadow = new THREE.Mesh(
-      new THREE.CircleGeometry(1.4 * scale, 32),
-      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false })
+      new THREE.CircleGeometry(0.7 * scale, 32),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false })
     );
     shadow.rotation.x = -Math.PI / 2;
     shadow.position.y = 0.02;
     g.add(shadow);
 
     const hitbox = new THREE.Mesh(
-      new THREE.SphereGeometry(2.2 * scale, 12, 12),
+      new THREE.SphereGeometry(1.8 * scale, 10, 10),
       new THREE.MeshBasicMaterial({ visible: false })
     );
-    hitbox.position.set(0, 1.1 * scale, 0);
+    hitbox.position.set(0, lift, 0);
     hitbox.userData = { chamber: ch, kind: "hitbox" };
     g.add(hitbox);
 
     g.position.set(ch.pos.x, 0, ch.pos.z);
     state.devicePods.push(g);
-    state.colliders.push({ x: ch.pos.x, z: ch.pos.z, r: 2.1 * scale, id: ch.id });
+    state.colliders.push({ x: ch.pos.x, z: ch.pos.z, r: 1.8 * scale, id: ch.id });
     return g;
   }
 
@@ -451,6 +470,56 @@
     }, 512, 512);
   }
 
+  function addRoomDecor(THREE, scene, bounds) {
+    if (!bounds) return;
+    const cx = (bounds.minX + bounds.maxX) / 2;
+    const cz = (bounds.minZ + bounds.maxZ) / 2;
+    const wood = new THREE.MeshStandardMaterial({ color: 0x4a3c30, roughness: 0.62, metalness: 0.08 });
+    const table = new THREE.Mesh(new THREE.BoxGeometry(5.5, 0.1, 2.4), wood);
+    table.position.set(cx, 0.38, cz);
+    scene.add(table);
+    const legs = [[-2.4, -0.9], [2.4, -0.9], [-2.4, 0.9], [2.4, 0.9]];
+    legs.forEach(([lx, lz]) => {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.38, 8), wood);
+      leg.position.set(cx + lx, 0.19, cz + lz);
+      scene.add(leg);
+    });
+    const chairMat = new THREE.MeshStandardMaterial({ color: 0x2a3238, roughness: 0.7, metalness: 0.2 });
+    [[-1.2, 1.8], [1.2, 1.8], [-1.2, -1.8], [1.2, -1.8]].forEach(([ox, oz]) => {
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.08, 0.55), chairMat);
+      seat.position.set(cx + ox, 0.42, cz + oz);
+      scene.add(seat);
+      const back = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.45, 0.06), chairMat);
+      back.position.set(cx + ox, 0.68, cz + oz + (oz > 0 ? 0.24 : -0.24));
+      scene.add(back);
+    });
+    const screen = new THREE.Mesh(
+      new THREE.BoxGeometry(3.2, 1.8, 0.08),
+      new THREE.MeshStandardMaterial({ color: 0x0a0a0a, metalness: 0.3, roughness: 0.4, emissive: 0x223344, emissiveIntensity: 0.15 })
+    );
+    screen.position.set(cx, 2.1, cz - 3.2);
+    scene.add(screen);
+    const rack = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 2.2, 0.7),
+      new THREE.MeshStandardMaterial({ color: 0x1a2028, metalness: 0.75, roughness: 0.35 })
+    );
+    rack.position.set(cx + 4.5, 1.1, cz - 2.5);
+    scene.add(rack);
+  }
+
+  function makeCarpetTexture(THREE) {
+    return makeCanvasTexture(THREE, (ctx, w, h) => {
+      ctx.fillStyle = "#3a3835";
+      ctx.fillRect(0, 0, w, h);
+      for (let i = 0; i < 8000; i++) {
+        const x = Math.random() * w, y = Math.random() * h;
+        const g = 40 + Math.random() * 30;
+        ctx.fillStyle = `rgba(${g},${g - 4},${g - 8},0.35)`;
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }, 256, 256);
+  }
+
   function setSkyBackground(THREE, scene, kind) {
     const tex = makeCanvasTexture(THREE, (ctx, w, h) => {
       const g = ctx.createLinearGradient(0, 0, 0, h);
@@ -479,11 +548,11 @@
     const cz = (bounds.minZ + bounds.maxZ) / 2;
     setSkyBackground(THREE, scene, kind);
 
-    const floorTex = makeFloorTexture(THREE);
+    const floorTex = kind === "room" ? makeCarpetTexture(THREE) : makeFloorTexture(THREE);
     floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
     floorTex.repeat.set(w / 6, d / 6);
 
-    const floorColor = kind === "network" ? 0x2a3038 : 0x3a4048;
+    const floorColor = kind === "network" ? 0x2a3038 : 0x888880;
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(w, d),
       new THREE.MeshStandardMaterial({
@@ -497,7 +566,7 @@
     scene.add(floor);
 
     const wallMat = new THREE.MeshStandardMaterial({
-      color: kind === "network" ? 0x141c26 : 0x1e2834, metalness: 0.4, roughness: 0.75
+      color: kind === "network" ? 0x141c26 : 0x2a323c, metalness: 0.35, roughness: 0.78
     });
     const walls = [
       { sx: w, sz: 0.5, x: cx, z: cz - d / 2 },
@@ -651,9 +720,10 @@
     state.viewmodel = makeViewmodel(THREE, camera);
     state.raycaster = new THREE.Raycaster();
 
-    const pods = await Promise.all(graph.chambers.map(ch => makeDevicePod(THREE, ch, 1)));
+    const pods = await Promise.all(graph.chambers.map(ch => makeDevicePod(THREE, ch, 1, graph.kind)));
     pods.forEach(p => scene.add(p));
     graph.corridors.forEach(cor => scene.add(makeCableRun(THREE, cor)));
+    if (graph.kind === "room") addRoomDecor(THREE, scene, state.bounds);
 
     const xs = graph.chambers.map(c => c.pos.x);
     const zs = graph.chambers.map(c => c.pos.z);
@@ -731,7 +801,7 @@
 
     const pods = await Promise.all(maze.placements.map(p => {
       const ch = { ...p.chamber, pos: { x: p.c * CELL + CELL / 2, y: 0, z: p.r * CELL + CELL / 2 } };
-      return makeDevicePod(THREE, ch, 0.72);
+      return makeDevicePod(THREE, ch, 0.72, graph.kind);
     }));
     pods.forEach(p => scene.add(p));
 
@@ -838,9 +908,8 @@
     state.focusId = id;
     state.devicePods.forEach(pod => {
       const on = pod.userData?.chamber?.id === id;
-      pod.scale.setScalar(on ? 1.06 : 1);
-      const ring = pod.children.find(c => c.geometry?.type === "TorusGeometry");
-      if (ring?.material) ring.material.opacity = on ? 1 : 0.55;
+      pod.scale.setScalar(on ? 1.04 : 1);
+      if (pod.userData.ring?.material) pod.userData.ring.material.opacity = on ? 0.55 : 0.2;
     });
   }
 
@@ -1012,6 +1081,7 @@
     highlightNavChip(ch.id);
     window.__DS_FIELD_PANEL?.render?.(ch, state.studio, state.graph);
     state.overlay?.classList.add("ds-field-panel-open");
+    document.getElementById("ds-walk-panel-backdrop")?.removeAttribute("hidden");
     window.__DS_MISSIONS?.toastObjective?.("Inspected: " + ch.label);
     window.__DS_MISSIONS?.renderHud?.(state.mission);
     window.__DS_MISSIONS?.syncWaypoints?.(state, state.mission, state.graph);
@@ -1064,8 +1134,10 @@
       if (pod.userData.zoneBadge) pod.userData.zoneBadge.visible = focused;
       if (pod.userData.glowLight) pod.userData.glowLight.intensity = focused ? 1.4 : 0.55;
       if (pod.userData.ring) {
-        pod.userData.ring.material.opacity = focused ? 0.9 : 0.35;
-        pod.userData.ring.scale.setScalar(focused ? 1.08 : 1);
+        pod.userData.ring.material.opacity = focused ? 0.55 : 0.2;
+      }
+      if (pod.userData.photoMesh?.material) {
+        pod.userData.photoMesh.material.emissiveIntensity = focused ? 0.22 : 0.1;
       }
     });
   }
@@ -1244,7 +1316,7 @@
     return `<div class="ds-walk-hud">
       <div class="ds-walk-hud-top">
         <strong class="ds-walk-title">${title}</strong>
-        <span class="ds-walk-hint">WASD · click device to learn · E inspect · double-click lock mouse</span>
+        <span class="ds-walk-hint">WASD move · click device to learn · Esc resumes walk</span>
         <button type="button" class="ds-walk-btn ds-walk-audio-btn" data-action="audio-toggle" title="Toggle music">♫</button>
         <button type="button" class="ds-walk-close" title="Exit walkthrough">✕</button>
       </div>
@@ -1380,7 +1452,16 @@
       if (tag === "input" || tag === "textarea" || tag === "select") return;
       state.keys[e.key] = e.type === "keydown";
       if (e.type === "keydown") {
-        if (e.key === "Escape") { e.preventDefault(); close(); return; }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          const panel = document.getElementById("ds-field-panel");
+          if (panel && !panel.hidden) {
+            window.__DS_FIELD_PANEL?.close?.();
+            return;
+          }
+          close();
+          return;
+        }
         if (e.key === "[" || e.key === "{") { e.preventDefault(); cycleDevice(-1); return; }
         if (e.key === "]" || e.key === "}") { e.preventDefault(); cycleDevice(1); return; }
         if (e.key === "Tab") { e.preventDefault(); cycleDevice(e.shiftKey ? -1 : 1); return; }
@@ -1424,6 +1505,8 @@
         if (moved < 6) {
           const ch = pickDeviceAt(e.clientX, e.clientY, canvas) || state.reticleChamber;
           if (ch) openFieldPanel(ch);
+          else if (state.overlay?.classList.contains("ds-field-panel-open"))
+            window.__DS_FIELD_PANEL?.close?.();
         }
       }
       state.lookDrag = false;
@@ -1524,6 +1607,7 @@
     overlay.innerHTML = `${hudHtml(mode, studio.tab)}
       <div class="ds-walk-stage">
         <div class="ds-walk-vignette" aria-hidden="true"></div>
+        <div class="ds-walk-panel-backdrop" id="ds-walk-panel-backdrop" hidden data-action="fp-close" title="Click to keep walking" aria-label="Close panel"></div>
         <div class="ds-walk-letterbox ds-walk-letterbox-top" aria-hidden="true"></div>
         <div class="ds-walk-letterbox ds-walk-letterbox-bottom" aria-hidden="true"></div>
         <div class="ds-walk-crosshair" aria-hidden="true"></div>

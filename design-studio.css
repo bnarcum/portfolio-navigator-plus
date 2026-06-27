@@ -627,7 +627,9 @@
 @keyframes ds-victory-pulse{0%,100%{opacity:.6}50%{opacity:1}}
 
 /* Field Tech inspect side panel */
-#ds-walk-overlay.ds-field-panel-open .ds-walk-stage::before{content:"";position:absolute;inset:0;z-index:3;background:rgba(2,8,18,.35);pointer-events:none}
+.ds-walk-panel-backdrop{position:absolute;inset:0;z-index:6;background:rgba(0,0,0,.45);cursor:pointer}
+.ds-walk-panel-backdrop[hidden]{display:none!important;pointer-events:none!important}
+#ds-walk-overlay.ds-field-panel-open .ds-walk-stage::before{display:none}
 .ds-field-panel{position:absolute;top:0;right:0;bottom:0;z-index:20;width:min(380px,94vw);display:flex;flex-direction:column;
   background:linear-gradient(180deg,rgba(8,20,36,.98),rgba(4,12,22,.99));border-left:1px solid rgba(2,200,255,.45);
   box-shadow:-12px 0 40px rgba(0,0,0,.55);overflow:hidden;pointer-events:auto;
@@ -660,6 +662,8 @@
 .ds-fp-links li{padding:4px 0;border-bottom:1px solid rgba(255,255,255,.06)}
 .ds-fp-links li.muted{color:#6a8aa8;font-style:italic}
 .ds-fp-media{font-size:8px;font-weight:800;color:#ff9000;margin-right:4px}
+.ds-fp-foot{margin-top:8px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08);font-size:10px;color:#8aa8c0;text-align:center}
+.ds-fp-foot kbd{padding:1px 6px;border-radius:3px;border:1px solid rgba(2,200,255,.3);background:rgba(2,200,255,.08);font-size:9px;color:#c8dce8}
 .ds-fp-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
 .ds-btn-link{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
 

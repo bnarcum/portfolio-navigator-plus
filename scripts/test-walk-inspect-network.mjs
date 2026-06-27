@@ -85,6 +85,15 @@ try {
   if (panel2.hidden !== false) errors.push("nav chip click did not open panel");
   if (panel2.len < 80) errors.push("nav chip panel content too short");
 
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(150);
+  const afterEsc = await page.evaluate(() => ({
+    panelHidden: document.getElementById("ds-field-panel")?.hidden,
+    walkOpen: window.__DS_WALK?.isOpen?.()
+  }));
+  if (!afterEsc.panelHidden) errors.push("Esc should close panel");
+  if (!afterEsc.walkOpen) errors.push("Esc should not exit walk mode");
+
   if (errors.length) {
     console.error("FAIL\n" + errors.map(e => `  - ${e}`).join("\n"));
     process.exit(1);
