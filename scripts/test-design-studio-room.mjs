@@ -114,7 +114,6 @@ try {
     document.getElementById("ds-mission-start")?.click();
   });
   await page.waitForTimeout(300);
-
   await page.evaluate(() => window.__DS_WALK?.close?.());
   await page.waitForTimeout(200);
 

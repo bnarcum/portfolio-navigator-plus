@@ -237,19 +237,51 @@
     }
   }
 
+  function hideBriefingEl(el) {
+    if (!el) return;
+    el.hidden = true;
+    el.style.display = "none";
+    el.style.pointerEvents = "none";
+  }
+
+  function showBriefingEl(el) {
+    el.hidden = false;
+    el.removeAttribute("hidden");
+    el.style.display = "flex";
+    el.style.pointerEvents = "auto";
+  }
+
+  function cleanupBriefing() {
+    hideBriefingEl(document.getElementById("ds-walk-briefing"));
+    document.getElementById("ds-walk-overlay")?.classList.remove("ds-briefing-open");
+  }
+
+  function ensureBriefingEl() {
+    let el = document.getElementById("ds-walk-briefing");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "ds-walk-briefing";
+      el.className = "ds-walk-briefing ds-walk-briefing-portal";
+      el.hidden = true;
+      document.body.appendChild(el);
+    } else if (el.parentElement !== document.body) {
+      document.body.appendChild(el);
+      el.classList.add("ds-walk-briefing-portal");
+    }
+    return el;
+  }
+
   function dismissBriefing(m, onStart) {
-    const el = document.getElementById("ds-walk-briefing");
-    if (el) el.hidden = true;
+    hideBriefingEl(document.getElementById("ds-walk-briefing"));
     document.getElementById("ds-walk-overlay")?.classList.remove("ds-briefing-open");
     if (m) m.briefingSeen = true;
     onStart?.();
   }
 
   function renderBriefing(m, onStart) {
-    const el = document.getElementById("ds-walk-briefing");
-    if (!el) return;
+    const el = ensureBriefingEl();
     m._briefingStart = onStart;
-    el.hidden = false;
+    showBriefingEl(el);
     document.getElementById("ds-walk-overlay")?.classList.add("ds-briefing-open");
     el.innerHTML = `
       <div class="ds-briefing-card">
@@ -260,6 +292,16 @@
         <p class="ds-briefing-tip">Walk near devices and press <kbd>E</kbd> to inspect · Follow glowing waypoints · Use Trace buttons for cable missions</p>
         <button type="button" class="ds-walk-btn primary" data-action="mission-start" id="ds-mission-start">Start mission</button>
       </div>`;
+    const start = e => {
+      e?.preventDefault?.();
+      e?.stopPropagation?.();
+      dismissBriefing(m, onStart);
+    };
+    const btn = el.querySelector("#ds-mission-start");
+    if (btn) btn.onclick = start;
+    el.onclick = e => {
+      if (e.target.closest("#ds-mission-start")) start(e);
+    };
   }
 
   function toastObjective(label) {
@@ -335,7 +377,7 @@
   }
 
   window.__DS_MISSIONS = {
-    startCampaign, activeObj, onVisit, onTrace, targetChambers, renderHud, renderBriefing, dismissBriefing,
+    startCampaign, activeObj, onVisit, onTrace, targetChambers, renderHud, renderBriefing, dismissBriefing, cleanupBriefing,
     syncWaypoints, animateWaypoints, inspectHtml, toastObjective, tipFor, isObjDone, advanceMission
   };
 })();

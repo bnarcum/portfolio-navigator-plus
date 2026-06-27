@@ -587,9 +587,13 @@
 .ds-mobj.done{color:#7dd3a8;opacity:.85}
 .ds-mobj-icon{flex:0 0 12px;text-align:center}
 .ds-mission-complete{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:11px;color:#7dd3a8}
-#ds-walk-overlay.ds-briefing-open .ds-walk-stage{pointer-events:none}
-.ds-walk-briefing{position:absolute;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;
-  background:rgba(2,8,18,.72);backdrop-filter:blur(6px);pointer-events:auto}
+#ds-walk-overlay.ds-briefing-open > *{pointer-events:none!important}
+#ds-walk-overlay.ds-briefing-open{pointer-events:none!important}
+#ds-walk-briefing[hidden],.ds-walk-briefing[hidden]{display:none!important;pointer-events:none!important;visibility:hidden!important}
+.ds-walk-briefing-portal{position:fixed!important;inset:0!important;z-index:10050!important}
+.ds-walk-briefing:not([hidden]){display:flex;align-items:center;justify-content:center;padding:24px;
+  background:rgba(2,8,18,.88);pointer-events:auto}
+.ds-walk-briefing{position:absolute;inset:0;z-index:100}
 .ds-briefing-card{max-width:420px;padding:20px 22px;border-radius:12px;border:1px solid rgba(255,144,0,.4);
   background:linear-gradient(165deg,rgba(12,32,52,.98),rgba(6,18,32,.98));color:#e8f4ff;box-shadow:0 12px 40px rgba(0,0,0,.5);
   pointer-events:auto;position:relative;z-index:1}

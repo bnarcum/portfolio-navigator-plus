@@ -794,6 +794,7 @@
     window.__DS_MISSIONS.syncWaypoints(state, state.mission, graph);
     window.__DS_MISSIONS.renderBriefing(state.mission, () => {
       window.__DS_MISSIONS.syncWaypoints(state, state.mission, graph);
+      setStatus("Mission active — follow the glowing waypoints");
     });
   }
 
@@ -991,6 +992,7 @@
           window.__DS_MISSIONS?.syncWaypoints?.(state, state.mission, state.graph);
           window.__DS_MISSIONS?.renderBriefing?.(state.mission, () => {
             window.__DS_MISSIONS?.syncWaypoints?.(state, state.mission, state.graph);
+            setStatus("Mission active — follow the glowing waypoints");
           });
         }
       }
@@ -1213,8 +1215,7 @@
         <div class="ds-walk-canvas-wrap">
           <canvas id="ds-walk-canvas"></canvas>
         </div>
-      </div>
-      <div id="ds-walk-briefing" class="ds-walk-briefing" hidden></div>`;
+      </div>`;
     bindHud();
 
     const canvas = overlay.querySelector("#ds-walk-canvas");
@@ -1259,6 +1260,7 @@
       window.__DS_PREMIUM?.renderRoomViewToggle?.(state.studio);
       state.studio.scheduleFitView?.();
     }
+    window.__DS_MISSIONS?.cleanupBriefing?.();
     state.mode = null;
     if (!silent) state.studio = null;
   }
