@@ -1118,6 +1118,8 @@
     }
 
     setTab(tab) {
+      const walkOpen = window.__DS_WALK?.isOpen?.();
+      const wasWalkTab = this.tab === "room" || this.tab === "network";
       this.tab = tab;
       if (tab !== "room" && tab !== "network") window.__DS_WALK?.close?.();
       if (tab === "network" || tab === "room") this.design.mode = tab;
@@ -1143,6 +1145,8 @@
       this.renderPanel();
       this.refreshExplore();
       window.__DS_PREMIUM?.refresh?.(this);
+      if (walkOpen && wasWalkTab && (tab === "room" || tab === "network"))
+        window.__DS_WALK?.rebuild?.(this);
     }
 
     renderRoomGuide() {

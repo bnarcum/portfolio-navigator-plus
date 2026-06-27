@@ -40,7 +40,8 @@
     pos: { x: 0, y: 1.7, z: 0 }, fly: null,
     chambers: [], devicePods: [], cables: [], colliders: [], bounds: null,
     trace: null, maze: null, graph: null, texCache: new Map(), disposables: [],
-    focusId: null, navIndex: 0, mission: null, waypointGroup: null, nearChamber: null
+    focusId: null, navIndex: 0, mission: null, waypointGroup: null, nearChamber: null,
+    reticleChamber: null, bobPhase: 0, viewmodel: null, worldBounds: null
   };
 
   function esc(s) {
@@ -87,6 +88,16 @@
     };
   }
 
+  function applyDiagramLayout(studio, chambers, nodes, kind) {
+    const layout = window.__DS_WALK_LAYOUT?.diagramToWorld(nodes, kind);
+    if (!layout?.positions) return null;
+    chambers.forEach(ch => {
+      const p = layout.positions[ch.id];
+      if (p) ch.pos = { x: p.x, y: p.y, z: p.z };
+    });
+    return layout.bounds;
+  }
+
   function buildRoomGraph(studio) {
     const roomId = studio.activeRoomId;
     const room = studio.design.rooms.find(r => r.id === roomId);
@@ -96,9 +107,11 @@
     const links = studio.design.links.filter(l => nodeIds.has(l.from) && nodeIds.has(l.to));
     const chambers = nodes.map(n => {
       const item = tplItemForNode(studio, room, n);
-      return makeChamberBase(studio, n, { zone: item?.zone || "default", pos: nodeChamberPos(room, n, item) });
+      return makeChamberBase(studio, n, { zone: item?.zone || "default", pos: { x: 0, y: 3, z: 0 } });
     });
-    return linkGraph(room, chambers, links, "room");
+    const graph = linkGraph(room, chambers, links, "room");
+    graph.layoutBounds = applyDiagramLayout(studio, graph.chambers, nodes, "room");
+    return graph;
   }
 
   function buildNetworkGraph(studio) {
@@ -110,13 +123,11 @@
     const links = studio.design.links.filter(l => nodeIds.has(l.from) && nodeIds.has(l.to));
     const chambers = nodes.map(n => {
       const layer = n.layer || "access";
-      const lx = { wan: 40, security: 188, core: 336, distribution: 484, dc: 632, access: 780, mgmt: 928, collab: 1076 }[layer] || n.x;
-      return makeChamberBase(studio, n, {
-        zone: layer,
-        pos: { x: (lx - 500) * 0.06, y: 3 + (n.y || 0) * 0.004, z: NET_LAYER_Z[layer] || 0 }
-      });
+      return makeChamberBase(studio, n, { zone: layer, pos: { x: 0, y: 3, z: 0 } });
     });
-    return linkGraph({ name: "Network topology" }, chambers, links, "network");
+    const graph = linkGraph({ name: "Network topology" }, chambers, links, "network");
+    graph.layoutBounds = applyDiagramLayout(studio, graph.chambers, nodes, "network");
+    return graph;
   }
 
   function linkGraph(room, chambers, links, kind) {
@@ -407,6 +418,68 @@
     scene.add(grid);
   }
 
+  function addWorldScenery(THREE, scene, graph) {
+    const aisles = window.__DS_WALK_LAYOUT?.layerAisles(graph.chambers) || [];
+    aisles.forEach(a => {
+      const theme = zoneTheme(a.layer);
+      const w = Math.max(a.maxX - a.minX, 5);
+      const d = Math.max(a.maxZ - a.minZ, 5);
+      const slab = new THREE.Mesh(
+        new THREE.PlaneGeometry(w, d),
+        new THREE.MeshStandardMaterial({
+          color: theme.color, transparent: true, opacity: graph.kind === "network" ? 0.42 : 0.32,
+          emissive: theme.accent, emissiveIntensity: 0.12, metalness: 0.2, roughness: 0.8
+        })
+      );
+      slab.rotation.x = -Math.PI / 2;
+      slab.position.set((a.minX + a.maxX) / 2, 0.04, (a.minZ + a.maxZ) / 2);
+      scene.add(slab);
+      const edge = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.PlaneGeometry(w, d)),
+        new THREE.LineBasicMaterial({ color: theme.accent, transparent: true, opacity: 0.5 })
+      );
+      edge.rotation.x = -Math.PI / 2;
+      edge.position.copy(slab.position);
+      edge.position.y = 0.05;
+      scene.add(edge);
+      const sign = makeLabelSprite(THREE, a.layer.toUpperCase(), graph.kind === "network" ? "layer" : "zone", theme);
+      sign.position.set(a.cx, 3.2, a.minZ - 1.2);
+      sign.scale.set(2.8, 0.55, 1);
+      scene.add(sign);
+    });
+    graph.corridors.forEach(cor => {
+      const a = cor.from.pos, b = cor.to.pos;
+      const len = Math.hypot(b.x - a.x, b.z - a.z);
+      if (len < 2) return;
+      const tray = new THREE.Mesh(
+        new THREE.BoxGeometry(len, 0.08, 1.2),
+        new THREE.MeshStandardMaterial({ color: 0x0a1828, emissive: cor.color, emissiveIntensity: 0.15, metalness: 0.6, roughness: 0.4 })
+      );
+      tray.position.set((a.x + b.x) / 2, 0.12, (a.z + b.z) / 2);
+      tray.rotation.y = Math.atan2(b.x - a.x, b.z - a.z);
+      scene.add(tray);
+    });
+  }
+
+  function makeViewmodel(THREE, camera) {
+    const g = new THREE.Group();
+    g.userData.kind = "viewmodel";
+    const glove = new THREE.MeshStandardMaterial({ color: 0x3a4858, metalness: 0.35, roughness: 0.55 });
+    const tablet = new THREE.MeshStandardMaterial({ color: 0x0c2038, emissive: 0x02c8ff, emissiveIntensity: 0.25, metalness: 0.7, roughness: 0.3 });
+    const left = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.07, 0.22), glove);
+    left.position.set(-0.2, -0.16, -0.32);
+    left.rotation.y = 0.12;
+    const right = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.07, 0.2), glove);
+    right.position.set(0.24, -0.18, -0.3);
+    right.rotation.y = -0.08;
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.18, 0.02), tablet);
+    pad.position.set(0.12, -0.1, -0.38);
+    pad.rotation.x = -0.35;
+    g.add(left, right, pad);
+    camera.add(g);
+    return g;
+  }
+
   async function initCorridor(studio, canvas, graph) {
     const THREE = await loadThree();
     if (!graph?.chambers.length) throw new Error("no-graph");
@@ -424,9 +497,13 @@
     const scene = new THREE.Scene();
     state.scene = scene;
     addEnvironment(THREE, scene, false);
+    addWorldScenery(THREE, scene, graph);
 
     const camera = new THREE.PerspectiveCamera(68, 1, 0.1, 220);
+    camera.rotation.order = "YXZ";
     state.camera = camera;
+    scene.add(camera);
+    state.viewmodel = makeViewmodel(THREE, camera);
     state.raycaster = new THREE.Raycaster();
 
     const pods = await Promise.all(graph.chambers.map(ch => makeDevicePod(THREE, ch, 1)));
@@ -435,7 +512,7 @@
 
     const xs = graph.chambers.map(c => c.pos.x);
     const zs = graph.chambers.map(c => c.pos.z);
-    state.bounds = {
+    state.bounds = graph.layoutBounds || {
       minX: Math.min(...xs) - 8, maxX: Math.max(...xs) + 8,
       minZ: Math.min(...zs) - 8, maxZ: Math.max(...zs) + 8
     };
@@ -468,7 +545,10 @@
     addEnvironment(THREE, scene, true);
 
     const camera = new THREE.PerspectiveCamera(72, 1, 0.1, 120);
+    camera.rotation.order = "YXZ";
     state.camera = camera;
+    scene.add(camera);
+    state.viewmodel = makeViewmodel(THREE, camera);
     state.raycaster = new THREE.Raycaster();
 
     const wallMat = new THREE.MeshStandardMaterial({ color: 0x1a3050, metalness: 0.4, roughness: 0.65, emissive: 0x0a1828, emissiveIntensity: 0.15 });
@@ -745,20 +825,43 @@
     applyCamera();
   }
 
-  function interactNearby() {
-    const ch = state.nearChamber;
+  function pickReticleChamber() {
+    if (!state.camera || !state.devicePods.length) return null;
+    const THREE = state.THREE;
+    const forward = new THREE.Vector3();
+    state.camera.getWorldDirection(forward);
+    let best = null, bestDot = 0.52;
+    state.devicePods.forEach(pod => {
+      const ch = pod.userData?.chamber;
+      if (!ch) return;
+      const to = new THREE.Vector3(pod.position.x - state.pos.x, 1.4 - state.pos.y, pod.position.z - state.pos.z);
+      const dist = to.length();
+      if (dist > 16) return;
+      to.normalize();
+      const dot = forward.dot(to);
+      if (dot > bestDot) { bestDot = dot; best = ch; }
+    });
+    return best;
+  }
+
+  function openFieldPanel(ch) {
     if (!ch) return;
     window.__DS_MISSIONS?.onVisit?.(state.mission, state.graph, ch.id, ch);
     highlightNavChip(ch.id);
-    const el = document.getElementById("ds-walk-inspect");
-    if (el) {
-      el.hidden = false;
-      el.innerHTML = window.__DS_MISSIONS?.inspectHtml?.(ch) || "";
-    }
+    window.__DS_FIELD_PANEL?.render?.(ch, state.studio, state.graph);
+    state.overlay?.classList.add("ds-field-panel-open");
     window.__DS_MISSIONS?.toastObjective?.("Inspected: " + ch.label);
     window.__DS_MISSIONS?.renderHud?.(state.mission);
     window.__DS_MISSIONS?.syncWaypoints?.(state, state.mission, state.graph);
     if (state.mission?.complete) showMissionComplete();
+  }
+
+  function interactNearby() {
+    const ch = state.reticleChamber;
+    if (!ch) return;
+    const p = chamberWorldPos(ch);
+    if (Math.hypot(p.x - state.pos.x, p.z - state.pos.z) > 9) return;
+    openFieldPanel(ch);
   }
 
   function showMissionComplete() {
@@ -767,23 +870,34 @@
     setStatus(`Certified ${state.mission.rank} — ${state.mission.xp} XP earned`);
   }
 
-  function updateProximity() {
-    let best = null, bestD = 5.5;
-    state.devicePods.forEach(pod => {
-      const ch = pod.userData?.chamber;
-      if (!ch) return;
-      const p = chamberWorldPos(ch);
-      const d = Math.hypot(p.x - state.pos.x, p.z - state.pos.z);
-      if (d < bestD) { bestD = d; best = ch; }
-    });
-    state.nearChamber = best;
+  function updateReticleFocus() {
+    const ch = pickReticleChamber();
+    state.reticleChamber = ch;
+    state.nearChamber = ch;
     const prompt = document.getElementById("ds-walk-prompt");
     if (prompt) {
-      if (best) {
-        prompt.hidden = false;
-        prompt.textContent = `Press E to inspect ${best.label}`;
+      if (ch) {
+        const p = chamberWorldPos(ch);
+        const near = Math.hypot(p.x - state.pos.x, p.z - state.pos.z) < 9;
+        prompt.hidden = !near;
+        prompt.textContent = near ? `Press E to inspect ${ch.label}` : `Look at ${ch.label}`;
       } else prompt.hidden = true;
     }
+    const el = document.getElementById("ds-walk-focus");
+    if (el) {
+      if (ch) {
+        el.hidden = false;
+        el.innerHTML = `<strong>${esc(ch.label)}</strong>${ch.pid ? `<span>${esc(ch.pid)}</span>` : ""}`;
+      } else el.hidden = true;
+    }
+  }
+
+  function safePointerLock(el) {
+    if (!el?.requestPointerLock) return;
+    try {
+      const p = el.requestPointerLock();
+      if (p?.catch) p.catch(() => {});
+    } catch (_) { /* denied or unsupported */ }
   }
 
   function initMissionSystem(graph) {
@@ -795,18 +909,27 @@
     window.__DS_MISSIONS.renderBriefing(state.mission, () => {
       window.__DS_MISSIONS.syncWaypoints(state, state.mission, graph);
       setStatus("Mission active — follow the glowing waypoints");
+      safePointerLock(state.overlay?.querySelector("#ds-walk-canvas"));
     });
+    window.__DS_FIELD_PANEL?.bindWalk?.(state);
   }
 
   function applyCamera() {
     const cam = state.camera;
     if (!cam) return;
-    cam.position.set(state.pos.x, state.pos.y, state.pos.z);
+    const spd = Math.hypot(state.vel.x, state.vel.z);
+    if (spd > 0.25) state.bobPhase += 0.016 * 9;
+    const bob = spd > 0.25 ? Math.sin(state.bobPhase) * 0.038 : 0;
+    cam.position.set(state.pos.x, state.pos.y + bob, state.pos.z);
     cam.lookAt(
       state.pos.x + Math.sin(state.yaw) * Math.cos(state.pitch),
-      state.pos.y + Math.sin(state.pitch),
+      state.pos.y + bob + Math.sin(state.pitch),
       state.pos.z + Math.cos(state.yaw) * Math.cos(state.pitch)
     );
+    if (state.viewmodel) {
+      const sway = spd > 0.25 ? Math.sin(state.bobPhase * 1.2) * 0.02 : 0;
+      state.viewmodel.position.set(sway, 0, 0);
+    }
     const compass = document.getElementById("ds-walk-compass");
     if (compass) compass.style.transform = `rotate(${-state.yaw}rad)`;
   }
@@ -828,27 +951,7 @@
   }
 
   function updateFocusHud() {
-    if (!state.camera || !state.devicePods.length) return;
-    const THREE = state.THREE;
-    const forward = new THREE.Vector3();
-    state.camera.getWorldDirection(forward);
-    let best = null, bestDot = 0.55;
-    state.devicePods.forEach(pod => {
-      const ch = pod.userData?.chamber;
-      if (!ch) return;
-      const to = new THREE.Vector3(pod.position.x - state.pos.x, 1.4 - state.pos.y, pod.position.z - state.pos.z);
-      const dist = to.length();
-      if (dist > 14) return;
-      to.normalize();
-      const dot = forward.dot(to);
-      if (dot > bestDot) { bestDot = dot; best = ch; }
-    });
-    const el = document.getElementById("ds-walk-focus");
-    if (!el) return;
-    if (best) {
-      el.hidden = false;
-      el.innerHTML = `<strong>${esc(best.label)}</strong>${best.pid ? `<span>${esc(best.pid)}</span>` : ""}`;
-    } else el.hidden = true;
+    updateReticleFocus();
   }
 
   function drawMinimap() {
@@ -934,8 +1037,7 @@
     state.clock += dt;
     updatePlayer(dt);
     animateCables(state.clock);
-    updateFocusHud();
-    updateProximity();
+    updateReticleFocus();
     window.__DS_MISSIONS?.animateWaypoints?.(state, state.clock);
     if (state.mission && !state.mission.complete) window.__DS_MISSIONS?.renderHud?.(state.mission);
     drawMinimap();
@@ -996,6 +1098,14 @@
           });
         }
       }
+      else if (a === "fp-close") window.__DS_FIELD_PANEL?.close?.();
+      else if (a === "fp-fly") {
+        const id = document.getElementById("ds-field-panel")?.dataset?.chamberId;
+        const ch = state.chambers.find(c => c.id === id);
+        if (ch) teleportToChamber(ch, false);
+      }
+      else if (a === "fp-trace-poe") startTrace("poe");
+      else if (a === "fp-trace-av") startTrace("av");
     });
   }
 
@@ -1108,14 +1218,14 @@
         const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
         if (moved < 6) {
           const ch = pickDeviceAt(e.clientX, e.clientY, canvas);
-          if (ch) teleportToChamber(ch, false);
+          if (ch) openFieldPanel(ch);
           else interactNearby();
         }
       }
       state.lookDrag = false;
       downPos = null;
     };
-    const onDbl = () => canvas.requestPointerLock?.();
+    const onDbl = () => safePointerLock(canvas);
     const onWheel = e => {
       if (!canvas.matches(":hover")) return;
       e.preventDefault();
@@ -1154,6 +1264,8 @@
   }
 
   function disposeScene() {
+    if (state.viewmodel && state.camera) state.camera.remove(state.viewmodel);
+    state.viewmodel = null;
     state.disposables.forEach(d => d.dispose?.());
     state.disposables = [];
     state.texCache.clear();
@@ -1215,6 +1327,7 @@
         <div class="ds-walk-canvas-wrap">
           <canvas id="ds-walk-canvas"></canvas>
         </div>
+        <aside class="ds-field-panel" id="ds-field-panel" hidden aria-label="Device inspect"></aside>
       </div>`;
     bindHud();
 
@@ -1241,6 +1354,50 @@
     window.addEventListener("resize", state._resize);
   }
 
+  async function rebuild(studio) {
+    if (!state.mode || !studio) return;
+    if (studio.tab !== "room" && studio.tab !== "network") return;
+    const graph = buildGraph(studio);
+    if (!graph?.chambers.length) {
+      setStatus(studio.tab === "room" ? "No room devices to walk" : "No network devices to walk");
+      return;
+    }
+    const mode = state.mode;
+    const canvas = state.overlay?.querySelector("#ds-walk-canvas");
+    if (!canvas) return;
+    const briefingSeen = !!state.mission?.briefingSeen;
+    window.__DS_FIELD_PANEL?.close?.();
+    cancelAnimationFrame(state.animId);
+    state.animId = 0;
+    disposeScene();
+    state.studio = studio;
+    try {
+      if (mode === "retro") await initRetroMaze(studio, canvas, graph);
+      else await initCorridor(studio, canvas, graph);
+      if (window.__DS_MISSIONS) {
+        state.mission = window.__DS_MISSIONS.startCampaign(graph, state);
+        if (briefingSeen) {
+          state.mission.briefingSeen = true;
+          window.__DS_MISSIONS.dismissBriefing?.(state.mission);
+        }
+        window.__DS_MISSIONS.renderHud(state.mission);
+        window.__DS_MISSIONS.syncWaypoints(state, state.mission, graph);
+        if (!briefingSeen) {
+          window.__DS_MISSIONS.renderBriefing(state.mission, () => {
+            window.__DS_MISSIONS.syncWaypoints(state, state.mission, graph);
+            setStatus("Mission active — follow the glowing waypoints");
+            safePointerLock(canvas);
+          });
+        } else setStatus(`Switched to ${graph.kind} layout`);
+      }
+      window.__DS_FIELD_PANEL?.bindWalk?.(state);
+      loop();
+    } catch (err) {
+      console.error("[DS Walk rebuild]", err);
+      showWalkError(`Rebuild failed: ${err.message}`);
+    }
+  }
+
   function close(silent) {
     cancelAnimationFrame(state.animId);
     state.animId = 0;
@@ -1261,6 +1418,7 @@
       state.studio.scheduleFitView?.();
     }
     window.__DS_MISSIONS?.cleanupBriefing?.();
+    window.__DS_FIELD_PANEL?.close?.();
     state.mode = null;
     if (!silent) state.studio = null;
   }
@@ -1277,5 +1435,5 @@
     };
   }
 
-  window.__DS_WALK = { open, close, toggle: (s, m) => state.mode ? close(true) : open(s, m), isOpen: () => !!state.mode, debugStats };
+  window.__DS_WALK = { open, close, rebuild, toggle: (s, m) => state.mode ? close(true) : open(s, m), isOpen: () => !!state.mode, debugStats };
 })();
