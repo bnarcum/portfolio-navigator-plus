@@ -544,7 +544,7 @@
             <div id="ds-explore-dock" hidden></div>
             <div id="ds-status">
               <div id="ds-stale-status" class="ds-stale-status" hidden></div>
-              <span id="ds-status-left"></span><span id="ds-status-right"></span>
+              <div class="ds-status-row"><span id="ds-status-left"></span><span id="ds-status-right"></span></div>
             </div>
           </aside>
         </div>

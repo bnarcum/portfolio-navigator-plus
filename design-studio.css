@@ -297,7 +297,8 @@
 .ds-rat-fix{color:#2dce5c;list-style:none;margin-left:-18px}
 .ds-bom-deco{padding:8px 12px;font-size:10px;color:var(--muted);border-top:1px solid var(--border);line-height:1.45;opacity:.95}
 
-#ds-status{padding:6px 12px;font-size:10px;color:var(--muted);border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:8px}
+#ds-status{padding:6px 12px;font-size:10px;color:var(--muted);border-top:1px solid var(--border);display:flex;flex-direction:column;gap:4px}
+.ds-status-row{display:flex;justify-content:space-between;gap:8px;width:100%}
 
 #ds-gallery-modal{position:fixed;inset:0;z-index:600;display:flex;align-items:center;justify-content:center}
 #ds-gallery-modal[hidden]{display:none!important}
