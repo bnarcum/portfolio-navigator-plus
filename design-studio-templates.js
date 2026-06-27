@@ -551,23 +551,24 @@
         rack: { x: 70, y: 280, w: 400, h: 88 }
       },
       items: [
-        { stencilId: "board-pro", zone: "display", relX: 0.32, relY: 0.55, label: "Board Pro" },
-        { stencilId: "display-86", zone: "display", relX: 0.78, relY: 0.55, label: "Aux Display" },
-        { stencilId: "quad-cam", zone: "display", relX: 0.32, relY: 0.18, label: "Primary Cam" },
+        { stencilId: "board-pro", zone: "display", relX: 0.3, relY: 0.66, label: "Board Pro" },
+        { stencilId: "display-86", zone: "display", relX: 0.78, relY: 0.66, label: "Aux Display" },
+        { stencilId: "quad-cam", zone: "display", relX: 0.54, relY: 0.16, label: "Primary Cam" },
         { stencilId: "touch-10", zone: "rack", relX: 0.35, relY: 0.42, label: "Touch 10" },
         { stencilId: "c9200-collab", zone: "rack", relX: 0.72, relY: 0.42, label: "C9200-24P" },
-        { stencilId: "conf-table-12", zone: "table", relX: 0.5, relY: 0.58, label: "Board Table" },
-        { stencilId: "ceiling-mic", zone: "table", relX: 0.28, relY: 0.18, label: "Mic-1" },
-        { stencilId: "ceiling-mic", zone: "table", relX: 0.5, relY: 0.12, label: "Mic-2" },
-        { stencilId: "ceiling-mic", zone: "table", relX: 0.72, relY: 0.18, label: "Mic-3" }
+        { stencilId: "conf-table-12", zone: "table", relX: 0.5, relY: 0.6, label: "Board Table" },
+        { stencilId: "ceiling-mic", zone: "table", relX: 0.24, relY: 0.16, label: "Mic-1" },
+        { stencilId: "ceiling-mic", zone: "table", relX: 0.5, relY: 0.1, label: "Mic-2" },
+        { stencilId: "ceiling-mic", zone: "table", relX: 0.76, relY: 0.16, label: "Mic-3" }
       ],
       links: [
-        { fi: 4, ti: 3, media: "cat6", label: "PoE-Touch", fromPort: "Gi1/0/1", toPort: "LAN" },
-        { fi: 4, ti: 6, media: "cat6", label: "PoE-Mic1", fromPort: "Gi1/0/2", toPort: "ETH" },
-        { fi: 4, ti: 7, media: "cat6", label: "PoE-Mic2", fromPort: "Gi1/0/3", toPort: "ETH" },
-        { fi: 4, ti: 8, media: "cat6", label: "PoE-Mic3", fromPort: "Gi1/0/4", toPort: "ETH" },
+        { fi: 4, ti: 0, media: "cat6", label: "PoE-Board", fromPort: "Gi1/0/1", toPort: "LAN" },
+        { fi: 4, ti: 3, media: "cat6", label: "PoE-Touch", fromPort: "Gi1/0/2", toPort: "LAN" },
+        { fi: 4, ti: 6, media: "cat6", label: "PoE-Mic1", fromPort: "Gi1/0/3", toPort: "ETH" },
+        { fi: 4, ti: 7, media: "cat6", label: "PoE-Mic2", fromPort: "Gi1/0/4", toPort: "ETH" },
+        { fi: 4, ti: 8, media: "cat6", label: "PoE-Mic3", fromPort: "Gi1/0/5", toPort: "ETH" },
         { fi: 0, ti: 1, media: "hdmi", label: "Aux Video", fromPort: "HDMI1", toPort: "HDMI1" },
-        { fi: 0, ti: 2, media: "hdmi", label: "Camera", fromPort: "HDMI2", toPort: "HDMI" }
+        { fi: 2, ti: 0, media: "hdmi", label: "Camera", fromPort: "HDMI", toPort: "HDMI-In" }
       ]
     },
     training: {
@@ -586,9 +587,10 @@
         { stencilId: "conf-table-12", zone: "table", relX: 0.5, relY: 0.65, label: "Training Tables" }
       ],
       links: [
-        { fi: 1, ti: 2, media: "cat6", label: "PoE-Touch", fromPort: "Gi1/0/1", toPort: "LAN" },
-        { fi: 1, ti: 3, media: "cat6", label: "Mic-1", fromPort: "Gi1/0/2", toPort: "ETH" },
-        { fi: 1, ti: 4, media: "cat6", label: "Mic-2", fromPort: "Gi1/0/3", toPort: "ETH" }
+        { fi: 1, ti: 0, media: "cat6", label: "PoE-Board", fromPort: "Gi1/0/1", toPort: "LAN" },
+        { fi: 1, ti: 2, media: "cat6", label: "PoE-Touch", fromPort: "Gi1/0/2", toPort: "LAN" },
+        { fi: 1, ti: 3, media: "cat6", label: "Mic-1", fromPort: "Gi1/0/3", toPort: "ETH" },
+        { fi: 1, ti: 4, media: "cat6", label: "Mic-2", fromPort: "Gi1/0/4", toPort: "ETH" }
       ]
     },
     executive: {

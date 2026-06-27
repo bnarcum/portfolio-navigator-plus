@@ -1914,13 +1914,17 @@ Account: ${this.design.account}`;
         const pid = n.pid || def?.pid;
         const showPid = belowLabel && !isDeco && pid && !/^N\/A/i.test(pid) && def?.shape !== "display" && def?.shape !== "table";
         const lblText = (dispLabel || "").slice(0, 22) + qty;
-        const lblW = Math.min(Math.max(w, lblText.length * 5.8 + 10), w + 28);
+        const lblW = Math.min(Math.max(w, lblText.length * 5.8 + 12), w + 30);
         const lblX = (w - lblW) / 2;
-        const pidY = h + 26;
+        const pidText = showPid ? String(pid).slice(0, 16) : "";
+        const pidW = Math.min(Math.max(30, pidText.length * 4.9 + 10), w + 34);
+        const pidX = (w - pidW) / 2;
+        const pidY = h + 30;
         const roomLbl = belowLabel
-          ? `<rect class="ds-node-label-bg ds-node-label-bg-below" x="${lblX}" y="${h + 4}" width="${lblW}" height="14" rx="4"/>
-             <text class="ds-node-label ds-node-label-below" x="${w / 2}" y="${h + 14}" text-anchor="middle">${escapeHtml(lblText)}</text>
-             ${showPid ? `<text class="ds-node-pid" x="${w / 2}" y="${pidY}" text-anchor="middle">${escapeHtml(String(pid).slice(0, 16))}</text>` : ""}`
+          ? `<rect class="ds-node-label-bg ds-node-label-bg-below" x="${lblX}" y="${h + 4}" width="${lblW}" height="15" rx="4"/>
+             <text class="ds-node-label ds-node-label-below" x="${w / 2}" y="${h + 14.5}" text-anchor="middle">${escapeHtml(lblText)}</text>
+             ${showPid ? `<rect class="ds-node-pid-bg" x="${pidX}" y="${h + 21}" width="${pidW}" height="12" rx="3"/>
+             <text class="ds-node-pid" x="${w / 2}" y="${pidY}" text-anchor="middle">${escapeHtml(pidText)}</text>` : ""}`
           : `<rect class="ds-node-label-bg" x="2" y="${h - 18}" width="${w - 4}" height="14" rx="3"/>
              <text class="ds-node-label" x="${w / 2}" y="${h - 7}" text-anchor="middle">${escapeHtml(lblText)}</text>`;
         return `<g class="ds-node${sel}${isHub ? " ds-hub" : ""}${isDeco ? " ds-deco" : ""}${isRoom ? " ds-room-node" : ""}${hasPhoto ? " ds-photo-node" : ""}" data-node="${n.id}" transform="translate(${n.x},${n.y})">

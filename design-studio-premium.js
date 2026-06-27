@@ -223,10 +223,10 @@
       const done = i < studio.storyChapter;
       const active = i === studio.storyChapter;
       const cls = done ? " done" : active ? " active" : "";
-      return `<button type="button" class="ds-story-step${cls}" data-chapter="${i}" title="${esc(c.title)}">
-        <span class="ds-story-step-num">${i + 1}</span>
+      return `<button type="button" class="ds-story-step${cls}" data-chapter="${i}" title="${esc(c.title)}" aria-current="${active ? "step" : "false"}">
+        <span class="ds-story-dot">${done ? "✓" : i + 1}</span>
         <span class="ds-story-step-label">${esc(c.title.split(" ")[0])}</span>
-      </button>${i < STORY_CHAPTERS.length - 1 ? '<span class="ds-story-step-arrow">→</span>' : ""}`;
+      </button>`;
     }).join("");
     host.innerHTML = `<div id="ds-story-bar" role="navigation" aria-label="Story mode">
       <div class="ds-story-top">
