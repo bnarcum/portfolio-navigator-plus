@@ -247,11 +247,15 @@
     const shape = def?.shape || "switch";
     const sx = w / VW;
     const sy = h / VH;
+    const scale = Math.min(sx, sy);
+    const padX = (w - VW * scale) / 2;
+    const padY = (h - VH * scale) / 2;
+    const xform = `translate(${padX},${padY}) scale(${scale})`;
 
     if (shape === "table" || shape === "rack") {
       const inner = FURNITURE_SVG[shape] || FURNITURE_SVG.table;
       const sel = selected ? " ds-node-selected" : "";
-      return `<g class="ds-device ds-furniture${sel}" transform="scale(${sx},${sy})">${inner}</g>`;
+      return `<g class="ds-device ds-furniture${sel}" transform="${xform}">${inner}</g>`;
     }
 
     const sym = resolveSymbolId(def, stencilId) || "switch";
@@ -260,8 +264,12 @@
     const sel = selected ? " ds-node-selected" : "";
     const isRoomShape = ["codec", "display", "camera", "mic", "ceiling-mic", "table-mic", "touch", "switch"].includes(shape);
     const isCeilingMic = shape === "ceiling-mic";
+    const iconScale = isCeilingMic ? 0.5 : isRoomShape ? 0.5 : 0.45;
+    const iconDraw = 80 * iconScale;
+    const iconX = (VW - iconDraw) / 2;
+    const iconY = (VH - iconDraw) / 2;
 
-    return `<g class="ds-device${sel}" transform="scale(${sx},${sy})">
+    return `<g class="ds-device${sel}" transform="${xform}">
       <defs>
         <linearGradient id="${gid}-bg" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stop-color="${accent}" stop-opacity="${isRoomShape ? "0.22" : "0.12"}"/>
@@ -280,7 +288,7 @@
       ${isCeilingMic ? "" : `<rect x="1" y="1" width="${VW - 2}" height="${VH - 2}" rx="8" fill="url(#${gid}-shine)" pointer-events="none"/>
       <rect x="0" y="9" width="5" height="${VH - 18}" rx="2" fill="${accent}" opacity="0.92"/>`}
       <rect x="10" y="${VH - 9}" width="${VW - 20}" height="2.5" rx="1" fill="${accent}" opacity="0.28"/>
-      <g class="ds-node-symbol" style="color:${accent}" transform="translate(${(VW - 40) / 2},${isCeilingMic ? "0" : "4"}) scale(${isCeilingMic ? "0.44" : isRoomShape ? "0.48" : "0.45"})">
+      <g class="ds-node-symbol" style="color:${accent}" transform="translate(${iconX},${iconY}) scale(${iconScale})">
         <use href="#icon-${sym}" width="80" height="80"/>
       </g>
       ${selected ? (isCeilingMic

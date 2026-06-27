@@ -312,6 +312,8 @@
     return offsets;
   }
 
+  const ROOM_LABEL_BELOW = 18;
+
   function layoutZoneEntries(zone, entries, baseX, baseY, snapGrid) {
     const pad = ROOM_ZONE_PAD;
     const labelHead = 14;
@@ -322,12 +324,13 @@
       const def = STN()?.getDef?.(e.n.stencilId, "room");
       const nw = e.n.w || def?.w || 76;
       const nh = e.n.h || def?.h || 46;
+      const visualH = nh + ROOM_LABEL_BELOW;
       const cx = zone.x + pad + e.item.relX * innerW;
       const cy = zone.y + pad + labelHead + e.item.relY * innerH;
       let x = cx - nw / 2;
-      let y = cy - nh / 2;
+      let y = cy - visualH / 2;
       x = Math.max(zone.x + pad, Math.min(x, zone.x + zone.w - pad - nw));
-      y = Math.max(zone.y + pad + labelHead, Math.min(y, zone.y + zone.h - pad - nh));
+      y = Math.max(zone.y + pad + labelHead, Math.min(y, zone.y + zone.h - pad - visualH));
       e.n.x = snapGrid ? snap(baseX + x) : baseX + x;
       e.n.y = snapGrid ? snap(baseY + y) : baseY + y;
     });
@@ -368,7 +371,7 @@
         layoutZoneEntries(zone, entries, baseX, baseY, false);
         const bottoms = entries.map(e => {
           const def = STN()?.getDef?.(e.n.stencilId, "room");
-          return e.n.y + (e.n.h || def?.h || 46) + 18;
+          return e.n.y + (e.n.h || def?.h || 46) + ROOM_LABEL_BELOW;
         });
         const rights = entries.map(e => {
           const def = STN()?.getDef?.(e.n.stencilId, "room");
