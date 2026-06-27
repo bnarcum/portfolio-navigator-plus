@@ -42,7 +42,8 @@
     trace: null, maze: null, graph: null, texCache: new Map(), disposables: [],
     focusId: null, navIndex: 0, mission: null, waypointGroup: null, nearChamber: null,
     reticleChamber: null, bobPhase: 0, viewmodel: null, worldBounds: null,
-    dustParticles: null, footPhase: 0
+    dustParticles: null, footPhase: 0,
+    topology: null, easyNav: true
   };
 
   function esc(s) {
@@ -149,34 +150,45 @@
     return studio.tab === "room" ? buildRoomGraph(studio) : buildNetworkGraph(studio);
   }
 
-  function buildMazeFromGraph(graph) {
-    const n = graph.chambers.length;
-    const cols = Math.max(3, Math.ceil(Math.sqrt(n * 2)));
-    const grid = [];
-    const carve = (r, c) => { if (!grid[r]) grid[r] = []; grid[r][c] = 0; };
-    const placements = [];
-    graph.chambers.forEach((ch, i) => {
-      const r = 1 + Math.floor(i / cols) * 4;
-      const c = 1 + (i % cols) * 4;
-      for (let dr = -1; dr <= 1; dr++)
-        for (let dc = -1; dc <= 1; dc++) carve(r + dr, c + dc);
-      placements.push({ chamber: ch, r, c });
+  function buildTopology(graph) {
+    return window.__DS_WALK_LAYOUT?.buildWalkTopology?.(graph.chambers, graph.corridors) || null;
+  }
+
+  function makeWalkway(THREE, cor) {
+    const ax = cor.from.pos.x, az = cor.from.pos.z;
+    const bx = cor.to.pos.x, bz = cor.to.pos.z;
+    const dx = bx - ax, dz = bz - az;
+    const len = Math.hypot(dx, dz) || 0.1;
+    const g = new THREE.Group();
+    const y = 0.035;
+
+    const walk = new THREE.Mesh(
+      new THREE.BoxGeometry(len, 0.07, 1.55),
+      new THREE.MeshStandardMaterial({
+        color: 0x142838, emissive: cor.color, emissiveIntensity: 0.42,
+        metalness: 0.45, roughness: 0.48
+      })
+    );
+    walk.position.set((ax + bx) / 2, y, (az + bz) / 2);
+    walk.rotation.y = Math.atan2(dx, dz);
+    g.add(walk);
+
+    const edgeMat = new THREE.MeshStandardMaterial({
+      color: cor.color, emissive: cor.color, emissiveIntensity: 0.75, metalness: 0.25, roughness: 0.35
     });
-    graph.corridors.forEach(cor => {
-      const pa = placements.find(p => p.chamber.id === cor.from.id);
-      const pb = placements.find(p => p.chamber.id === cor.to.id);
-      if (!pa || !pb) return;
-      let r = pa.r, c = pa.c;
-      while (r !== pb.r) { r += r < pb.r ? 1 : -1; carve(r, c); }
-      while (c !== pb.c) { c += c < pb.c ? 1 : -1; carve(r, c); }
+    [-0.72, 0.72].forEach(off => {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(len * 0.98, 0.12, 0.06), edgeMat);
+      rail.position.copy(walk.position);
+      rail.position.y = y + 0.05;
+      rail.rotation.copy(walk.rotation);
+      const perp = Math.atan2(dx, dz) + Math.PI / 2;
+      rail.position.x += Math.sin(perp) * off;
+      rail.position.z += Math.cos(perp) * off;
+      g.add(rail);
     });
-    const maxR = grid.length;
-    const maxC = Math.max(...grid.map(row => row?.length || 0), cols * 4 + 2);
-    for (let r = 0; r < maxR; r++) {
-      if (!grid[r]) grid[r] = [];
-      for (let c = 0; c < maxC; c++) if (grid[r][c] === undefined) grid[r][c] = 1;
-    }
-    return { grid, placements, spawn: placements[0] || { r: 2, c: 2 }, corridors: graph.corridors };
+
+    g.userData = { corridor: cor, walkway: true };
+    return g;
   }
 
   function sizeWalkCanvas(canvas) {
@@ -701,7 +713,11 @@
 
     const pods = await Promise.all(graph.chambers.map(ch => makeDevicePod(THREE, ch, 1, graph.kind)));
     pods.forEach(p => scene.add(p));
-    graph.corridors.forEach(cor => scene.add(makeCableRun(THREE, cor)));
+    state.topology = buildTopology(graph);
+    graph.corridors.forEach(cor => {
+      scene.add(makeCableRun(THREE, cor));
+      scene.add(makeWalkway(THREE, cor));
+    });
     if (graph.kind === "room") addRoomDecor(THREE, scene, state.bounds);
 
     const xs = graph.chambers.map(c => c.pos.x);
@@ -719,14 +735,44 @@
     state.navIndex = graph.chambers.indexOf(spawn);
     document.getElementById("ds-walk-minimap")?.removeAttribute("hidden");
     buildDeviceNav(graph.chambers);
+    buildConnectedNav(spawn);
     resizeRenderer();
+  }
+
+  function addCableChannelWalls(THREE, scene, topology) {
+    if (!topology?.segments?.length) return;
+    const wallMat = new THREE.MeshStandardMaterial({
+      color: 0x1a3050, metalness: 0.4, roughness: 0.65, emissive: 0x0a1828, emissiveIntensity: 0.15
+    });
+    topology.segments.forEach(s => {
+      const dx = s.bx - s.ax, dz = s.bz - s.az;
+      const len = Math.hypot(dx, dz) || 0.1;
+      const nx = -dz / len, nz = dx / len;
+      const off = 0.95;
+      [-off, off].forEach(side => {
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(len, 2.8, 0.22), wallMat);
+        wall.position.set((s.ax + s.bx) / 2 + nx * side, 1.4, (s.az + s.bz) / 2 + nz * side);
+        wall.rotation.y = Math.atan2(dx, dz);
+        scene.add(wall);
+      });
+    });
+    topology.pads?.forEach(p => {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(p.r * 0.92, 0.12, 8, 24),
+        wallMat
+      );
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(p.x, 0.55, p.z);
+      scene.add(ring);
+    });
   }
 
   async function initRetroMaze(studio, canvas, graph) {
     const THREE = await loadThree();
-    const maze = buildMazeFromGraph(graph);
+    const topology = buildTopology(graph);
+    state.topology = topology;
     state.graph = graph;
-    state.maze = maze;
+    state.maze = topology;
     state.devicePods = [];
     state.cables = [];
     state.colliders = [];
@@ -751,58 +797,34 @@
     state.viewmodel = makeViewmodel(THREE, camera);
     state.raycaster = new THREE.Raycaster();
 
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0x1a3050, metalness: 0.4, roughness: 0.65, emissive: 0x0a1828, emissiveIntensity: 0.15 });
-    const ceilMat = new THREE.MeshStandardMaterial({ color: 0x0a1420, metalness: 0.2, roughness: 0.9 });
+    const xs = graph.chambers.map(c => c.pos.x), zs = graph.chambers.map(c => c.pos.z);
+    state.bounds = graph.layoutBounds || {
+      minX: Math.min(...xs) - 8, maxX: Math.max(...xs) + 8,
+      minZ: Math.min(...zs) - 8, maxZ: Math.max(...zs) + 8
+    };
+    const b = state.bounds;
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(Math.max(b.maxX - b.minX, 24), Math.max(b.maxZ - b.minZ, 24)),
+      new THREE.MeshStandardMaterial({ color: 0x0a1420, metalness: 0.35, roughness: 0.75 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set((b.minX + b.maxX) / 2, 0, (b.minZ + b.maxZ) / 2);
+    scene.add(floor);
 
-    for (let r = 0; r < maze.grid.length; r++) {
-      for (let c = 0; c < (maze.grid[r]?.length || 0); c++) {
-        const wx = c * CELL + CELL / 2;
-        const wz = r * CELL + CELL / 2;
-        if (maze.grid[r][c] === 1) {
-          const wall = new THREE.Mesh(new THREE.BoxGeometry(CELL, 3.2, CELL), wallMat);
-          wall.position.set(wx, 1.6, wz);
-          scene.add(wall);
-        } else {
-          const tile = new THREE.Mesh(
-            new THREE.PlaneGeometry(CELL * 0.96, CELL * 0.96),
-            new THREE.MeshStandardMaterial({ color: 0x0c1c2c, metalness: 0.5, roughness: 0.6, emissive: 0x061018, emissiveIntensity: 0.2 })
-          );
-          tile.rotation.x = -Math.PI / 2;
-          tile.position.set(wx, 0.02, wz);
-          scene.add(tile);
-          const ceil = new THREE.Mesh(new THREE.PlaneGeometry(CELL * 0.98, CELL * 0.98), ceilMat);
-          ceil.rotation.x = Math.PI / 2;
-          ceil.position.set(wx, 3.1, wz);
-          scene.add(ceil);
-        }
-      }
-    }
+    addCableChannelWalls(THREE, scene, topology);
+    graph.corridors.forEach(cor => scene.add(makeWalkway(THREE, cor)));
 
-    const pods = await Promise.all(maze.placements.map(p => {
-      const ch = { ...p.chamber, pos: { x: p.c * CELL + CELL / 2, y: 0, z: p.r * CELL + CELL / 2 } };
-      return makeDevicePod(THREE, ch, 0.72, graph.kind);
-    }));
+    const pods = await Promise.all(graph.chambers.map(ch => makeDevicePod(THREE, ch, 0.85, graph.kind)));
     pods.forEach(p => scene.add(p));
+    graph.corridors.forEach(cor => scene.add(makeCableRun(THREE, cor)));
 
-    maze.corridors.forEach(cor => {
-      const pa = maze.placements.find(p => p.chamber.id === cor.from.id);
-      const pb = maze.placements.find(p => p.chamber.id === cor.to.id);
-      if (!pa || !pb) return;
-      const fake = {
-        ...cor,
-        from: { pos: { x: pa.c * CELL + CELL / 2, y: 1.2, z: pa.r * CELL + CELL / 2 } },
-        to: { pos: { x: pb.c * CELL + CELL / 2, y: 1.2, z: pb.r * CELL + CELL / 2 } }
-      };
-      scene.add(makeCableRun(THREE, fake));
-    });
-
-    const sp = maze.spawn;
-    const spawnCh = maze.placements.find(p => p.r === sp.r && p.c === sp.c)?.chamber || graph.chambers[0];
-    teleportToChamber(spawnCh, true);
+    const spawn = graph.chambers.find(c => /switch|9200|9300|kit/i.test(c.label)) || graph.chambers[0];
+    teleportToChamber(spawn, true);
     state.chambers = graph.chambers;
-    state.navIndex = graph.chambers.indexOf(spawnCh);
+    state.navIndex = graph.chambers.indexOf(spawn);
     document.getElementById("ds-walk-minimap")?.removeAttribute("hidden");
     buildDeviceNav(graph.chambers);
+    buildConnectedNav(spawn);
     resizeRenderer();
   }
 
@@ -817,7 +839,7 @@
 
   function chamberStandPos(ch) {
     const p = chamberWorldPos(ch);
-    return { x: p.x, y: state.mode === "retro" ? 1.65 : 1.7, z: p.z + 3.2 };
+    return { x: p.x, y: state.mode === "retro" ? 1.65 : 1.7, z: p.z + 2.6 };
   }
 
   function faceChamber(ch) {
@@ -829,8 +851,29 @@
   function teleportToChamber(ch, instant) {
     if (!ch) return;
     const dest = chamberStandPos(ch);
+    const prev = state.chambers[state.navIndex];
     state.navIndex = Math.max(0, state.chambers.indexOf(ch));
     highlightNavChip(ch.id);
+    buildConnectedNav(ch);
+
+    if (!instant && prev && prev.id !== ch.id && state.topology?.pathWaypoints) {
+      const path = state.topology.pathWaypoints(prev.id, ch.id);
+      if (path?.length) {
+        state.fly = {
+          from: { ...state.pos },
+          path,
+          i: 0,
+          t: 0,
+          stepDur: 0.5,
+          chamber: ch,
+          dest
+        };
+        state.vel = { x: 0, z: 0 };
+        setStatus(`Following link path to ${ch.label}`);
+        return;
+      }
+    }
+
     if (instant) {
       state.pos = { ...dest };
       state.vel = { x: 0, z: 0 };
@@ -880,6 +923,35 @@
     });
   }
 
+  function buildConnectedNav(ch) {
+    const bar = document.getElementById("ds-walk-links");
+    if (!bar) return;
+    if (!ch || !state.topology?.segments?.length) {
+      bar.innerHTML = "";
+      bar.hidden = true;
+      return;
+    }
+    const links = state.topology.segments.filter(s => s.cor.from.id === ch.id || s.cor.to.id === ch.id);
+    if (!links.length) {
+      bar.innerHTML = "";
+      bar.hidden = true;
+      return;
+    }
+    bar.hidden = false;
+    bar.innerHTML = `<span class="ds-walk-links-label">Connected — follow a link:</span>` + links.map(s => {
+      const other = s.cor.from.id === ch.id ? s.cor.to : s.cor.from;
+      const media = (s.cor.media || s.cor.label || "link").toUpperCase();
+      return `<button type="button" class="ds-walk-link" data-hop="${other.id}" title="${esc(s.cor.label || media)}">
+        ${esc(media)} → ${esc(other.label.slice(0, 18))}</button>`;
+    }).join("");
+    bar.querySelectorAll("[data-hop]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const target = state.chambers.find(c => c.id === btn.dataset.hop);
+        if (target) teleportToChamber(target, false);
+      });
+    });
+  }
+
   function highlightNavChip(id) {
     document.querySelectorAll(".ds-walk-dev").forEach(el => {
       el.classList.toggle("active", el.dataset.chamber === id);
@@ -893,18 +965,6 @@
   }
 
   function minimapTeleport(mx, my, mmW, mmH) {
-    if (state.mode === "retro" && state.maze) {
-      const m = state.maze;
-      const cols = m.grid[0]?.length || 1;
-      const rows = m.grid.length;
-      const c = Math.floor((mx / mmW) * cols);
-      const r = Math.floor((my / mmH) * rows);
-      if (m.grid[r]?.[c] !== 0) return;
-      state.pos.x = c * CELL + CELL / 2;
-      state.pos.z = r * CELL + CELL / 2;
-      state.vel = { x: 0, z: 0 };
-      return;
-    }
     if (!state.bounds || !state.chambers.length) return;
     const tX = state.bounds.minX + (mx / mmW) * (state.bounds.maxX - state.bounds.minX);
     const tZ = state.bounds.minZ + (my / mmH) * (state.bounds.maxZ - state.bounds.minZ);
@@ -918,11 +978,14 @@
   }
 
   function mazeBlocked(x, z) {
+    const topo = state.topology;
+    if (topo?.isWalkable) return !topo.isWalkable(x, z);
     const m = state.maze;
-    if (!m) return false;
-    const gx = Math.floor(x / CELL), gz = Math.floor(z / CELL);
-    if (gz < 0 || gx < 0 || gz >= m.grid.length || gx >= (m.grid[0]?.length || 0)) return true;
-    return m.grid[gz][gx] === 1;
+    if (!m?.grid) return false;
+    const c = Math.round((x - m.origin.x) / m.cellSize);
+    const r = Math.round((z - m.origin.z) / m.cellSize);
+    if (r < 0 || c < 0 || r >= m.rows || c >= m.cols) return true;
+    return m.grid[r][c] === 1;
   }
 
   function tryMove(dx, dz) {
@@ -944,8 +1007,15 @@
   }
 
   function tryMoveCorridor(dx, dz) {
-    const b = state.bounds;
     let nx = state.pos.x + dx, nz = state.pos.z + dz;
+    if (state.topology?.isWalkable) {
+      if (!state.topology.isWalkable(nx, nz)) {
+        if (state.topology.isWalkable(nx, state.pos.z)) nz = state.pos.z;
+        else if (state.topology.isWalkable(state.pos.x, nz)) nx = state.pos.x;
+        else return;
+      }
+    }
+    const b = state.bounds;
     if (b) {
       nx = Math.max(b.minX, Math.min(b.maxX, nx));
       nz = Math.max(b.minZ, Math.min(b.maxZ, nz));
@@ -956,11 +1026,46 @@
     else if (tryAxis(state.pos.x, nz)) state.pos.z = nz;
   }
 
+  function flyEase(t) {
+    return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+  }
+
   function updateFly(dt) {
     const f = state.fly;
     if (!f) return false;
+
+    if (f.path?.length) {
+      const idx = f.i || 0;
+      const fromPt = idx === 0 ? f.from : f.path[idx - 1];
+      const toPt = idx < f.path.length ? f.path[idx] : f.dest;
+      f.t = Math.min(1, f.t + dt / (f.stepDur || 0.5));
+      const e = flyEase(f.t);
+      state.pos.x = fromPt.x + (toPt.x - fromPt.x) * e;
+      state.pos.z = fromPt.z + (toPt.z - fromPt.z) * e;
+      state.pos.y = state.mode === "retro" ? 1.65 : 1.7;
+      state.yaw = Math.atan2(toPt.x - state.pos.x, toPt.z - state.pos.z);
+      if (f.t >= 1) {
+        f.i = idx + 1;
+        f.t = 0;
+        if (f.i >= f.path.length) {
+          if (f.dest) state.pos = { ...f.dest };
+          if (f.chamber) {
+            highlightNavChip(f.chamber.id);
+            buildConnectedNav(f.chamber);
+            faceChamber(f.chamber);
+            setStatus(`At ${f.chamber.label}${f.chamber.pid ? " · " + f.chamber.pid : ""}`);
+            window.__DS_MISSIONS?.onVisit?.(state.mission, state.graph, f.chamber.id, f.chamber);
+            window.__DS_MISSIONS?.renderHud?.(state.mission);
+            window.__DS_MISSIONS?.syncWaypoints?.(state, state.mission, state.graph);
+          }
+          state.fly = null;
+        }
+      }
+      return true;
+    }
+
     f.t = Math.min(1, f.t + dt / f.dur);
-    const e = f.t < 0.5 ? 2 * f.t * f.t : 1 - (-2 * f.t + 2) ** 2 / 2;
+    const e = flyEase(f.t);
     state.pos.x = f.from.x + (f.to.x - f.from.x) * e;
     state.pos.y = f.from.y + (f.to.y - f.from.y) * e;
     state.pos.z = f.from.z + (f.to.z - f.from.z) * e;
@@ -979,8 +1084,8 @@
     if (updateFly(dt)) { applyCamera(); return; }
 
     const THREE = state.THREE;
-    const maxSpd = state.keys["Shift"] ? 16 : 10;
-    const accel = 42;
+    const maxSpd = state.keys["Shift"] ? 9 : 5.5;
+    const accel = 34;
     const friction = 10;
     const fwd = new THREE.Vector3(Math.sin(state.yaw), 0, Math.cos(state.yaw));
     const right = new THREE.Vector3(Math.cos(state.yaw), 0, -Math.sin(state.yaw));
@@ -1008,8 +1113,10 @@
 
     const mx = state.vel.x * dt;
     const mz = state.vel.z * dt;
-    if (state.mode === "retro") tryMove(mx, mz);
-    else if (mx || mz) tryMoveCorridor(mx, mz);
+    if (mx || mz) {
+      if (state.mode === "retro" || state.topology) tryMove(mx, mz);
+      else tryMoveCorridor(mx, mz);
+    }
 
     if (state.trace) {
       const wps = state.trace.waypoints;
@@ -1089,7 +1196,7 @@
         const p = chamberWorldPos(ch);
         const near = Math.hypot(p.x - state.pos.x, p.z - state.pos.z) < 9;
         prompt.hidden = !near;
-        prompt.textContent = near ? `Press E to inspect ${ch.label}` : `Look at ${ch.label}`;
+        prompt.textContent = near ? `Tap Inspect or press E — ${ch.label}` : `Walk closer to ${ch.label}`;
       } else prompt.hidden = true;
     }
     const el = document.getElementById("ds-walk-focus");
@@ -1137,10 +1244,9 @@
     window.__DS_MISSIONS.syncWaypoints(state, state.mission, graph);
     window.__DS_MISSIONS.renderBriefing(state.mission, () => {
       window.__DS_MISSIONS.syncWaypoints(state, state.mission, graph);
-      setStatus("Mission active — deploy to the floor");
+      setStatus("Pick a device below or tap a connected link to walk your diagram");
       window.__DS_WALK_AUDIO?.sfx?.missionStart?.();
       window.__DS_WALK_AUDIO?.start?.();
-      safePointerLock(state.overlay?.querySelector("#ds-walk-canvas"));
     });
     window.__DS_FIELD_PANEL?.bindWalk?.(state);
   }
@@ -1195,26 +1301,6 @@
     ctx.strokeStyle = "rgba(2,200,255,0.35)";
     ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
 
-    if (state.mode === "retro" && state.maze) {
-      const m = state.maze;
-      const rows = m.grid.length, cols = m.grid[0]?.length || 1;
-      const sx = (W - 8) / cols, sy = (H - 8) / rows;
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          ctx.fillStyle = m.grid[r][c] === 1 ? "#1a3050" : "#0a2030";
-          ctx.fillRect(4 + c * sx, 4 + r * sy, sx - 0.5, sy - 0.5);
-        }
-      }
-      m.placements.forEach(p => {
-        ctx.fillStyle = "#44cc88";
-        ctx.fillRect(4 + p.c * sx + 1, 4 + p.r * sy + 1, sx * 2 - 2, sy * 2 - 2);
-      });
-      const px = 4 + (state.pos.x / CELL) * sx;
-      const py = 4 + (state.pos.z / CELL) * sy;
-      drawMinimapPlayer(ctx, px, py);
-      return;
-    }
-
     if (!state.bounds || !state.chambers.length) return;
     const b = state.bounds;
     const pad = 6;
@@ -1225,17 +1311,28 @@
     const toX = x => ox + (x - b.minX) * scale;
     const toZ = z => oz + (z - b.minZ) * scale;
 
-    state.cables.forEach(g => {
-      const cor = g.userData?.corridor;
-      if (!cor) return;
-      const a = cor.from.pos, bp = cor.to.pos;
-      ctx.strokeStyle = "rgba(212,160,96,0.35)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(toX(a.x), toZ(a.z));
-      ctx.lineTo(toX(bp.x), toZ(bp.z));
-      ctx.stroke();
-    });
+    if (state.topology?.segments) {
+      state.topology.segments.forEach(s => {
+        ctx.strokeStyle = "rgba(212,160,96,0.45)";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(toX(s.ax), toZ(s.az));
+        ctx.lineTo(toX(s.bx), toZ(s.bz));
+        ctx.stroke();
+      });
+    } else {
+      state.cables.forEach(g => {
+        const cor = g.userData?.corridor;
+        if (!cor) return;
+        const a = cor.from.pos, bp = cor.to.pos;
+        ctx.strokeStyle = "rgba(212,160,96,0.35)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(toX(a.x), toZ(a.z));
+        ctx.lineTo(toX(bp.x), toZ(bp.z));
+        ctx.stroke();
+      });
+    }
     state.chambers.forEach(ch => {
       const p = ch.pos;
       const theme = zoneTheme(ch.zone);
@@ -1290,24 +1387,26 @@
   }
 
   function hudHtml(mode, tab) {
-    const title = mode === "retro" ? "SIGNAL QUEST" : "FIELD OPS";
-    const showMaze = tab !== "network";
+    const title = mode === "retro" ? "CABLE PATHS" : "TOPOLOGY TOUR";
+    const showPaths = tab !== "network";
     return `<div class="ds-walk-hud">
       <div class="ds-walk-hud-top">
         <strong class="ds-walk-title">${title}</strong>
-        <span class="ds-walk-hint">WASD move · click device to learn · Esc resumes walk</span>
+        <span class="ds-walk-hint">Tap devices below · follow link buttons · drag to look · minimap to jump</span>
         <button type="button" class="ds-walk-btn ds-walk-audio-btn" data-action="audio-toggle" title="Toggle music">♫</button>
         <button type="button" class="ds-walk-close" title="Exit walkthrough">✕</button>
       </div>
       <div class="ds-walk-xp-track"><div class="ds-walk-xp-bar" id="ds-walk-xp-bar"></div></div>
       <div class="ds-walk-hud-mid">
-        <button type="button" class="ds-walk-btn" data-action="trace-av">Trace AV</button>
-        <button type="button" class="ds-walk-btn" data-action="trace-poe">Trace PoE</button>
-        <button type="button" class="ds-walk-btn" data-action="prev-dev">‹</button>
-        <button type="button" class="ds-walk-btn" data-action="next-dev">›</button>
-        ${showMaze ? `<button type="button" class="ds-walk-btn${mode === "retro" ? " active" : ""}" data-action="mode-retro" title="Arcade maze — not topology accurate">Maze</button>` : ""}
-        <button type="button" class="ds-walk-btn${mode === "corridor" ? " active" : ""}" data-action="mode-corridor">Explorer</button>
+        <button type="button" class="ds-walk-btn" data-action="trace-av">Trace AV link</button>
+        <button type="button" class="ds-walk-btn" data-action="trace-poe">Trace PoE link</button>
+        <button type="button" class="ds-walk-btn" data-action="prev-dev" title="Previous device">‹ Prev</button>
+        <button type="button" class="ds-walk-btn" data-action="next-dev" title="Next device">Next ›</button>
+        <button type="button" class="ds-walk-btn primary" data-action="inspect" title="Open device details">Inspect</button>
+        ${showPaths ? `<button type="button" class="ds-walk-btn${mode === "retro" ? " active" : ""}" data-action="mode-retro" title="Walk walled paths along your diagram links">Cable paths</button>` : ""}
+        <button type="button" class="ds-walk-btn${mode === "corridor" ? " active" : ""}" data-action="mode-corridor" title="Open floor tour matching your diagram">Open tour</button>
       </div>
+      <div class="ds-walk-links" id="ds-walk-links" hidden></div>
       <div class="ds-walk-mission" id="ds-walk-mission"></div>
       <div class="ds-walk-devices" id="ds-walk-devices"></div>
       <div class="ds-walk-focus" id="ds-walk-focus" hidden></div>
@@ -1315,7 +1414,22 @@
     </div>`;
   }
 
+  function bindDpad() {
+    const map = { fwd: "w", back: "s", left: "a", right: "d" };
+    state.overlay?.querySelectorAll("[data-move]").forEach(btn => {
+      const key = map[btn.dataset.move];
+      if (!key) return;
+      const down = e => { e.preventDefault(); state.keys[key] = true; };
+      const up = () => { state.keys[key] = false; };
+      btn.addEventListener("pointerdown", down);
+      btn.addEventListener("pointerup", up);
+      btn.addEventListener("pointerleave", up);
+      btn.addEventListener("pointercancel", up);
+    });
+  }
+
   function bindHud() {
+    bindDpad();
     state.overlay?.querySelector(".ds-walk-close")?.addEventListener("click", () => close());
     state.overlay?.addEventListener("click", e => {
       const btn = e.target.closest("[data-action]");
@@ -1327,6 +1441,7 @@
       else if (a === "trace-poe") startTrace("poe");
       else if (a === "prev-dev") cycleDevice(-1);
       else if (a === "next-dev") cycleDevice(1);
+      else if (a === "inspect") interactNearby();
       else if (a === "mission-start") {
         e.preventDefault();
         e.stopPropagation();
@@ -1377,10 +1492,6 @@
   }
 
   function chamberWorldPos(ch) {
-    if (state.mode === "retro" && state.maze) {
-      const p = state.maze.placements.find(x => x.chamber.id === ch.id);
-      if (p) return { x: p.c * CELL + CELL / 2, y: 1.2, z: p.r * CELL + CELL / 2 };
-    }
     return ch.pos;
   }
 
@@ -1548,6 +1659,7 @@
     state.scene = null;
     state.camera = null;
     state.maze = null;
+    state.topology = null;
     state.graph = null;
     state.mission = null;
     if (state.waypointGroup && state.scene) state.scene.remove(state.waypointGroup);
@@ -1594,7 +1706,13 @@
         <div class="ds-walk-inspect" id="ds-walk-inspect" hidden></div>
         <div class="ds-walk-toast" id="ds-walk-toast"></div>
         <div class="ds-walk-compass" id="ds-walk-compass" aria-hidden="true"><span>N</span></div>
-        <canvas id="ds-walk-minimap" class="ds-walk-minimap" title="Click to jump"></canvas>
+        <canvas id="ds-walk-minimap" class="ds-walk-minimap" title="Click a device to jump there"></canvas>
+        <div class="ds-walk-dpad" id="ds-walk-dpad" aria-label="Move">
+          <button type="button" class="ds-walk-dpad-btn" data-move="fwd" aria-label="Forward">▲</button>
+          <button type="button" class="ds-walk-dpad-btn ds-walk-dpad-mid" data-move="left" aria-label="Left">◀</button>
+          <button type="button" class="ds-walk-dpad-btn ds-walk-dpad-mid" data-move="right" aria-label="Right">▶</button>
+          <button type="button" class="ds-walk-dpad-btn" data-move="back" aria-label="Back">▼</button>
+        </div>
         <div class="ds-walk-canvas-wrap">
           <canvas id="ds-walk-canvas"></canvas>
         </div>

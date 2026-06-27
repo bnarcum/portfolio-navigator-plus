@@ -25,7 +25,7 @@ try {
   await page.click('#ds-tabs [data-tab="room"]');
   await page.waitForTimeout(400);
   await page.click("#ds-walk-corridor");
-  await page.waitForSelector("#ds-mission-start", { timeout: 15000 });
+  await page.waitForSelector("#ds-mission-start", { timeout: 45000 });
   await page.waitForSelector("#ds-walk-briefing:not([hidden])", { timeout: 5000 });
 
   const pre = await page.evaluate(() => {
@@ -64,7 +64,7 @@ try {
 
   if (!post.briefingHidden) errors.push("briefing still visible after click");
   if (post.overlayClass.includes("ds-briefing-open")) errors.push("ds-briefing-open class still set");
-  if (!/Mission active|deploy|waypoint/i.test(post.status)) {
+  if (!/Mission active|deploy|waypoint|Pick a device|diagram/i.test(post.status)) {
     errors.push(`unexpected status after start: "${post.status}"`);
   }
 

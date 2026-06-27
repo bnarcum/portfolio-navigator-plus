@@ -80,5 +80,151 @@
     }));
   }
 
-  window.__DS_WALK_LAYOUT = { diagramToWorld, layerAisles, roomZones, nodeCenter };
+  function distToSegment(px, pz, ax, az, bx, bz) {
+    const dx = bx - ax, dz = bz - az;
+    const len2 = dx * dx + dz * dz || 1e-6;
+    let t = ((px - ax) * dx + (pz - az) * dz) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const qx = ax + t * dx, qz = az + t * dz;
+    return { dist: Math.hypot(px - qx, pz - qz), t, qx, qz };
+  }
+
+  /** Walkable pads + link segments aligned to diagram positions (single source of truth). */
+  function buildWalkTopology(chambers, corridors, opts = {}) {
+    if (!chambers?.length) return null;
+    const padR = opts.padR ?? 2.35;
+    const pathW = opts.pathWidth ?? 1.4;
+    const cellSize = opts.cellSize ?? 2.15;
+
+    const pads = chambers.map(ch => ({
+      id: ch.id, x: ch.pos.x, z: ch.pos.z, r: padR, chamber: ch
+    }));
+
+    const segments = (corridors || []).map(cor => ({
+      id: cor.id, cor,
+      ax: cor.from.pos.x, az: cor.from.pos.z,
+      bx: cor.to.pos.x, bz: cor.to.pos.z,
+      width: pathW
+    }));
+
+    const xs = chambers.map(c => c.pos.x), zs = chambers.map(c => c.pos.z);
+    const minX = Math.min(...xs) - 8, maxX = Math.max(...xs) + 8;
+    const minZ = Math.min(...zs) - 8, maxZ = Math.max(...zs) + 8;
+    const cols = Math.max(8, Math.ceil((maxX - minX) / cellSize) + 6);
+    const rows = Math.max(8, Math.ceil((maxZ - minZ) / cellSize) + 6);
+    const origin = { x: minX - 3 * cellSize, z: minZ - 3 * cellSize };
+
+    const grid = Array.from({ length: rows }, () => Array(cols).fill(1));
+
+    const toCell = (wx, wz) => ({
+      c: Math.round((wx - origin.x) / cellSize),
+      r: Math.round((wz - origin.z) / cellSize)
+    });
+
+    const cellToWorld = (r, c) => ({
+      x: origin.x + c * cellSize,
+      z: origin.z + r * cellSize
+    });
+
+    const carve = (r, c, rad = 1) => {
+      for (let dr = -rad; dr <= rad; dr++) {
+        for (let dc = -rad; dc <= rad; dc++) {
+          const rr = r + dr, cc = c + dc;
+          if (rr >= 0 && rr < rows && cc >= 0 && cc < cols) grid[rr][cc] = 0;
+        }
+      }
+    };
+
+    const bresenham = (r0, c0, r1, c1, rad) => {
+      let r = r0, c = c0;
+      const dr = Math.abs(r1 - r0), dc = Math.abs(c1 - c0);
+      const sr = r0 < r1 ? 1 : -1, sc = c0 < c1 ? 1 : -1;
+      let err = dc - dr;
+      for (;;) {
+        carve(r, c, rad);
+        if (r === r1 && c === c1) break;
+        const e2 = 2 * err;
+        if (e2 > -dr) { err -= dc; r += sr; }
+        if (e2 < dc) { err += dr; c += sc; }
+      }
+    };
+
+    pads.forEach(p => {
+      const cell = toCell(p.x, p.z);
+      p.gr = cell.r;
+      p.gc = cell.c;
+      carve(cell.r, cell.c, 2);
+    });
+
+    segments.forEach(s => {
+      const a = toCell(s.ax, s.az), b = toCell(s.bx, s.bz);
+      bresenham(a.r, a.c, b.r, b.c, 1);
+    });
+
+    const adj = {};
+    chambers.forEach(ch => { adj[ch.id] = []; });
+    segments.forEach(s => {
+      const a = s.cor.from.id, b = s.cor.to.id;
+      if (!adj[a]) adj[a] = [];
+      if (!adj[b]) adj[b] = [];
+      adj[a].push({ id: b, seg: s });
+      adj[b].push({ id: a, seg: s });
+    });
+
+    function isWalkable(x, z) {
+      for (const p of pads) {
+        const dx = x - p.x, dz = z - p.z;
+        if (dx * dx + dz * dz <= p.r * p.r) return true;
+      }
+      for (const s of segments) {
+        if (distToSegment(x, z, s.ax, s.az, s.bx, s.bz).dist <= s.width * 0.55) return true;
+      }
+      return false;
+    }
+
+    function findPath(fromId, toId) {
+      if (fromId === toId) return [];
+      const q = [fromId];
+      const prev = { [fromId]: null };
+      const via = {};
+      while (q.length) {
+        const id = q.shift();
+        if (id === toId) {
+          const segs = [];
+          let cur = toId;
+          while (prev[cur]) {
+            segs.unshift(via[cur]);
+            cur = prev[cur];
+          }
+          return segs;
+        }
+        for (const n of adj[id] || []) {
+          if (prev[n.id] !== undefined) continue;
+          prev[n.id] = id;
+          via[n.id] = n.seg;
+          q.push(n.id);
+        }
+      }
+      return null;
+    }
+
+    function pathWaypoints(fromId, toId) {
+      const segs = findPath(fromId, toId);
+      if (!segs?.length) return null;
+      return segs.map(s => ({ x: (s.ax + s.bx) / 2, z: (s.az + s.bz) / 2 }));
+    }
+
+    const spawnPad = pads[0];
+    return {
+      pads, segments, grid, origin, cellSize, rows, cols,
+      toCell, cellToWorld, isWalkable, findPath, pathWaypoints,
+      spawn: spawnPad ? { r: spawnPad.gr, c: spawnPad.gc } : { r: 2, c: 2 },
+      corridors
+    };
+  }
+
+  window.__DS_WALK_LAYOUT = {
+    diagramToWorld, layerAisles, roomZones, nodeCenter,
+    buildWalkTopology, distToSegment
+  };
 })();
