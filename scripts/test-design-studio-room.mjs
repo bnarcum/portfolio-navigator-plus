@@ -95,6 +95,25 @@ try {
   if (retro.pods < 3) errors.push(`expected device pods in retro, got ${retro.pods}`);
   if (!retro.minimap) errors.push("retro minimap missing");
   if (retro.navChips < 3) errors.push(`expected device nav chips, got ${retro.navChips}`);
+  const mission = await page.evaluate(() => ({
+    hasMissions: !!window.__DS_MISSIONS,
+    briefing: !!document.getElementById("ds-walk-briefing"),
+    missionPanel: !!document.getElementById("ds-walk-mission"),
+    xpBar: !!document.getElementById("ds-walk-xp-bar"),
+    missionActive: window.__DS_WALK?.debugStats?.()?.mission,
+    objectiveCount: document.querySelectorAll(".ds-mission-list .ds-mobj, #ds-walk-briefing li").length
+  }));
+  if (!mission.hasMissions) errors.push("missions module not loaded");
+  if (!mission.briefing) errors.push("mission briefing overlay missing");
+  if (!mission.missionPanel) errors.push("mission HUD panel missing");
+  if (!mission.xpBar) errors.push("mission XP bar missing");
+  if (!mission.missionActive) errors.push("mission not started in walk state");
+  if (mission.objectiveCount < 2) errors.push(`expected mission objectives, got ${mission.objectiveCount}`);
+
+  await page.evaluate(() => {
+    document.getElementById("ds-mission-start")?.click();
+  });
+  await page.waitForTimeout(300);
 
   await page.evaluate(() => window.__DS_WALK?.close?.());
   await page.waitForTimeout(200);

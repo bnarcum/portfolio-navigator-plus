@@ -40,7 +40,7 @@
     pos: { x: 0, y: 1.7, z: 0 }, fly: null,
     chambers: [], devicePods: [], cables: [], colliders: [], bounds: null,
     trace: null, maze: null, graph: null, texCache: new Map(), disposables: [],
-    focusId: null, navIndex: 0
+    focusId: null, navIndex: 0, mission: null, waypointGroup: null, nearChamber: null
   };
 
   function esc(s) {
@@ -388,10 +388,13 @@
 
   function addEnvironment(THREE, scene, dark = false) {
     scene.fog = new THREE.FogExp2(dark ? 0x020810 : 0x040c18, dark ? 0.045 : 0.028);
-    scene.add(new THREE.HemisphereLight(0x88aacc, 0x081018, dark ? 0.55 : 0.75));
-    const dir = new THREE.DirectionalLight(0x99ccff, dark ? 0.7 : 1.0);
+    scene.add(new THREE.HemisphereLight(0x99bbdd, 0x081018, dark ? 0.6 : 0.85));
+    const dir = new THREE.DirectionalLight(0xaaddff, dark ? 0.85 : 1.15);
     dir.position.set(10, 24, 8);
     scene.add(dir);
+    const rim = new THREE.DirectionalLight(0x02c8ff, dark ? 0.25 : 0.35);
+    rim.position.set(-12, 8, -14);
+    scene.add(rim);
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(120, 120),
       new THREE.MeshStandardMaterial({ color: dark ? 0x060e18 : 0x081828, metalness: 0.35, roughness: 0.75 })
@@ -566,6 +569,10 @@
       state.vel = { x: 0, z: 0 };
     }
     setStatus(`At ${ch.label}${ch.pid ? " · " + ch.pid : ""}`);
+    const ping = window.__DS_MISSIONS?.onVisit?.(state.mission, state.graph, ch.id, ch);
+    if (ping) window.__DS_MISSIONS?.toastObjective?.("Device inspected");
+    window.__DS_MISSIONS?.renderHud?.(state.mission);
+    window.__DS_MISSIONS?.syncWaypoints?.(state, state.mission, state.graph);
   }
 
   function cycleDevice(dir) {
@@ -738,6 +745,58 @@
     applyCamera();
   }
 
+  function interactNearby() {
+    const ch = state.nearChamber;
+    if (!ch) return;
+    window.__DS_MISSIONS?.onVisit?.(state.mission, state.graph, ch.id, ch);
+    highlightNavChip(ch.id);
+    const el = document.getElementById("ds-walk-inspect");
+    if (el) {
+      el.hidden = false;
+      el.innerHTML = window.__DS_MISSIONS?.inspectHtml?.(ch) || "";
+    }
+    window.__DS_MISSIONS?.toastObjective?.("Inspected: " + ch.label);
+    window.__DS_MISSIONS?.renderHud?.(state.mission);
+    window.__DS_MISSIONS?.syncWaypoints?.(state, state.mission, state.graph);
+    if (state.mission?.complete) showMissionComplete();
+  }
+
+  function showMissionComplete() {
+    state.overlay?.classList.add("ds-walk-victory");
+    window.__DS_MISSIONS?.renderHud?.(state.mission);
+    setStatus(`Certified ${state.mission.rank} — ${state.mission.xp} XP earned`);
+  }
+
+  function updateProximity() {
+    let best = null, bestD = 5.5;
+    state.devicePods.forEach(pod => {
+      const ch = pod.userData?.chamber;
+      if (!ch) return;
+      const p = chamberWorldPos(ch);
+      const d = Math.hypot(p.x - state.pos.x, p.z - state.pos.z);
+      if (d < bestD) { bestD = d; best = ch; }
+    });
+    state.nearChamber = best;
+    const prompt = document.getElementById("ds-walk-prompt");
+    if (prompt) {
+      if (best) {
+        prompt.hidden = false;
+        prompt.textContent = `Press E to inspect ${best.label}`;
+      } else prompt.hidden = true;
+    }
+  }
+
+  function initMissionSystem(graph) {
+    if (!window.__DS_MISSIONS) return;
+    state.chamberWorldPos = chamberWorldPos;
+    state.mission = window.__DS_MISSIONS.startCampaign(graph, state);
+    window.__DS_MISSIONS.renderHud(state.mission);
+    window.__DS_MISSIONS.syncWaypoints(state, state.mission, graph);
+    window.__DS_MISSIONS.renderBriefing(state.mission, () => {
+      window.__DS_MISSIONS.syncWaypoints(state, state.mission, graph);
+    });
+  }
+
   function applyCamera() {
     const cam = state.camera;
     if (!cam) return;
@@ -875,6 +934,9 @@
     updatePlayer(dt);
     animateCables(state.clock);
     updateFocusHud();
+    updateProximity();
+    window.__DS_MISSIONS?.animateWaypoints?.(state, state.clock);
+    if (state.mission && !state.mission.complete) window.__DS_MISSIONS?.renderHud?.(state.mission);
     drawMinimap();
     state.renderer.render(state.scene, state.camera);
     state.animId = requestAnimationFrame(loop);
@@ -883,36 +945,47 @@
   function hudHtml(mode) {
     return `<div class="ds-walk-hud">
       <div class="ds-walk-hud-top">
-        <strong class="ds-walk-title">${mode === "retro" ? "⬡ Network Dungeon" : "⬡ Path Walkthrough"}</strong>
-        <span class="ds-walk-hint">WASD move · Drag to look · [ ] prev/next device · Click minimap to jump · Esc exit</span>
+        <strong class="ds-walk-title">${mode === "retro" ? "⬡ Signal Quest" : "⬡ Field Tech Walk"}</strong>
+        <span class="ds-walk-hint">WASD · Drag look · E inspect · [ ] devices · Minimap jump</span>
         <button type="button" class="ds-walk-close" title="Exit walkthrough">✕</button>
       </div>
+      <div class="ds-walk-xp-track"><div class="ds-walk-xp-bar" id="ds-walk-xp-bar"></div></div>
       <div class="ds-walk-hud-mid">
-        <button type="button" class="ds-walk-btn" data-action="trace-av">Trace AV path</button>
-        <button type="button" class="ds-walk-btn" data-action="trace-poe">Trace PoE bus</button>
-        <button type="button" class="ds-walk-btn" data-action="prev-dev" title="Previous device">‹ Device</button>
-        <button type="button" class="ds-walk-btn" data-action="next-dev" title="Next device">Device ›</button>
-        <button type="button" class="ds-walk-btn${mode === "retro" ? " active" : ""}" data-action="mode-retro">Retro</button>
-        <button type="button" class="ds-walk-btn${mode === "corridor" ? " active" : ""}" data-action="mode-corridor">Corridor</button>
+        <button type="button" class="ds-walk-btn" data-action="trace-av">Trace AV</button>
+        <button type="button" class="ds-walk-btn" data-action="trace-poe">Trace PoE</button>
+        <button type="button" class="ds-walk-btn" data-action="prev-dev">‹</button>
+        <button type="button" class="ds-walk-btn" data-action="next-dev">›</button>
+        <button type="button" class="ds-walk-btn${mode === "retro" ? " active" : ""}" data-action="mode-retro">Dungeon</button>
+        <button type="button" class="ds-walk-btn${mode === "corridor" ? " active" : ""}" data-action="mode-corridor">Open</button>
       </div>
+      <div class="ds-walk-mission" id="ds-walk-mission"></div>
       <div class="ds-walk-devices" id="ds-walk-devices"></div>
       <div class="ds-walk-focus" id="ds-walk-focus" hidden></div>
-      <div class="ds-walk-status" id="ds-walk-status">Explore the signal paths between devices</div>
+      <div class="ds-walk-status" id="ds-walk-status">Mission briefing loading…</div>
     </div>`;
   }
 
   function bindHud() {
     state.overlay?.querySelector(".ds-walk-close")?.addEventListener("click", () => close());
-    state.overlay?.querySelectorAll("[data-action]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const a = btn.dataset.action;
-        if (a === "mode-retro") switchMode("retro");
-        else if (a === "mode-corridor") switchMode("corridor");
-        else if (a === "trace-av") startTrace("av");
-        else if (a === "trace-poe") startTrace("poe");
-        else if (a === "prev-dev") cycleDevice(-1);
-        else if (a === "next-dev") cycleDevice(1);
-      });
+    state.overlay?.addEventListener("click", e => {
+      const btn = e.target.closest("[data-action]");
+      if (!btn) return;
+      const a = btn.dataset.action;
+      if (a === "mode-retro") switchMode("retro");
+      else if (a === "mode-corridor") switchMode("corridor");
+      else if (a === "trace-av") startTrace("av");
+      else if (a === "trace-poe") startTrace("poe");
+      else if (a === "prev-dev") cycleDevice(-1);
+      else if (a === "next-dev") cycleDevice(1);
+      else if (a === "mission-replay") {
+        if (state.graph) {
+          state.mission = window.__DS_MISSIONS?.startCampaign(state.graph, state);
+          state.overlay?.classList.remove("ds-walk-victory");
+          window.__DS_MISSIONS?.renderHud?.(state.mission);
+          window.__DS_MISSIONS?.syncWaypoints?.(state, state.mission, state.graph);
+          window.__DS_MISSIONS?.renderBriefing?.(state.mission, () => {});
+        }
+      }
     });
   }
 
@@ -942,6 +1015,10 @@
       t: 0
     };
     setStatus(`Tracing: ${pick.label}`);
+    window.__DS_MISSIONS?.onTrace?.(state.mission, kind);
+    window.__DS_MISSIONS?.renderHud?.(state.mission);
+    window.__DS_MISSIONS?.syncWaypoints?.(state, state.mission, state.graph);
+    if (state.mission?.complete) showMissionComplete();
   }
 
   function switchMode(mode) {
@@ -976,6 +1053,7 @@
         if (e.key === "[" || e.key === "{") { e.preventDefault(); cycleDevice(-1); return; }
         if (e.key === "]" || e.key === "}") { e.preventDefault(); cycleDevice(1); return; }
         if (e.key === "Tab") { e.preventDefault(); cycleDevice(e.shiftKey ? -1 : 1); return; }
+        if (e.key === "e" || e.key === "E") { e.preventDefault(); interactNearby(); return; }
       }
     };
     const onLook = (dx, dy) => {
@@ -1013,6 +1091,7 @@
         if (moved < 6) {
           const ch = pickDeviceAt(e.clientX, e.clientY, canvas);
           if (ch) teleportToChamber(ch, false);
+          else interactNearby();
         }
       }
       state.lookDrag = false;
@@ -1073,6 +1152,9 @@
     state.camera = null;
     state.maze = null;
     state.graph = null;
+    state.mission = null;
+    if (state.waypointGroup && state.scene) state.scene.remove(state.waypointGroup);
+    state.waypointGroup = null;
   }
 
   async function open(studio, mode) {
@@ -1105,8 +1187,12 @@
     overlay.setAttribute("aria-hidden", "false");
     overlay.className = `ds-walk-overlay ds-walk-${mode}`;
     overlay.innerHTML = `${hudHtml(mode)}
+      <div id="ds-walk-briefing" class="ds-walk-briefing" hidden></div>
       <div class="ds-walk-stage">
         <div class="ds-walk-crosshair" aria-hidden="true"></div>
+        <div class="ds-walk-prompt" id="ds-walk-prompt" hidden>Press E to inspect</div>
+        <div class="ds-walk-inspect" id="ds-walk-inspect" hidden></div>
+        <div class="ds-walk-toast" id="ds-walk-toast"></div>
         <div class="ds-walk-compass" id="ds-walk-compass" aria-hidden="true"><span>N</span></div>
         <canvas id="ds-walk-minimap" class="ds-walk-minimap" title="Click to jump"></canvas>
         <div class="ds-walk-canvas-wrap">
@@ -1123,11 +1209,11 @@
     try {
       if (mode === "retro") await initRetroMaze(studio, canvas, graph);
       else await initCorridor(studio, canvas, graph);
+      initMissionSystem(graph);
       loop();
       studio.roomView = mode === "retro" ? "retro" : "walk";
       window.__DS_PREMIUM?.renderRoomViewToggle?.(studio);
-      const title = graph.room?.name || "Topology";
-      setStatus(`${title} — ${graph.chambers.length} devices · Drag canvas to look · Click device or chip to fly there`);
+      setStatus("Accept the mission briefing to begin your certification run");
     } catch (err) {
       console.error("[DS Walk]", err);
       showWalkError(err?.message === "three-load" ? "3D library failed to load — hard-refresh" : `Walkthrough failed: ${err.message}`);
@@ -1167,7 +1253,9 @@
       pods: state.devicePods.length,
       cables: state.cables.length,
       hasRenderer: !!state.renderer,
-      photos: state.devicePods.filter(p => p.userData?.chamber?.photoUrl).length
+      photos: state.devicePods.filter(p => p.userData?.chamber?.photoUrl).length,
+      mission: !!state.mission,
+      missionComplete: !!state.mission?.complete
     };
   }
 

@@ -573,6 +573,51 @@
 .ds-room-view-toggle .ds-view-btn[data-view="walk"],
 .ds-room-view-toggle .ds-view-btn[data-view="retro"]{border-color:rgba(0,212,255,.35);color:#7ee8ff}
 
+/* Mission / gamification HUD */
+.ds-walk-xp-track{height:4px;margin-top:6px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden}
+.ds-walk-xp-bar{height:100%;width:0;background:linear-gradient(90deg,#ff9000,#02c8ff);border-radius:2px;transition:width .35s ease}
+.ds-walk-mission{margin-top:8px;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,144,0,.25);background:rgba(255,144,0,.06)}
+.ds-mission-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px}
+.ds-mission-head strong{font-size:11px;color:#ffe8c8;font-weight:800}
+.ds-mission-xp{font-size:9px;font-weight:800;color:#ff9000}
+.ds-mission-active{margin:0 0 6px;font-size:10px;color:#c8dce8;line-height:1.4}
+.ds-mission-list{list-style:none;margin:0;padding:0;max-height:88px;overflow-y:auto}
+.ds-mobj{display:flex;gap:6px;align-items:flex-start;padding:3px 0;font-size:9px;color:#8aa8c0}
+.ds-mobj.active{color:#e8f4ff;font-weight:700}
+.ds-mobj.done{color:#7dd3a8;opacity:.85}
+.ds-mobj-icon{flex:0 0 12px;text-align:center}
+.ds-mission-complete{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:11px;color:#7dd3a8}
+.ds-walk-briefing{position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(2,8,18,.72);backdrop-filter:blur(6px)}
+.ds-briefing-card{max-width:420px;padding:20px 22px;border-radius:12px;border:1px solid rgba(255,144,0,.4);
+  background:linear-gradient(165deg,rgba(12,32,52,.98),rgba(6,18,32,.98));color:#e8f4ff;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+.ds-briefing-badge{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.12em;padding:4px 10px;border-radius:4px;
+  background:rgba(255,144,0,.2);border:1px solid rgba(255,144,0,.45);color:#ffcc66;margin-bottom:10px}
+.ds-briefing-card h3{margin:0 0 6px;font-size:16px;color:#fff}
+.ds-briefing-card>p{margin:0 0 12px;font-size:12px;color:#9ec0dc}
+.ds-briefing-card ul{margin:0 0 14px;padding-left:18px;font-size:11px;line-height:1.5;color:#c8dce8}
+.ds-briefing-card li em{font-style:normal;color:#ff9000;font-weight:700;margin-left:4px}
+.ds-briefing-tip{font-size:10px;color:#8ecae0;margin-bottom:14px!important}
+.ds-briefing-tip kbd{padding:1px 5px;border-radius:3px;border:1px solid rgba(2,200,255,.35);background:rgba(2,200,255,.1);font-size:9px}
+.ds-walk-btn.primary{background:linear-gradient(135deg,#ff9000,#e07000);border-color:rgba(255,180,80,.6);color:#1a0e00;font-weight:800}
+.ds-walk-btn.primary:hover{filter:brightness(1.08)}
+.ds-walk-prompt{position:absolute;bottom:72px;left:50%;transform:translateX(-50%);z-index:6;padding:6px 14px;border-radius:20px;
+  font-size:11px;font-weight:700;color:#ffe8c8;background:rgba(4,16,31,.88);border:1px solid rgba(255,144,0,.45);pointer-events:none;
+  box-shadow:0 4px 16px rgba(0,0,0,.4)}
+.ds-walk-inspect{position:absolute;bottom:12px;right:12px;z-index:6;max-width:280px;pointer-events:none}
+.ds-inspect-card{padding:10px 12px;border-radius:8px;border:1px solid rgba(2,200,255,.35);background:rgba(4,16,31,.92);font-size:10px;color:#e8f4ff;
+  box-shadow:0 6px 20px rgba(0,0,0,.45)}
+.ds-inspect-card strong{display:block;font-size:11px;margin-bottom:2px}
+.ds-inspect-pid{display:block;font-size:9px;color:#7a9ab8;margin-bottom:6px}
+.ds-inspect-card p{margin:0 0 6px;line-height:1.45;color:#b8d8f0}
+.ds-inspect-zone{font-size:8px;font-weight:800;letter-spacing:.08em;color:#02c8ff}
+.ds-walk-toast{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(.9);z-index:8;padding:10px 18px;border-radius:8px;
+  font-size:12px;font-weight:800;color:#1a1200;background:linear-gradient(135deg,#ffcc66,#ff9000);opacity:0;pointer-events:none;
+  transition:opacity .25s,transform .25s;box-shadow:0 8px 24px rgba(255,144,0,.35)}
+.ds-walk-toast.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+#ds-walk-overlay.ds-walk-victory .ds-walk-stage::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at center,rgba(255,144,0,.12),transparent 65%);animation:ds-victory-pulse 2s ease-in-out infinite}
+@keyframes ds-victory-pulse{0%,100%{opacity:.6}50%{opacity:1}}
+
 body.design-studio-open #app-chrome,
 body.design-studio-open #gw,
 body.design-studio-open #panel,
