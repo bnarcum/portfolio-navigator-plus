@@ -326,24 +326,18 @@
   function makeWaypoint(THREE, disposables) {
     const g = new THREE.Group();
     g.userData.kind = "waypoint";
-    const pillar = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.05, 0.28, 2.8, 8, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xff9000, transparent: true, opacity: 0.45, side: THREE.DoubleSide })
-    );
-    pillar.position.y = 1.4;
-    g.add(pillar);
     const ring = new THREE.Mesh(
-      new THREE.RingGeometry(0.5, 0.75, 24),
-      new THREE.MeshBasicMaterial({ color: 0x02c8ff, transparent: true, opacity: 0.7, side: THREE.DoubleSide })
+      new THREE.RingGeometry(0.35, 0.55, 20),
+      new THREE.MeshBasicMaterial({ color: 0xff9000, transparent: true, opacity: 0.55, side: THREE.DoubleSide })
     );
     ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.08;
+    ring.position.y = 0.06;
     g.add(ring);
     const top = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.22, 0),
-      new THREE.MeshBasicMaterial({ color: 0xffcc66 })
+      new THREE.OctahedronGeometry(0.12, 0),
+      new THREE.MeshBasicMaterial({ color: 0xffcc66, transparent: true, opacity: 0.75 })
     );
-    top.position.y = 2.9;
+    top.position.y = 1.6;
     g.add(top);
     return g;
   }
@@ -352,7 +346,7 @@
     const THREE = walkState.THREE;
     const scene = walkState.scene;
     if (!THREE || !scene || !m || m.complete) return;
-    const targets = targetChambers(m, graph).slice(0, 3);
+    const targets = targetChambers(m, graph).slice(0, 2);
     const existing = walkState.waypointGroup;
     if (existing) scene.remove(existing);
     const group = new THREE.Group();
@@ -372,8 +366,8 @@
       const ph = wp.userData.phase || 0;
       wp.position.y = Math.sin(t * 2 + ph) * 0.12;
       wp.rotation.y = t * 0.8;
-      const top = wp.children[2];
-      if (top) top.position.y = 2.9 + Math.sin(t * 3 + ph) * 0.15;
+      const top = wp.children[1];
+      if (top) top.position.y = 1.6 + Math.sin(t * 3 + ph) * 0.1;
     });
   }
 

@@ -95,9 +95,12 @@
     if (!layout?.positions) return null;
     chambers.forEach(ch => {
       const p = layout.positions[ch.id];
-      if (p) ch.pos = { x: p.x, y: p.y, z: p.z };
+      if (p) ch.pos = { x: p.x, y: p.y, z: p.z, diagramX: p.diagramX, diagramY: p.diagramY };
     });
-    return layout.bounds;
+    return {
+      bounds: layout.bounds,
+      diagram: { cx: layout.center.cx, cy: layout.center.cy, scale: layout.scale, kind }
+    };
   }
 
   function buildRoomGraph(studio) {
@@ -112,7 +115,9 @@
       return makeChamberBase(studio, n, { zone: item?.zone || "default", pos: { x: 0, y: 3, z: 0 } });
     });
     const graph = linkGraph(room, chambers, links, "room");
-    graph.layoutBounds = applyDiagramLayout(studio, graph.chambers, nodes, "room");
+    const layoutInfo = applyDiagramLayout(studio, graph.chambers, nodes, "room");
+    graph.layoutBounds = layoutInfo?.bounds;
+    graph.layoutDiagram = layoutInfo?.diagram;
     return graph;
   }
 
@@ -128,7 +133,9 @@
       return makeChamberBase(studio, n, { zone: layer, pos: { x: 0, y: 3, z: 0 } });
     });
     const graph = linkGraph({ name: "Network topology" }, chambers, links, "network");
-    graph.layoutBounds = applyDiagramLayout(studio, graph.chambers, nodes, "network");
+    const layoutInfo = applyDiagramLayout(studio, graph.chambers, nodes, "network");
+    graph.layoutBounds = layoutInfo?.bounds;
+    graph.layoutDiagram = layoutInfo?.diagram;
     return graph;
   }
 
@@ -393,7 +400,7 @@
 
     g.position.set(ch.pos.x, 0, ch.pos.z);
     state.devicePods.push(g);
-    state.colliders.push({ x: ch.pos.x, z: ch.pos.z, r: 1.8 * scale, id: ch.id });
+    state.colliders.push({ x: ch.pos.x, z: ch.pos.z, r: 0.95 * scale, id: ch.id });
     return g;
   }
 
@@ -848,9 +855,27 @@
     state.camera.updateProjectionMatrix();
   }
 
+  function snapToWalkable(x, z) {
+    const topo = state.topology;
+    if (!topo?.isWalkable || topo.isWalkable(x, z)) return { x, z };
+    for (let r = 0.4; r < 8; r += 0.45) {
+      for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
+        const tx = x + Math.cos(a) * r, tz = z + Math.sin(a) * r;
+        if (topo.isWalkable(tx, tz)) return { x: tx, z: tz };
+      }
+    }
+    return { x, z };
+  }
+
   function chamberStandPos(ch) {
     const p = chamberWorldPos(ch);
-    return { x: p.x, y: state.mode === "retro" ? 1.65 : 1.7, z: p.z + 2.6 };
+    const stand = { x: p.x, y: state.mode === "retro" ? 1.65 : 1.7, z: p.z + 2.4 };
+    if (state.mode === "retro") {
+      const snap = snapToWalkable(stand.x, stand.z);
+      stand.x = snap.x;
+      stand.z = snap.z;
+    }
+    return stand;
   }
 
   function faceChamber(ch) {
@@ -1019,19 +1044,12 @@
 
   function tryMoveCorridor(dx, dz) {
     let nx = state.pos.x + dx, nz = state.pos.z + dz;
-    if (state.topology?.isWalkable) {
-      if (!state.topology.isWalkable(nx, nz)) {
-        if (state.topology.isWalkable(nx, state.pos.z)) nz = state.pos.z;
-        else if (state.topology.isWalkable(state.pos.x, nz)) nx = state.pos.x;
-        else return;
-      }
-    }
     const b = state.bounds;
     if (b) {
       nx = Math.max(b.minX, Math.min(b.maxX, nx));
       nz = Math.max(b.minZ, Math.min(b.maxZ, nz));
     }
-    const tryAxis = (tx, tz) => !podBlocked(tx, tz);
+    const tryAxis = (tx, tz) => !podBlocked(tx, tz, 0.25);
     if (tryAxis(nx, nz)) { state.pos.x = nx; state.pos.z = nz; return; }
     if (tryAxis(nx, state.pos.z)) state.pos.x = nx;
     else if (tryAxis(state.pos.x, nz)) state.pos.z = nz;
@@ -1095,7 +1113,7 @@
     if (updateFly(dt)) { applyCamera(); return; }
 
     const THREE = state.THREE;
-    const maxSpd = state.keys["Shift"] ? 9 : 5.5;
+    const maxSpd = state.keys["Shift"] ? 10 : 7.5;
     const accel = 34;
     const friction = 10;
     const fwd = new THREE.Vector3(Math.sin(state.yaw), 0, Math.cos(state.yaw));
@@ -1125,7 +1143,7 @@
     const mx = state.vel.x * dt;
     const mz = state.vel.z * dt;
     if (mx || mz) {
-      if (state.mode === "retro" || state.topology) tryMove(mx, mz);
+      if (state.mode === "retro") tryMove(mx, mz);
       else tryMoveCorridor(mx, mz);
     }
 
@@ -1223,7 +1241,7 @@
       const p = chamberWorldPos(pch);
       const dist = Math.hypot(p.x - state.pos.x, p.z - state.pos.z);
       const focused = ch?.id === pch.id;
-      const showLabel = focused || dist < 6.5;
+      const showLabel = focused;
       if (pod.userData.labelSprite) {
         pod.userData.labelSprite.visible = showLabel;
         pod.userData.labelSprite.material.opacity = focused ? 1 : 0.65;
@@ -1302,57 +1320,97 @@
     updateReticleFocus();
   }
 
+  function worldToDiagram(wx, wz) {
+    const d = state.graph?.layoutDiagram;
+    if (!d?.scale) return null;
+    return { x: wx / d.scale + d.cx, y: wz / d.scale + d.cy };
+  }
+
   function drawMinimap() {
     const mm = document.getElementById("ds-walk-minimap");
     if (!mm) return;
     const ctx = mm.getContext("2d");
-    const W = mm.width = 168, H = mm.height = 118;
+    const W = mm.width = 200, H = mm.height = 140;
     ctx.fillStyle = "rgba(4,16,31,0.94)";
     ctx.fillRect(0, 0, W, H);
     ctx.strokeStyle = "rgba(2,200,255,0.35)";
     ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
+    ctx.font = "8px system-ui,sans-serif";
+    ctx.fillStyle = "rgba(158,192,220,0.85)";
+    ctx.fillText("Diagram links", 6, 11);
 
-    if (!state.bounds || !state.chambers.length) return;
-    const b = state.bounds;
-    const pad = 6;
-    const rw = W - pad * 2, rh = H - pad * 2;
-    const scale = Math.min(rw / (b.maxX - b.minX), rh / (b.maxZ - b.minZ));
-    const ox = pad + (rw - (b.maxX - b.minX) * scale) / 2;
-    const oz = pad + (rh - (b.maxZ - b.minZ) * scale) / 2;
-    const toX = x => ox + (x - b.minX) * scale;
-    const toZ = z => oz + (z - b.minZ) * scale;
+    if (!state.chambers?.length) return;
 
-    if (state.topology?.segments) {
-      state.topology.segments.forEach(s => {
-        ctx.strokeStyle = "rgba(212,160,96,0.45)";
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.moveTo(toX(s.ax), toZ(s.az));
-        ctx.lineTo(toX(s.bx), toZ(s.bz));
-        ctx.stroke();
-      });
-    } else {
-      state.cables.forEach(g => {
-        const cor = g.userData?.corridor;
-        if (!cor) return;
-        const a = cor.from.pos, bp = cor.to.pos;
-        ctx.strokeStyle = "rgba(212,160,96,0.35)";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(toX(a.x), toZ(a.z));
-        ctx.lineTo(toX(bp.x), toZ(bp.z));
-        ctx.stroke();
-      });
-    }
+    const pad = 8;
+    const rw = W - pad * 2, rh = H - pad * 2 - 8;
+    const hasDiagram = state.chambers.every(ch => Number.isFinite(ch.pos?.diagramX));
+
+    let toX, toY;
+    if (hasDiagram) {
+      const dxs = state.chambers.map(ch => ch.pos.diagramX);
+      const dys = state.chambers.map(ch => ch.pos.diagramY);
+      const minDX = Math.min(...dxs) - 20, maxDX = Math.max(...dxs) + 20;
+      const minDY = Math.min(...dys) - 20, maxDY = Math.max(...dys) + 20;
+      const scale = Math.min(rw / (maxDX - minDX || 1), rh / (maxDY - minDY || 1));
+      const ox = pad + (rw - (maxDX - minDX) * scale) / 2;
+      const oy = pad + 10 + (rh - (maxDY - minDY) * scale) / 2;
+      toX = x => ox + (x - minDX) * scale;
+      toY = y => oy + (y - minDY) * scale;
+    } else if (state.bounds) {
+      const b = state.bounds;
+      const scale = Math.min(rw / (b.maxX - b.minX), rh / (b.maxZ - b.minZ));
+      const ox = pad + (rw - (b.maxX - b.minX) * scale) / 2;
+      const oy = pad + 10 + (rh - (b.maxZ - b.minZ) * scale) / 2;
+      toX = x => ox + (x - b.minX) * scale;
+      toY = z => oy + (z - b.minZ) * scale;
+    } else return;
+
+    const corridors = state.graph?.corridors || [];
+    corridors.forEach(cor => {
+      const a = cor.from.pos, b = cor.to.pos;
+      const ax = hasDiagram ? a.diagramX : a.x;
+      const ay = hasDiagram ? a.diagramY : a.z;
+      const bx = hasDiagram ? b.diagramX : b.x;
+      const by = hasDiagram ? b.diagramY : b.z;
+      if (![ax, ay, bx, by].every(Number.isFinite)) return;
+      const col = cor.color ?? 0xd4a060;
+      ctx.strokeStyle = "#" + col.toString(16).padStart(6, "0");
+      ctx.globalAlpha = 0.85;
+      ctx.lineWidth = cor.media === "hdmi" || cor.media === "usb" ? 3 : 2;
+      ctx.beginPath();
+      ctx.moveTo(toX(ax), toY(ay));
+      ctx.lineTo(toX(bx), toY(by));
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    });
+
     state.chambers.forEach(ch => {
-      const p = ch.pos;
+      const px = hasDiagram ? ch.pos.diagramX : ch.pos.x;
+      const py = hasDiagram ? ch.pos.diagramY : ch.pos.z;
+      if (!Number.isFinite(px) || !Number.isFinite(py)) return;
       const theme = zoneTheme(ch.zone);
+      const active = ch.id === state.focusId;
       ctx.fillStyle = "#" + theme.accent.toString(16).padStart(6, "0");
       ctx.beginPath();
-      ctx.arc(toX(p.x), toZ(p.z), ch.id === state.focusId ? 5 : 4, 0, Math.PI * 2);
+      ctx.arc(toX(px), toY(py), active ? 5.5 : 4, 0, Math.PI * 2);
       ctx.fill();
+      if (active) {
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
     });
-    drawMinimapPlayer(ctx, toX(state.pos.x), toZ(state.pos.z));
+
+    const diag = worldToDiagram(state.pos.x, state.pos.z);
+    let plx, ply;
+    if (diag && hasDiagram) {
+      plx = toX(diag.x);
+      ply = toY(diag.y);
+    } else {
+      plx = toX(state.pos.x);
+      ply = toY(state.pos.z);
+    }
+    drawMinimapPlayer(ctx, plx, ply);
   }
 
   function drawMinimapPlayer(ctx, px, py) {
@@ -1551,7 +1609,8 @@
     const onKey = e => {
       const tag = (e.target.tagName || "").toLowerCase();
       if (tag === "input" || tag === "textarea" || tag === "select") return;
-      state.keys[e.key] = e.type === "keydown";
+      const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      state.keys[k] = e.type === "keydown";
       if (e.type === "keydown") {
         if (e.key === "Escape") {
           e.preventDefault();
@@ -1829,6 +1888,7 @@
   function debugStats() {
     return {
       mode: state.mode,
+      pos: { x: state.pos.x, z: state.pos.z },
       pods: state.devicePods.length,
       cables: state.cables.length,
       hasRenderer: !!state.renderer,

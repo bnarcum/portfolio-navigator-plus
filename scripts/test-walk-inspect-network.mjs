@@ -22,6 +22,10 @@ try {
   await page.waitForTimeout(500);
   await page.click("#ds-walk-corridor");
   await page.waitForTimeout(2000);
+  await page.waitForFunction(
+    () => (window.__DS_WALK?.debugStats?.()?.pods || 0) >= 5,
+    { timeout: 45000 }
+  );
 
   const pre = await page.evaluate(() => ({
     walkOpen: window.__DS_WALK?.isOpen?.(),
