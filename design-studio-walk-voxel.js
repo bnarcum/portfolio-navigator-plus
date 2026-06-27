@@ -1,5 +1,5 @@
 /**
- * Design Studio Walk — Minecraft / Roblox voxel world helpers
+ * Design Studio Walk — 3D world block helpers
  */
 (function () {
   "use strict";

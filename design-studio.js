@@ -748,8 +748,7 @@
         <button type="button" id="ds-delete-sel">Delete</button>
         <button type="button" id="ds-floor-upload">Floor plan</button>
         <button type="button" id="ds-fit">Fit</button>
-        <button type="button" id="ds-walk-corridor" class="ds-walk-toolbar" hidden title="3D path walkthrough (WASD)">Walk</button>
-        <button type="button" id="ds-walk-retro" class="ds-walk-toolbar" hidden title="Retro network dungeon">Retro</button>
+        <button type="button" id="ds-walk-corridor" class="ds-walk-toolbar" hidden title="3D walkthrough along your diagram">Walk</button>
         <input type="file" id="ds-floor-input" accept="image/*" hidden/>`;
       LAYERS.forEach(l => { const o = document.createElement("option"); o.value = l; o.textContent = LAYER_LABELS[l]; document.getElementById("ds-layer-filter").appendChild(o); });
       MEDIA_TYPES.forEach(m => { const o = document.createElement("option"); o.value = m.id; o.textContent = m.label; document.getElementById("ds-link-media").appendChild(o); });
@@ -795,8 +794,7 @@
       $("ds-fit").onclick = () => this.fitView();
       const tb = document.getElementById("ds-toolbar");
       tb?.addEventListener("click", e => {
-        if (e.target.closest("#ds-walk-corridor")) { e.preventDefault(); this.openWalk("corridor"); }
-        if (e.target.closest("#ds-walk-retro")) { e.preventDefault(); this.openWalk("retro"); }
+        if (e.target.closest("#ds-walk-corridor")) { e.preventDefault(); this.openWalk(); }
       });
       $("ds-auto-layout").onclick = () => {
         if (this.tab === "room" && this.activeRoomId) autoLayoutRoom(this.design, this.activeRoomId);
@@ -1133,7 +1131,6 @@
       wrap.classList.toggle("network-mode", tab === "network");
       const showWalk = tab === "room" || tab === "network";
       document.getElementById("ds-walk-corridor")?.toggleAttribute("hidden", !showWalk);
-      document.getElementById("ds-walk-retro")?.toggleAttribute("hidden", !showWalk);
       this.updateRoomPicker();
       this.renderRoomGuide();
       if (tab !== "intent") {
@@ -1999,14 +1996,14 @@ Account: ${this.design.account}`;
       void vp?.getBBox?.();
     }
 
-    openWalk(mode) {
+    openWalk() {
       if (!window.__DS_WALK?.open) {
         this.toast("Walk module not loaded — hard-refresh the page");
         return;
       }
-      window.__DS_WALK.open(this, mode).catch(err => {
+      window.__DS_WALK.open(this).catch(err => {
         console.error("[DS Walk]", err);
-        this.toast("Walkthrough failed — try Retro or hard-refresh");
+        this.toast("Walkthrough failed — hard-refresh and try again");
       });
     }
 

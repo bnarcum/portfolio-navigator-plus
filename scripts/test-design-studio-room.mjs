@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Design Studio — room diagram paints without click; Walk/Retro overlay opens. */
+/** Design Studio — room diagram paints without click; Walk overlay opens. */
 import { chromium } from "playwright";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -75,9 +75,9 @@ try {
   }
 
   // Walk toolbar
-  await page.click("#ds-walk-retro");
-  await page.waitForTimeout(800);
-  const retro = await page.evaluate(() => {
+  await page.click("#ds-walk-corridor");
+  await page.waitForTimeout(1200);
+  const walk = await page.evaluate(() => {
     const stats = window.__DS_WALK?.debugStats?.() || {};
     return {
       overlayHidden: document.getElementById("ds-walk-overlay")?.hidden,
@@ -86,15 +86,19 @@ try {
       canvasW: document.getElementById("ds-walk-canvas")?.width || 0,
       pods: stats.pods || 0,
       minimap: !!document.getElementById("ds-walk-minimap"),
-      navChips: document.querySelectorAll(".ds-walk-dev").length
+      navChips: document.querySelectorAll(".ds-walk-dev").length,
+      hasRenderer: !!stats.hasRenderer,
+      hasError: document.getElementById("ds-walk-status")?.classList.contains("ds-walk-error")
     };
   });
-  if (retro.overlayHidden !== false) errors.push("retro overlay still hidden after click");
-  if (!retro.walkOpen) errors.push(`retro walk not open; status="${retro.status}"`);
-  if (retro.canvasW < 100) errors.push(`retro canvas width ${retro.canvasW}`);
-  if (retro.pods < 3) errors.push(`expected device pods in retro, got ${retro.pods}`);
-  if (!retro.minimap) errors.push("retro minimap missing");
-  if (retro.navChips < 3) errors.push(`expected device nav chips, got ${retro.navChips}`);
+  if (walk.overlayHidden !== false) errors.push("walk overlay still hidden after click");
+  if (!walk.walkOpen) errors.push(`walk not open; status="${walk.status}"`);
+  if (walk.canvasW < 100) errors.push(`walk canvas width ${walk.canvasW}`);
+  if (walk.pods < 3) errors.push(`expected device pods, got ${walk.pods}`);
+  if (!walk.minimap) errors.push("walk minimap missing");
+  if (walk.navChips < 3) errors.push(`expected device nav chips, got ${walk.navChips}`);
+  if (!walk.hasRenderer) errors.push("walk missing WebGL renderer");
+  if (walk.hasError) errors.push(`walk error status: ${walk.status}`);
   const mission = await page.evaluate(() => ({
     hasMissions: !!window.__DS_MISSIONS,
     briefing: !!document.getElementById("ds-walk-briefing"),
@@ -117,25 +121,6 @@ try {
   await page.evaluate(() => window.__DS_WALK?.close?.());
   await page.waitForTimeout(200);
 
-  await page.click("#ds-walk-corridor");
-  await page.waitForTimeout(1200);
-  const corridor = await page.evaluate(() => {
-    const stats = window.__DS_WALK?.debugStats?.() || {};
-    return {
-      walkOpen: window.__DS_WALK?.isOpen?.(),
-      status: document.getElementById("ds-walk-status")?.textContent || "",
-      hasError: document.getElementById("ds-walk-status")?.classList.contains("ds-walk-error"),
-      pods: stats.pods || 0,
-      hasRenderer: !!stats.hasRenderer,
-      navChips: document.querySelectorAll(".ds-walk-dev").length
-    };
-  });
-  if (!corridor.walkOpen) errors.push(`corridor walk not open; status="${corridor.status}"`);
-  if (corridor.hasError) errors.push(`corridor error status: ${corridor.status}`);
-  if (corridor.pods < 3) errors.push(`expected device pods in corridor, got ${corridor.pods}`);
-  if (!corridor.hasRenderer) errors.push("corridor missing WebGL renderer");
-  if (corridor.navChips < 3) errors.push(`corridor nav chips: ${corridor.navChips}`);
-
   if (errors.length) {
     console.error("FAIL\n" + errors.map(e => `  - ${e}`).join("\n"));
     console.error("beforeClick", JSON.stringify(beforeClick, null, 2));
@@ -143,7 +128,7 @@ try {
   }
   console.log("Design Studio room test OK");
   console.log("  nodes on screen without click:", beforeClick.nodeCount);
-  console.log("  retro + corridor walk opened");
+  console.log("  walk opened, pods:", walk.pods);
 } finally {
   await browser.close();
 }

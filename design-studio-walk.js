@@ -1,5 +1,5 @@
 /**
- * Design Studio — Network Path Walkthrough (premium 3D + retro maze)
+ * Design Studio — 3D topology walkthrough
  */
 (function () {
   "use strict";
@@ -42,7 +42,7 @@
     pos: { x: 0, y: EYE_HEIGHT, z: 0 }, fly: null,
     thirdPerson: true, avatar: null,
     chambers: [], devicePods: [], cables: [], colliders: [], bounds: null,
-    trace: null, maze: null, graph: null, texCache: new Map(), disposables: [],
+    trace: null, graph: null, texCache: new Map(), disposables: [],
     focusId: null, navIndex: 0, mission: null, waypointGroup: null, nearChamber: null,
     reticleChamber: null, bobPhase: 0, viewmodel: null, worldBounds: null,
     dustParticles: null, footPhase: 0,
@@ -773,96 +773,6 @@
     });
   }
 
-  function addCableChannelWalls(THREE, scene, topology) {
-    if (!topology?.segments?.length) return;
-    const wallMat = new THREE.MeshStandardMaterial({
-      color: 0x1a3050, metalness: 0.4, roughness: 0.65, emissive: 0x0a1828, emissiveIntensity: 0.15
-    });
-    topology.segments.forEach(s => {
-      const dx = s.bx - s.ax, dz = s.bz - s.az;
-      const len = Math.hypot(dx, dz) || 0.1;
-      const nx = -dz / len, nz = dx / len;
-      const off = 0.95;
-      [-off, off].forEach(side => {
-        const wall = new THREE.Mesh(new THREE.BoxGeometry(len, 2.8, 0.22), wallMat);
-        wall.position.set((s.ax + s.bx) / 2 + nx * side, 1.4, (s.az + s.bz) / 2 + nz * side);
-        wall.rotation.y = Math.atan2(dx, dz);
-        scene.add(wall);
-      });
-    });
-    topology.pads?.forEach(p => {
-      const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(p.r * 0.92, 0.12, 8, 24),
-        wallMat
-      );
-      ring.rotation.x = Math.PI / 2;
-      ring.position.set(p.x, 0.55, p.z);
-      scene.add(ring);
-    });
-  }
-
-  async function initRetroMaze(studio, canvas, graph) {
-    const THREE = await loadThree();
-    const topology = buildTopology(graph);
-    state.topology = topology;
-    state.graph = graph;
-    state.maze = topology;
-    state.devicePods = [];
-    state.cables = [];
-    state.colliders = [];
-    state.worldColliders = [];
-
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-    renderer.setClearColor(0x4a6888, 1);
-    state.renderer = renderer;
-
-    const scene = new THREE.Scene();
-    state.scene = scene;
-    addVoxelEnvironment(THREE, scene, false);
-
-    const camera = new THREE.PerspectiveCamera(72, 1, 0.1, 120);
-    camera.rotation.order = "YXZ";
-    state.camera = camera;
-    scene.add(camera);
-    setupAvatar(THREE, scene);
-    state.viewmodel = makeViewmodel(THREE, camera);
-    state.raycaster = new THREE.Raycaster();
-
-    const xs = graph.chambers.map(c => c.pos.x), zs = graph.chambers.map(c => c.pos.z);
-    state.bounds = graph.layoutBounds || {
-      minX: Math.min(...xs) - 8, maxX: Math.max(...xs) + 8,
-      minZ: Math.min(...zs) - 8, maxZ: Math.max(...zs) + 8
-    };
-    setupVoxelWorld(THREE, scene, state.bounds, graph);
-    const b = state.bounds;
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(0, 0),
-      new THREE.MeshLambertMaterial({ color: 0x000000, visible: false })
-    );
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.set((b.minX + b.maxX) / 2, 0, (b.minZ + b.maxZ) / 2);
-    scene.add(floor);
-
-    addCableChannelWalls(THREE, scene, topology);
-    graph.corridors.forEach(cor => scene.add(makeWalkway(THREE, cor)));
-    graph.corridors.forEach(cor => scene.add(makeCableRun(THREE, cor)));
-
-    const spawn = graph.chambers.find(c => /switch|9200|9300|kit/i.test(c.label)) || graph.chambers[0];
-    state.chambers = graph.chambers;
-    teleportToChamber(spawn, true);
-    state.navIndex = graph.chambers.indexOf(spawn);
-    document.getElementById("ds-walk-minimap")?.removeAttribute("hidden");
-    buildDeviceNav(graph.chambers);
-    buildConnectedNav(spawn);
-    resizeRenderer();
-
-    setStatus("Loading devices…");
-    loadDevicePods(THREE, graph, 0.85).then(() => {
-      if (state.mode) setStatus("Pick a device below or tap a connected link");
-    });
-  }
-
   function resizeRenderer() {
     const wrap = state.overlay?.querySelector(".ds-walk-canvas-wrap");
     if (!wrap || !state.renderer || !state.camera) return;
@@ -905,7 +815,7 @@
       y: EYE_HEIGHT,
       z: p.z + dir.dz * standDist
     };
-    if (state.mode === "retro" || state.topology?.isWalkable) {
+    if (state.topology?.isWalkable) {
       const snap = snapToWalkable(stand.x, stand.z);
       stand.x = snap.x;
       stand.z = snap.z;
@@ -1048,19 +958,7 @@
     if (best) teleportToChamber(best, false);
   }
 
-  function mazeBlocked(x, z) {
-    const topo = state.topology;
-    if (topo?.isWalkable) return !topo.isWalkable(x, z);
-    const m = state.maze;
-    if (!m?.grid) return false;
-    const c = Math.round((x - m.origin.x) / m.cellSize);
-    const r = Math.round((z - m.origin.z) / m.cellSize);
-    if (r < 0 || c < 0 || r >= m.rows || c >= m.cols) return true;
-    return m.grid[r][c] === 1;
-  }
-
   function isBlocked(x, z, playerR = 0.42) {
-    if (state.mode === "retro" && mazeBlocked(x, z)) return true;
     const b = state.bounds;
     if (b) {
       if (x < b.minX + playerR || x > b.maxX - playerR) return true;
@@ -1072,16 +970,6 @@
       if (dx * dx + dz * dz < (col.r + playerR) ** 2) return true;
     }
     return false;
-  }
-
-  function tryMove(dx, dz) {
-    const pr = 0.42;
-    const nx = state.pos.x + dx, nz = state.pos.z + dz;
-    if (!isBlocked(nx + Math.sign(dx) * pr, state.pos.z, pr) && !isBlocked(nx, state.pos.z + Math.sign(dz) * pr, pr)) {
-      if (!isBlocked(nx, nz, pr)) { state.pos.x = nx; state.pos.z = nz; return; }
-    }
-    if (!isBlocked(nx, state.pos.z, pr)) state.pos.x = nx;
-    else if (!isBlocked(state.pos.x, nz, pr)) state.pos.z = nz;
   }
 
   function tryMoveCorridor(dx, dz) {
@@ -1202,10 +1090,7 @@
 
     const mx = state.vel.x * dt;
     const mz = state.vel.z * dt;
-    if (mx || mz) {
-      if (state.mode === "retro") tryMove(mx, mz);
-      else tryMoveCorridor(mx, mz);
-    }
+    if (mx || mz) tryMoveCorridor(mx, mz);
 
     if (state.trace) {
       const wps = state.trace.waypoints;
@@ -1531,12 +1416,10 @@
     state.animId = requestAnimationFrame(loop);
   }
 
-  function hudHtml(mode, tab) {
-    const title = mode === "retro" ? "CABLE QUEST" : "NETWORK CRAFT";
-    const showPaths = tab !== "network";
+  function hudHtml(tab) {
     return `<div class="ds-walk-hud">
       <div class="ds-walk-hud-top">
-        <strong class="ds-walk-title">${title}</strong>
+        <strong class="ds-walk-title">3D WALKTHROUGH</strong>
         <span class="ds-walk-hint">WASD move · Space jump · Shift sprint · V camera · drag look</span>
         <button type="button" class="ds-walk-close" title="Exit walkthrough">✕</button>
       </div>
@@ -1547,8 +1430,6 @@
         <button type="button" class="ds-walk-btn" data-action="prev-dev" title="Previous device">‹ Prev</button>
         <button type="button" class="ds-walk-btn" data-action="next-dev" title="Next device">Next ›</button>
         <button type="button" class="ds-walk-btn primary" data-action="inspect" title="Open device details">Inspect</button>
-        ${showPaths ? `<button type="button" class="ds-walk-btn${mode === "retro" ? " active" : ""}" data-action="mode-retro" title="Walk walled paths along your diagram links">Cable paths</button>` : ""}
-        <button type="button" class="ds-walk-btn${mode === "corridor" ? " active" : ""}" data-action="mode-corridor" title="Open floor tour matching your diagram">Open tour</button>
       </div>
       <div class="ds-walk-links" id="ds-walk-links" hidden></div>
       <div class="ds-walk-mission" id="ds-walk-mission"></div>
@@ -1579,9 +1460,7 @@
       const btn = e.target.closest("[data-action]");
       if (!btn) return;
       const a = btn.dataset.action;
-      if (a === "mode-retro") switchMode("retro");
-      else if (a === "mode-corridor") switchMode("corridor");
-      else if (a === "trace-av") startTrace("av");
+      if (a === "trace-av") startTrace("av");
       else if (a === "trace-poe") startTrace("poe");
       else if (a === "prev-dev") cycleDevice(-1);
       else if (a === "next-dev") cycleDevice(1);
@@ -1650,11 +1529,6 @@
     window.__DS_MISSIONS?.renderHud?.(state.mission);
     window.__DS_MISSIONS?.syncWaypoints?.(state, state.mission, state.graph);
     if (state.mission?.complete) showMissionComplete();
-  }
-
-  function switchMode(mode) {
-    if (mode === state.mode) return;
-    open(state.studio, mode);
   }
 
   function pickDeviceAt(clientX, clientY, canvas) {
@@ -1809,7 +1683,6 @@
     state.renderer = null;
     state.scene = null;
     state.camera = null;
-    state.maze = null;
     state.topology = null;
     state.graph = null;
     state.mission = null;
@@ -1817,7 +1690,7 @@
     state.waypointGroup = null;
   }
 
-  async function open(studio, mode) {
+  async function open(studio) {
     if (!studio || (studio.tab !== "room" && studio.tab !== "network")) {
       studio?.toast?.("Open Network or Room tab first");
       return;
@@ -1828,10 +1701,9 @@
       return;
     }
 
-    mode = mode === "retro" ? "retro" : "corridor";
     if (state.mode) close(true);
     state.studio = studio;
-    state.mode = mode;
+    state.mode = "walk";
 
     let overlay = document.getElementById("ds-walk-overlay");
     const wrap = document.getElementById("ds-canvas-wrap");
@@ -1845,11 +1717,11 @@
     overlay.hidden = false;
     overlay.removeAttribute("hidden");
     overlay.setAttribute("aria-hidden", "false");
-    overlay.className = `ds-walk-overlay ds-walk-voxel ds-walk-${mode}`;
-    overlay.innerHTML = `${hudHtml(mode, studio.tab)}
+    overlay.className = "ds-walk-overlay ds-walk-tour";
+    overlay.innerHTML = `${hudHtml(studio.tab)}
       <div class="ds-walk-stage">
         <div class="ds-walk-panel-backdrop" id="ds-walk-panel-backdrop" hidden data-action="fp-close" title="Click to keep walking" aria-label="Close panel"></div>
-        <div class="ds-walk-crosshair ds-walk-crosshair-mc" aria-hidden="true"></div>
+        <div class="ds-walk-crosshair ds-walk-crosshair-plus" aria-hidden="true"></div>
         <div class="ds-walk-prompt" id="ds-walk-prompt" hidden>Press E to inspect</div>
         <div class="ds-walk-inspect" id="ds-walk-inspect" hidden></div>
         <div class="ds-walk-toast" id="ds-walk-toast"></div>
@@ -1875,12 +1747,11 @@
 
     try {
       state.overlay?.classList.add("ds-walk-loading");
-      if (mode === "retro") await initRetroMaze(studio, canvas, graph);
-      else await initCorridor(studio, canvas, graph);
+      await initCorridor(studio, canvas, graph);
       initMissionSystem(graph);
       loop();
       state.overlay?.classList.remove("ds-walk-loading");
-      studio.roomView = mode === "retro" ? "retro" : "walk";
+      studio.roomView = "walk";
       window.__DS_PREMIUM?.renderRoomViewToggle?.(studio);
       setStatus("Accept the mission briefing to begin your certification run");
     } catch (err) {
@@ -1901,7 +1772,6 @@
       setStatus(studio.tab === "room" ? "No room devices to walk" : "No network devices to walk");
       return;
     }
-    const mode = state.mode;
     const canvas = state.overlay?.querySelector("#ds-walk-canvas");
     if (!canvas) return;
     const briefingSeen = !!state.mission?.briefingSeen;
@@ -1910,9 +1780,9 @@
     state.animId = 0;
     disposeScene();
     state.studio = studio;
+    state.mode = "walk";
     try {
-      if (mode === "retro") await initRetroMaze(studio, canvas, graph);
-      else await initCorridor(studio, canvas, graph);
+      await initCorridor(studio, canvas, graph);
       if (window.__DS_MISSIONS) {
         state.mission = window.__DS_MISSIONS.startCampaign(graph, state);
         if (briefingSeen) {
@@ -1976,5 +1846,5 @@
     };
   }
 
-  window.__DS_WALK = { open, close, rebuild, toggle: (s, m) => state.mode ? close(true) : open(s, m), isOpen: () => !!state.mode, debugStats };
+  window.__DS_WALK = { open, close, rebuild, toggle: s => state.mode ? close(true) : open(s), isOpen: () => !!state.mode, debugStats };
 })();

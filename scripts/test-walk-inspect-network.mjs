@@ -30,12 +30,12 @@ try {
   const pre = await page.evaluate(() => ({
     walkOpen: window.__DS_WALK?.isOpen?.(),
     pods: window.__DS_WALK?.debugStats?.()?.pods || 0,
-    mazeBtn: !!document.querySelector('[data-action="mode-retro"]'),
+    retroBtn: !!document.querySelector('[data-action="mode-retro"]'),
     status: document.getElementById("ds-walk-status")?.textContent || ""
   }));
   if (!pre.walkOpen) errors.push(`walk not open: ${pre.status}`);
   if (pre.pods < 5) errors.push(`expected network pods, got ${pre.pods}`);
-  if (pre.mazeBtn) errors.push("maze button should be hidden on network tab");
+  if (pre.retroBtn) errors.push("retro mode button should not exist");
 
   await page.evaluate(() => document.getElementById("ds-mission-start")?.click());
   await page.waitForTimeout(400);
