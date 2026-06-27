@@ -89,11 +89,18 @@
       if (!Number.isFinite(px) || !Number.isFinite(pz)) return;
       const accent = ZONE_PAD[ch.zone] || ZONE_PAD.default;
       const padMesh = new THREE.Mesh(
-        new THREE.CylinderGeometry(2.2, 2.2, 0.08, 24),
+        new THREE.CylinderGeometry(1.5, 1.5, 0.08, 28),
         blockMat(THREE, null, accent)
       );
       padMesh.position.set(px, 0.05, pz);
       scene.add(padMesh);
+      const rim = new THREE.Mesh(
+        new THREE.TorusGeometry(1.5, 0.07, 8, 28),
+        blockMat(THREE, null, accent)
+      );
+      rim.rotation.x = Math.PI / 2;
+      rim.position.set(px, 0.12, pz);
+      scene.add(rim);
     });
   }
 

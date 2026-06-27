@@ -417,70 +417,75 @@
     return Math.atan2(op.x - p.x, op.z - p.z);
   }
 
+  // Tracks how many links already drawn between each unordered device pair,
+  // so parallel/overlapping links fan out instead of stacking on top of each
+  // other (mirrors 3d-force-graph's linkCurveRotation technique).
+  const _pairCount = {};
+
   function makeCableRun(THREE, cor) {
     const ax = cor.from.pos.x, az = cor.from.pos.z;
     const bx = cor.to.pos.x, bz = cor.to.pos.z;
     const dx = bx - ax, dz = bz - az;
     const len = Math.hypot(dx, dz) || 0.1;
     const g = new THREE.Group();
-    const yaw = Math.atan2(dx, dz);
-    const yBase = 0.11;
     const color = cor.color ?? 0x02c8ff;
 
-    // Recessed dark lane so the route reads as a deliberate connection.
-    const lane = new THREE.Mesh(
-      new THREE.BoxGeometry(len, 0.05, 0.62),
+    // Endpoints lift to the device "port" height so cables read as plugged in.
+    const portY = 1.35;
+    const a = new THREE.Vector3(ax, portY, az);
+    const b = new THREE.Vector3(bx, portY, bz);
+
+    // Arc the cable up and over. Longer runs arc higher; siblings between the
+    // same pair are nudged sideways + up so every connection stays traceable.
+    const pairKey = [cor.from.id, cor.to.id].sort().join("|");
+    const sib = _pairCount[pairKey] = (_pairCount[pairKey] || 0) + 1;
+    const arch = Math.min(Math.max(len * 0.28, 1.6), 5.5) + (sib - 1) * 0.9;
+    const perp = new THREE.Vector3(-dz, 0, dx).normalize();
+    const lateral = ((sib - 1) % 2 === 0 ? 1 : -1) * Math.ceil((sib - 1) / 2) * 1.1;
+    const mid = new THREE.Vector3(
+      (ax + bx) / 2 + perp.x * lateral,
+      portY + arch,
+      (az + bz) / 2 + perp.z * lateral
+    );
+    const curve = new THREE.QuadraticBezierCurve3(a, mid, b);
+
+    const tube = new THREE.Mesh(
+      new THREE.TubeGeometry(curve, 28, 0.085, 7, false),
       new THREE.MeshStandardMaterial({
-        color: 0x0a1622, emissive: color, emissiveIntensity: 0.18,
-        metalness: 0.5, roughness: 0.45
+        color, emissive: color, emissiveIntensity: 0.55,
+        metalness: 0.3, roughness: 0.5
       })
     );
-    lane.position.set((ax + bx) / 2, yBase, (az + bz) / 2);
-    lane.rotation.y = yaw;
-    g.add(lane);
+    g.add(tube);
 
-    // Bright centerline showing the exact device-to-device link.
-    const line = new THREE.Mesh(
-      new THREE.BoxGeometry(len, 0.04, 0.16),
-      new THREE.MeshBasicMaterial({ color })
-    );
-    line.position.set((ax + bx) / 2, yBase + 0.05, (az + bz) / 2);
-    line.rotation.y = yaw;
-    g.add(line);
-
-    // Endpoint nodes at each device so connections are visually anchored.
-    [[ax, az], [bx, bz]].forEach(([nx, nz]) => {
-      const node = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.3, 0.3, 0.12, 16),
-        new THREE.MeshBasicMaterial({ color })
+    // Connector collars where the cable meets each device.
+    [a, b].forEach(p => {
+      const collar = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.22, 0.28, 0.34, 14),
+        new THREE.MeshStandardMaterial({ color: 0x14202e, emissive: color, emissiveIntensity: 0.4, metalness: 0.6, roughness: 0.35 })
       );
-      node.position.set(nx, yBase + 0.04, nz);
-      g.add(node);
+      collar.position.set(p.x, portY * 0.5, p.z);
+      collar.scale.y = portY / 0.34;
+      g.add(collar);
     });
 
-    // Several packets flowing along the link to show live data movement.
-    const pktY = yBase + 0.18;
-    const packetCount = Math.max(2, Math.min(4, Math.round(len / 6)));
+    // Packets flow from source → target along the curve (data direction).
+    const packetCount = Math.max(2, Math.min(5, Math.round(len / 5)));
     for (let i = 0; i < packetCount; i++) {
       const pkt = new THREE.Mesh(
-        new THREE.SphereGeometry(0.17, 12, 12),
+        new THREE.SphereGeometry(0.16, 12, 12),
         new THREE.MeshBasicMaterial({ color: 0xffffff })
       );
       const halo = new THREE.Mesh(
-        new THREE.SphereGeometry(0.28, 12, 12),
-        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.4 })
+        new THREE.SphereGeometry(0.3, 12, 12),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35 })
       );
       pkt.add(halo);
-      pkt.userData = {
-        cable: true,
-        a: { x: ax, y: pktY, z: az },
-        b: { x: bx, y: pktY, z: bz },
-        t: i / packetCount
-      };
+      pkt.userData = { packet: true, t: i / packetCount };
       g.add(pkt);
     }
 
-    g.userData = { corridor: cor };
+    g.userData = { corridor: cor, curve };
     state.cables.push(g);
     return g;
   }
@@ -757,7 +762,9 @@
     state.raycaster = new THREE.Raycaster();
 
     state.topology = buildTopology(graph);
+    Object.keys(_pairCount).forEach(k => delete _pairCount[k]);
     graph.corridors.forEach(cor => scene.add(makeCableRun(THREE, cor)));
+    populateLegend(graph);
 
     const spawn = graph.chambers.find(c => /switch|9200|9300/i.test(c.label)) || graph.chambers[0];
     state.chambers = graph.chambers;
@@ -1299,14 +1306,36 @@
     if (compass) compass.style.transform = `rotate(${-state.yaw}rad)`;
   }
 
+  const MEDIA_LABELS = {
+    cat6: "Cat6", cat6a: "Cat6a", hdmi: "HDMI", usb: "USB",
+    "fiber-sm": "Fiber (SM)", "fiber-mm": "Fiber (MM)", speaker: "Speaker", control: "Control"
+  };
+
+  function populateLegend(graph) {
+    const el = document.getElementById("ds-walk-legend");
+    if (!el) return;
+    const seen = new Map();
+    (graph?.corridors || []).forEach(c => {
+      const m = c.media || "cat6";
+      if (!seen.has(m)) seen.set(m, MEDIA_COLORS[m] || MEDIA_COLORS.cat6);
+    });
+    if (!seen.size) { el.hidden = true; return; }
+    el.innerHTML = `<span class="ds-walk-legend-title">Links</span>` +
+      [...seen.entries()].map(([m, col]) =>
+        `<span class="ds-walk-legend-item"><i style="background:#${col.toString(16).padStart(6, "0")}"></i>${MEDIA_LABELS[m] || m}</span>`
+      ).join("");
+    el.hidden = false;
+  }
+
   function animateCables(t) {
     state.cables.forEach(g => {
+      const curve = g.userData?.curve;
+      if (!curve) return;
       g.children.forEach(ch => {
-        if (!ch.userData?.cable) return;
-        const { a, b } = ch.userData;
-        ch.userData.t = (ch.userData.t + 0.012) % 1;
-        const u = ch.userData.t;
-        ch.position.set(a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u, a.z + (b.z - a.z) * u);
+        if (!ch.userData?.packet) return;
+        ch.userData.t = (ch.userData.t + 0.006) % 1;
+        const pt = curve.getPoint(ch.userData.t);
+        ch.position.set(pt.x, pt.y, pt.z);
       });
     });
     state.devicePods.forEach((pod, i) => {
@@ -1470,6 +1499,7 @@
         <button type="button" class="ds-walk-btn primary" data-action="inspect" title="Open device details">Inspect</button>
       </div>
       <div class="ds-walk-links" id="ds-walk-links" hidden></div>
+      <div class="ds-walk-legend" id="ds-walk-legend" hidden></div>
       <div class="ds-walk-mission" id="ds-walk-mission"></div>
       <div class="ds-walk-devices" id="ds-walk-devices"></div>
       <div class="ds-walk-focus" id="ds-walk-focus" hidden></div>
@@ -1716,6 +1746,14 @@
     state.vel = { x: 0, y: 0, z: 0 };
     state.lastFrame = 0;
     state.dustParticles = null;
+    if (state.scene) {
+      state.scene.traverse(obj => {
+        obj.geometry?.dispose?.();
+        const m = obj.material;
+        if (Array.isArray(m)) m.forEach(x => x?.dispose?.());
+        else m?.dispose?.();
+      });
+    }
     state.renderer?.dispose?.();
     state.renderer = null;
     state.scene = null;
