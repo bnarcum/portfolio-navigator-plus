@@ -136,13 +136,17 @@
     };
 
     const bresenham = (r0, c0, r1, c1, rad) => {
+      if (![r0, c0, r1, c1].every(Number.isFinite)) return;
       let r = r0, c = c0;
       const dr = Math.abs(r1 - r0), dc = Math.abs(c1 - c0);
       const sr = r0 < r1 ? 1 : -1, sc = c0 < c1 ? 1 : -1;
       let err = dc - dr;
+      let steps = 0;
+      const maxSteps = rows * cols + 8;
       for (;;) {
         carve(r, c, rad);
         if (r === r1 && c === c1) break;
+        if (++steps > maxSteps) break;
         const e2 = 2 * err;
         if (e2 > -dr) { err -= dc; r += sr; }
         if (e2 < dc) { err += dr; c += sc; }
@@ -150,6 +154,7 @@
     };
 
     pads.forEach(p => {
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.z)) return;
       const cell = toCell(p.x, p.z);
       p.gr = cell.r;
       p.gc = cell.c;
@@ -157,7 +162,9 @@
     });
 
     segments.forEach(s => {
+      if (![s.ax, s.az, s.bx, s.bz].every(Number.isFinite)) return;
       const a = toCell(s.ax, s.az), b = toCell(s.bx, s.bz);
+      if (![a.r, a.c, b.r, b.c].every(Number.isFinite)) return;
       bresenham(a.r, a.c, b.r, b.c, 1);
     });
 

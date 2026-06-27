@@ -353,8 +353,9 @@
     ring.position.y = 0.03 * scale;
     g.add(ring);
 
-    const glow = new THREE.PointLight(theme.light, 0.35 * scale, 5 * scale);
+    const glow = new THREE.PointLight(theme.light, 0.15 * scale, 4 * scale);
     glow.position.set(0, modelTop * 0.65, 0.15 * scale);
+    glow.userData.podGlow = true;
     g.add(glow);
 
     const label = makeLabelSprite(THREE, ch.label, ch.pid, theme);
@@ -579,16 +580,15 @@
     ceil.position.set(cx, h, cz);
     scene.add(ceil);
 
-    const gridN = kind === "network" ? 6 : 4;
-    for (let i = 0; i < gridN; i++) {
-      for (let j = 0; j < gridN; j++) {
-        const lx = cx + (i / (gridN - 1) - 0.5) * w * 0.85;
-        const lz = cz + (j / (gridN - 1) - 0.5) * d * 0.85;
-        const bulb = new THREE.PointLight(kind === "network" ? 0xc8dce8 : 0xffeedd, 0.55, 18, 2);
-        bulb.position.set(lx, h - 0.6, lz);
-        scene.add(bulb);
-      }
-    }
+    const gridN = kind === "network" ? 4 : 3;
+    const corners = [[0, 0], [gridN - 1, 0], [0, gridN - 1], [gridN - 1, gridN - 1]];
+    corners.forEach(([i, j]) => {
+      const lx = cx + (i / (gridN - 1) - 0.5) * w * 0.85;
+      const lz = cz + (j / (gridN - 1) - 0.5) * d * 0.85;
+      const bulb = new THREE.PointLight(kind === "network" ? 0xc8dce8 : 0xffeedd, 0.45, 22, 2);
+      bulb.position.set(lx, h - 0.6, lz);
+      scene.add(bulb);
+    });
   }
 
   function addDustParticles(THREE, scene, bounds) {
@@ -673,6 +673,21 @@
     return g;
   }
 
+  async function loadDevicePods(THREE, graph, scale = 1) {
+    for (const ch of graph.chambers) {
+      if (!Number.isFinite(ch.pos?.x) || !Number.isFinite(ch.pos?.z)) {
+        ch.pos = { x: 0, y: ch.pos?.y ?? 3, z: 0 };
+      }
+      try {
+        const pod = await makeDevicePod(THREE, ch, scale, graph.kind);
+        state.scene?.add(pod);
+      } catch (err) {
+        console.warn("[DS Walk] pod skipped:", ch.label, err);
+      }
+      await new Promise(r => requestAnimationFrame(r));
+    }
+  }
+
   async function initCorridor(studio, canvas, graph) {
     const THREE = await loadThree();
     if (!graph?.chambers.length) throw new Error("no-graph");
@@ -711,8 +726,6 @@
     state.viewmodel = makeViewmodel(THREE, camera);
     state.raycaster = new THREE.Raycaster();
 
-    const pods = await Promise.all(graph.chambers.map(ch => makeDevicePod(THREE, ch, 1, graph.kind)));
-    pods.forEach(p => scene.add(p));
     state.topology = buildTopology(graph);
     graph.corridors.forEach(cor => {
       scene.add(makeCableRun(THREE, cor));
@@ -720,23 +733,19 @@
     });
     if (graph.kind === "room") addRoomDecor(THREE, scene, state.bounds);
 
-    const xs = graph.chambers.map(c => c.pos.x);
-    const zs = graph.chambers.map(c => c.pos.z);
-    if (!graph.layoutBounds) {
-      state.bounds = {
-        minX: Math.min(...xs) - 8, maxX: Math.max(...xs) + 8,
-        minZ: Math.min(...zs) - 8, maxZ: Math.max(...zs) + 8
-      };
-    }
-
     const spawn = graph.chambers.find(c => /switch|9200|9300/i.test(c.label)) || graph.chambers[0];
-    teleportToChamber(spawn, true);
     state.chambers = graph.chambers;
+    teleportToChamber(spawn, true);
     state.navIndex = graph.chambers.indexOf(spawn);
     document.getElementById("ds-walk-minimap")?.removeAttribute("hidden");
     buildDeviceNav(graph.chambers);
     buildConnectedNav(spawn);
     resizeRenderer();
+
+    setStatus("Loading devices…");
+    loadDevicePods(THREE, graph, 1).then(() => {
+      if (state.mode) setStatus("Pick a device below or tap a connected link");
+    });
   }
 
   function addCableChannelWalls(THREE, scene, topology) {
@@ -813,19 +822,21 @@
 
     addCableChannelWalls(THREE, scene, topology);
     graph.corridors.forEach(cor => scene.add(makeWalkway(THREE, cor)));
-
-    const pods = await Promise.all(graph.chambers.map(ch => makeDevicePod(THREE, ch, 0.85, graph.kind)));
-    pods.forEach(p => scene.add(p));
     graph.corridors.forEach(cor => scene.add(makeCableRun(THREE, cor)));
 
     const spawn = graph.chambers.find(c => /switch|9200|9300|kit/i.test(c.label)) || graph.chambers[0];
-    teleportToChamber(spawn, true);
     state.chambers = graph.chambers;
+    teleportToChamber(spawn, true);
     state.navIndex = graph.chambers.indexOf(spawn);
     document.getElementById("ds-walk-minimap")?.removeAttribute("hidden");
     buildDeviceNav(graph.chambers);
     buildConnectedNav(spawn);
     resizeRenderer();
+
+    setStatus("Loading devices…");
+    loadDevicePods(THREE, graph, 0.85).then(() => {
+      if (state.mode) setStatus("Pick a device below or tap a connected link");
+    });
   }
 
   function resizeRenderer() {
@@ -1726,10 +1737,12 @@
     await waitForCanvasSize(canvas);
 
     try {
+      state.overlay?.classList.add("ds-walk-loading");
       if (mode === "retro") await initRetroMaze(studio, canvas, graph);
       else await initCorridor(studio, canvas, graph);
       initMissionSystem(graph);
       loop();
+      state.overlay?.classList.remove("ds-walk-loading");
       studio.roomView = mode === "retro" ? "retro" : "walk";
       window.__DS_PREMIUM?.renderRoomViewToggle?.(studio);
       setStatus("Accept the mission briefing to begin your certification run");

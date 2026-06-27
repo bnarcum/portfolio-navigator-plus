@@ -691,6 +691,7 @@
   background:rgba(0,0,0,.55);backdrop-filter:blur(10px);border:1px solid rgba(2,200,255,.2)}
 #ds-walk-overlay.ds-walk-epic .ds-walk-focus,
 #ds-walk-overlay.ds-walk-epic .ds-walk-status{display:none}
+#ds-walk-overlay.ds-walk-epic.ds-walk-loading .ds-walk-status{display:block!important;color:#7ee8ff}
 #ds-walk-overlay.ds-walk-epic .ds-walk-mission{
   position:absolute;top:58px;left:10px;z-index:7;max-width:min(300px,42vw);margin:0;
   background:rgba(0,0,0,.55);backdrop-filter:blur(10px);border-radius:10px;

@@ -675,19 +675,7 @@
   }
 
   async function tryLoadGltf(THREE, template, stencilId, scale) {
-    const paths = gltfPath(template, stencilId);
-    const candidates = [];
-    if (paths.stencil && await gltfExists(paths.stencil)) candidates.push(paths.stencil);
-    if (await gltfExists(paths.template)) candidates.push(paths.template);
-    for (const path of candidates) {
-      const scene = await loadGltfScene(THREE, path);
-      if (!scene) continue;
-      const clone = scene.clone(true);
-      const g = new THREE.Group();
-      g.add(clone);
-      fitGroup(g, targetHeight(template, "room") * scale);
-      return g;
-    }
+    // Procedural models only at runtime — avoids dozens of HEAD requests that freeze the page.
     return null;
   }
 
