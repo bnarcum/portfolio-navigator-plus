@@ -444,7 +444,7 @@
   class DesignStudio {
     constructor() {
       this.design = loadDesign();
-      this.tab = "network"; this.panelTab = "bom";
+      this.tab = "intent"; this.panelTab = "bom";
       this.selectedNode = null; this.selectedLink = null;
       this.linkFrom = null; this.linkFromPort = null; this.linkMode = false;
       this.drag = null; this.pan = { x: 40, y: 40, zoom: 1 };
@@ -465,8 +465,8 @@
           <span class="ds-logo">⬡ Design Studio</span>
           <div id="ds-score-badge" title="Design completeness score">—</div>
           <div id="ds-tabs">
-            <button type="button" data-tab="intent">Intent</button>
-            <button type="button" data-tab="network" class="active">Network</button>
+            <button type="button" data-tab="intent" class="active">Intent</button>
+            <button type="button" data-tab="network">Network</button>
             <button type="button" data-tab="room">Room</button>
           </div>
           <span class="ds-spacer"></span>
@@ -868,7 +868,10 @@
       this.history.snapshot();
       this.el.classList.add("open");
       document.body.classList.add("design-studio-open");
-      this.setTab(this.design.mode === "room" ? "room" : "network");
+      const ta = document.getElementById("ds-intent-text");
+      if (ta) ta.value = this.design.requirements?.notes || "";
+      this.previewIntent();
+      this.setTab("intent");
       this.render();
     }
 
