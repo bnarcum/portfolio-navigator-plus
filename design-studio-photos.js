@@ -1,5 +1,5 @@
 /**
- * Design Studio — product photos (transparent heroes + Device Matrix) with room polish
+ * Design Studio — product photos (matrix webp + family heroes) with expanded library
  */
 (function () {
   "use strict";
@@ -10,19 +10,21 @@
   const PHOTO_PLATE = "#eef2f7";
   const PHOTO_PLATE_EDGE = "rgba(15,23,42,0.1)";
 
-  /** Prefer matrix product shots (collaboration hardware) */
+  /** Collaboration — Device Matrix product shots */
   const STENCIL_MATRIX = {
     "room-kit-eq": "room-kit-eq",
     "room-kit-pro": "room-kit-pro",
     "room-bar": "room-bar",
     "board-pro": "board-pro-75",
-    "desk-pro": "desk-pro",
+    "desk-pro": "desk-pro-g2",
     "quad-cam": "quad-camera",
     "room-navigator": "room-navigator",
-    "touch-10": "room-navigator"
+    "touch-10": "desk-mini",
+    "display-75": "board-pro-75",
+    "display-86": "board-pro-75"
   };
 
-  /** Network / infra — Cisco brand family heroes (transparent PNGs) */
+  /** Network / infra — Cisco family hero PNGs */
   const STENCIL_FAMILY = {
     "c9500-core": "catalyst-core",
     "c9500-core-2": "catalyst-core",
@@ -33,7 +35,7 @@
     "cw9179f": "catalyst-wireless",
     "mr57": "meraki-wireless",
     "c8200-sdwan": "sdwan",
-    "c8200-sdwan-2": "sdwan",
+    "c8200-sdwan-2": "wan-routers",
     "mx85": "meraki-mx",
     "ms250": "meraki-switches",
     "n9k-spine": "nexus-one",
@@ -45,15 +47,15 @@
     "apic": "nexus",
     "ise-psn": "catalyst-center",
     "ise-pan": "catalyst-center",
-    "vmanage": "sdwan"
+    "vmanage": "sdwan",
+    "users-vlan": "ip-phones"
   };
 
-  /** Icons only — wrong or missing photo assets */
+  /** Icons only — no suitable product shot */
   const PHOTO_SKIP_STENCILS = new Set([
     "ceiling-mic", "table-mic",
-    "display-75", "display-86",
     "conf-table-12", "conf-table-8", "credenza-rack",
-    "internet", "mpls", "users-vlan", "umbrella-va"
+    "internet", "mpls", "umbrella-va"
   ]);
 
   const PHOTO_SKIP_SHAPES = new Set(["cloud", "user", "table", "rack"]);
@@ -77,13 +79,15 @@
 
   function resolveUrl(stencilId, def) {
     if (!stencilId || !def) return null;
-    if (def.decorative || PHOTO_SKIP_SHAPES.has(def.shape) || PHOTO_SKIP_STENCILS.has(stencilId)) return null;
 
     const matrixId = STENCIL_MATRIX[stencilId];
     if (matrixId) {
       const u = matrixUrl(matrixId);
       if (u) return u;
     }
+
+    if (def.decorative && !matrixId) return null;
+    if (PHOTO_SKIP_SHAPES.has(def.shape) || PHOTO_SKIP_STENCILS.has(stencilId)) return null;
 
     let familyId = STENCIL_FAMILY[stencilId];
     if (!familyId) {
@@ -111,11 +115,12 @@
     const sel = selected ? " ds-node-selected" : "";
     const isCeilingMic = shape === "ceiling-mic";
     const isRound = isCeilingMic;
-    const imgPad = isRound ? 8 : 4;
+    const isDisplay = shape === "display";
+    const imgPad = isRound ? 8 : isDisplay ? 2 : 4;
     const imgX = imgPad;
-    const imgY = isRound ? 4 : 3;
+    const imgY = isRound ? 4 : isDisplay ? 2 : 3;
     const imgW = VW - imgPad * 2;
-    const imgH = isRound ? 48 : VH - 6;
+    const imgH = isRound ? 48 : isDisplay ? VH - 4 : VH - 6;
 
     const plate = isRound
       ? `<ellipse class="ds-photo-plate" cx="50" cy="28" rx="${44}" ry="${21}" fill="${PHOTO_PLATE}" stroke="${PHOTO_PLATE_EDGE}" stroke-width="0.5"/>`

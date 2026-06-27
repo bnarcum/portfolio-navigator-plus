@@ -172,11 +172,14 @@
 
   const FAMILY_TO_STENCIL = {
     "catalyst-core": "c9500-core", "catalyst-access": "c9300-access", "catalyst-wireless": "cw9179f",
-    "catalyst-center": "cat-center", "sdwan": "c8200-sdwan", "secure-routers": "c8200-sdwan",
-    "isr-routers": "c8200-sdwan", "sf-enterprise": "fpr-2130", "sf-branch": "fpr-1120",
+    "catalyst-center": "cat-center", "sdwan": "c8200-sdwan", "secure-routers": "fpr-2130",
+    "isr-routers": "c8200-sdwan", "wan-routers": "c8200-sdwan-2",
+    "sf-enterprise": "fpr-2130", "sf-branch": "fpr-1120",
     "ise": "ise-psn", "nexus": "n9k-leaf", "nexus-one": "n9k-spine", "aci": "apic",
     "ucs": "ucs-x", "meraki-mx": "mx85", "meraki-switches": "ms250", "meraki-wireless": "mr57",
-    "umbrella": "umbrella-va", "room-systems": "room-kit-eq", "desk-devices": "desk-pro"
+    "umbrella": "umbrella-va", "room-systems": "room-kit-eq", "desk-devices": "desk-pro",
+    "conf-phones": "users-vlan", "ip-phones": "users-vlan", "cisco-headsets": "users-vlan",
+    "industrial-eth": "c9300-access"
   };
 
   function getPorts(stencilId, mode) {

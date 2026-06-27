@@ -129,7 +129,8 @@
 .ds-zone-network .ds-zone-rect{fill:rgba(255,144,0,.07);stroke:rgba(255,144,0,.42)}
 .ds-zone-furniture .ds-zone-rect{fill:rgba(255,255,255,.04);stroke:rgba(180,190,205,.28)}
 .ds-zone-label-bg{fill:rgba(7,24,45,.92);stroke:rgba(255,255,255,.14);stroke-width:.75}
-.ds-zone-label-text{font-size:11px;fill:#e8f0f8;font-weight:700;font-family:system-ui,sans-serif;letter-spacing:.03em}
+.ds-zone-label-text{font-size:9px;font-weight:700;fill:#8ecae0;text-transform:uppercase;letter-spacing:.06em}
+.ds-zone-label-bg{display:none}
 
 #ds-minimap{position:absolute;bottom:12px;left:12px;width:130px;height:90px;z-index:3;
   background:rgba(7,24,45,.9);border:1px solid var(--border);border-radius:6px;padding:4px;pointer-events:none}
@@ -476,6 +477,33 @@
 .ds-link.av-chain .ds-link-path{stroke-width:3!important;filter:drop-shadow(0 0 4px rgba(0,212,255,.5))}
 .ds-link.av-chain .ds-link-label-bg{fill:rgba(0,40,60,.92);stroke:rgba(0,212,255,.5)}
 .ds-portfolio-summary{margin:0 0 10px;font-size:11px;color:#8ecae0;line-height:1.4}
+
+/* Engineer / CCIE workflow panel */
+.ds-expert-stack{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 10px;padding:0 2px}
+.ds-expert-chip{font-size:9px;font-weight:800;padding:3px 8px;border-radius:4px;background:rgba(10,96,255,.15);border:1px solid rgba(10,96,255,.35);color:#9ec8ff}
+.ds-expert-chip.muted{opacity:.55;border-style:dashed}
+.ds-expert-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px}
+.ds-expert-meta{font-size:9px;color:var(--subtle);margin-left:auto}
+.ds-expert-section{margin:0 0 14px}
+.ds-expert-section h5{margin:0 0 8px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#8ecae0}
+.ds-expert-checklist{list-style:none;margin:0;padding:0}
+.ds-expert-checklist li{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:11px;line-height:1.35}
+.ds-expert-checklist li.ok .ds-ex-check{color:#7dd3a8}
+.ds-expert-checklist li.warn .ds-ex-check{color:#f59e0b}
+.ds-expert-checklist em{display:block;font-size:9px;color:var(--subtle);font-style:normal;margin-top:2px}
+.ds-ex-check{flex:0 0 14px;font-weight:800}
+.ds-port-util-row{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:10px}
+.ds-port-util-label{flex:0 0 88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ds-port-util-track{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden}
+.ds-port-util-fill{height:100%;background:linear-gradient(90deg,#02c8ff,#00d4ff);border-radius:3px}
+.ds-port-util-fill.warn{background:linear-gradient(90deg,#f59e0b,#ef4444)}
+.ds-port-util-pct{flex:0 0 36px;text-align:right;color:var(--subtle);font-size:9px}
+.ds-vlan-table{font-size:10px}
+.ds-insp-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.ds-btn-sm{padding:4px 8px;font-size:10px}
+.ds-btn-link{text-decoration:none;display:inline-flex;align-items:center}
+.ds-bom-copy{background:none;border:none;color:#00d4ff;cursor:pointer;font-size:14px;padding:0 4px;line-height:1}
+.ds-bom-copy:hover{color:#7ee8ff}
 
 body.design-studio-open #app-chrome,
 body.design-studio-open #gw,

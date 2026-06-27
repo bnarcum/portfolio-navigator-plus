@@ -25,9 +25,9 @@
   const LAYER_ROW_H = 104;
   const ROOM_LAYOUT_OX = 100;
   const ROOM_LAYOUT_OY = 132;
-  const ROOM_ZONE_GAP = 10;
-  const ROOM_ZONE_MIN_H = 72;
-  const ROOM_ZONE_PAD = 14;
+  const ROOM_ZONE_GAP = 18;
+  const ROOM_ZONE_MIN_H = 78;
+  const ROOM_ZONE_PAD = 16;
   const ROOM_ITEM_GAP = 28;
   const ROOM_ROW_GAP = 22;
   const ROOM_ZONE_TYPE = { display: "video", ceiling: "audio", table: "furniture", rack: "network" };
@@ -312,19 +312,26 @@
     return offsets;
   }
 
-  const ROOM_LABEL_BELOW = 18;
+  const ROOM_LABEL_BELOW = 34;
+
+  function roomNodeVisualH(n, def) {
+    const nh = n.h || def?.h || 46;
+    const pid = n.pid || def?.pid;
+    const hasPid = pid && !/^N\/A/i.test(pid) && !def?.decorative && def?.shape !== "table";
+    return nh + (hasPid ? ROOM_LABEL_BELOW : 20);
+  }
 
   function layoutZoneEntries(zone, entries, baseX, baseY, snapGrid) {
     const pad = ROOM_ZONE_PAD;
-    const labelHead = 14;
+    const labelHead = 24;
     if (!entries.length) return;
     const innerW = Math.max(zone.w - pad * 2, 96);
     const innerH = Math.max(zone.h - pad * 2 - labelHead, 64);
+    entries.sort((a, b) => a.item.relX - b.item.relX);
     entries.forEach(e => {
       const def = STN()?.getDef?.(e.n.stencilId, "room");
       const nw = e.n.w || def?.w || 76;
-      const nh = e.n.h || def?.h || 46;
-      const visualH = nh + ROOM_LABEL_BELOW;
+      const visualH = roomNodeVisualH(e.n, def);
       const cx = zone.x + pad + e.item.relX * innerW;
       const cy = zone.y + pad + labelHead + e.item.relY * innerH;
       let x = cx - nw / 2;
@@ -334,6 +341,18 @@
       e.n.x = snapGrid ? snap(baseX + x) : baseX + x;
       e.n.y = snapGrid ? snap(baseY + y) : baseY + y;
     });
+    for (let i = 1; i < entries.length; i++) {
+      const prev = entries[i - 1];
+      const cur = entries[i];
+      const pdef = STN()?.getDef?.(prev.n.stencilId, "room");
+      const cdef = STN()?.getDef?.(cur.n.stencilId, "room");
+      const gap = 12;
+      const prevRight = prev.n.x + (prev.n.w || pdef?.w || 76) + gap;
+      const curW = cur.n.w || cdef?.w || 76;
+      if (cur.n.x < prevRight) {
+        cur.n.x = Math.min(prevRight, zone.x + zone.w - pad - curW);
+      }
+    }
   }
 
   function autoLayoutRoom(design, roomId) {
@@ -371,7 +390,7 @@
         layoutZoneEntries(zone, entries, baseX, baseY, false);
         const bottoms = entries.map(e => {
           const def = STN()?.getDef?.(e.n.stencilId, "room");
-          return e.n.y + (e.n.h || def?.h || 46) + ROOM_LABEL_BELOW;
+          return e.n.y + roomNodeVisualH(e.n, def);
         });
         const rights = entries.map(e => {
           const def = STN()?.getDef?.(e.n.stencilId, "room");
@@ -415,7 +434,7 @@
         const def = STN()?.getDef?.(n.stencilId, "network");
         const nh = n.h || def?.h || 48;
         n.x = x;
-        n.y = LAYER_START_Y + i * Math.max(LAYER_ROW_H, nh + 28);
+        n.y = LAYER_START_Y + i * Math.max(LAYER_ROW_H, nh + 36);
         if (design.snapGrid !== false) { n.x = snap(n.x); n.y = snap(n.y); }
       });
     });
@@ -535,6 +554,7 @@
             <div id="ds-inspector"></div>
             <div id="ds-panel-tabs">
               <button type="button" data-panel="bom" class="active">BOM</button>
+              <button type="button" data-panel="engineer">Engineer</button>
               <button type="button" data-panel="cables">Cables</button>
               <button type="button" data-panel="suggest">Suggest</button>
               <button type="button" data-panel="validate">Validate</button>
@@ -1369,21 +1389,20 @@ Account: ${this.design.account}`;
           const label = String(name).replace(/^\w/, c => c.toUpperCase());
           const ztype = ROOM_ZONE_TYPE[name] || "default";
           html += `<g class="ds-zone ds-zone-${ztype}" data-room="${room.id}" data-zone="${escapeAttr(name)}" transform="translate(${ox + z.x},${oy + z.y})">
+            <text class="ds-zone-label-text" x="8" y="-6">${escapeHtml(label)}</text>
             <rect class="ds-zone-rect" width="${z.w}" height="${z.h}" rx="8"/>
-            <rect class="ds-zone-label-bg" x="6" y="4" width="${Math.min(label.length * 7.5 + 14, z.w - 8)}" height="17" rx="4"/>
-            <text class="ds-zone-label-text" x="12" y="16">${escapeHtml(label)}</text>
           </g>`;
         });
         const typeLbl = ROOM_LABELS[room.template] || room.name;
         const ctRef = tpl.ct ? String(tpl.ct).replace(/Design Guide$/i, "").trim().slice(0, 36) : "";
         const badgeW = Math.min((tpl.w || 340) + 80, 440);
-        html += `<g class="ds-room-story" data-room="${room.id}" transform="translate(${ox},${oy - 20})">
+        html += `<g class="ds-room-story" data-room="${room.id}" transform="translate(${ox},${oy - 32})">
           <rect class="ds-room-story-bg" width="${badgeW}" height="16" rx="4"/>
           <text class="ds-room-story-text" x="8" y="12">Cisco Tested · ${escapeHtml(typeLbl)}</text>
           ${ctRef ? `<text class="ds-room-story-ct" x="${badgeW - 8}" y="12" text-anchor="end">${escapeHtml(ctRef)}</text>` : ""}
         </g>`;
         if (this.design.rooms.length > 1 && room.id === this.activeRoomId) {
-          html += `<g class="ds-room-portfolio-badge" transform="translate(${ox + badgeW + 8},${oy - 20})">
+          html += `<g class="ds-room-portfolio-badge" transform="translate(${ox + badgeW + 8},${oy - 32})">
             <rect width="72" height="16" rx="4" class="ds-room-portfolio-bg"/>
             <text x="36" y="12" text-anchor="middle" class="ds-room-portfolio-text">${this.design.rooms.length} rooms</text>
           </g>`;
@@ -1593,14 +1612,14 @@ Account: ${this.design.account}`;
         const isRoom = mode === "room";
         const pid = n.pid || def?.pid;
         const showPid = isRoom && !isDeco && pid && !/^N\/A/i.test(pid) && def?.shape !== "display" && def?.shape !== "table";
-        const lblText = (dispLabel || "").slice(0, 24) + qty;
-        const lblW = Math.max(w, Math.min(lblText.length * 6.2 + 12, 148));
+        const lblText = (dispLabel || "").slice(0, 22) + qty;
+        const lblW = Math.min(Math.max(w, lblText.length * 5.8 + 10), w + 24);
         const lblX = (w - lblW) / 2;
-        const pidY = h + (showPid ? 28 : 14);
+        const pidY = h + 26;
         const roomLbl = isRoom
-          ? `<rect class="ds-node-label-bg ds-node-label-bg-below" x="${lblX}" y="${h + 3}" width="${lblW}" height="15" rx="3"/>
+          ? `<rect class="ds-node-label-bg ds-node-label-bg-below" x="${lblX}" y="${h + 4}" width="${lblW}" height="14" rx="3"/>
              <text class="ds-node-label ds-node-label-below" x="${w / 2}" y="${h + 14}" text-anchor="middle">${escapeHtml(lblText)}</text>
-             ${showPid ? `<text class="ds-node-pid" x="${w / 2}" y="${pidY}" text-anchor="middle">${escapeHtml(String(pid).slice(0, 18))}</text>` : ""}`
+             ${showPid ? `<text class="ds-node-pid" x="${w / 2}" y="${pidY}" text-anchor="middle">${escapeHtml(String(pid).slice(0, 16))}</text>` : ""}`
           : `<rect class="ds-node-label-bg" x="2" y="${h - 18}" width="${w - 4}" height="14" rx="3"/>
              <text class="ds-node-label" x="${w / 2}" y="${h - 7}" text-anchor="middle">${escapeHtml(lblText)}</text>`;
         return `<g class="ds-node${sel}${isHub ? " ds-hub" : ""}${isDeco ? " ds-deco" : ""}${isRoom ? " ds-room-node" : ""}" data-node="${n.id}" transform="translate(${n.x},${n.y})">
@@ -1684,7 +1703,8 @@ Account: ${this.design.account}`;
             <label>Layer<select id="ds-insp-layer">${LAYERS.map(l => `<option value="${l}" ${node.layer === l ? "selected" : ""}>${LAYER_LABELS[l]}</option>`).join("")}</select></label>
             <label>Site<select id="ds-insp-site">${this.design.sites.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join("")}</select></label>
           </div>
-          ${ports.length ? `<div class="ds-port-list">${ports.map(p => `<span class="ds-port-chip">${escapeHtml(p.id)}${p.poe ? " PoE" : ""}</span>`).join("")}</div>` : ""}`;
+          ${ports.length ? `<div class="ds-port-list">${ports.map(p => `<span class="ds-port-chip">${escapeHtml(p.id)}${p.poe ? " PoE" : ""}${p.speed ? " " + p.speed : ""}</span>`).join("")}</div>` : ""}
+          ${window.__DS_EXPERT?.inspectorExtras?.(node) || ""}`;
         const bind = (id, key, parse) => {
           document.getElementById(id).onchange = e => {
             node[key] = parse ? parse(e.target.value) : e.target.value;
@@ -1695,6 +1715,7 @@ Account: ${this.design.account}`;
         bind("ds-insp-label", "label"); bind("ds-insp-pid", "pid");
         bind("ds-insp-qty", "qty", v => Math.max(1, parseInt(v, 10) || 1));
         bind("ds-insp-layer", "layer");
+        window.__DS_EXPERT?.wireInspectorActions?.(node, this);
         return;
       }
       if (link) {
@@ -1719,6 +1740,10 @@ Account: ${this.design.account}`;
 
     renderPanel() {
       const body = document.getElementById("ds-panel-body");
+      if (this.panelTab === "engineer") {
+        window.__DS_EXPERT?.renderExpertPanel?.(this);
+        return;
+      }
       if (this.panelTab === "bom") {
         const bom = computeBom(this.design);
         const deco = this.design.nodes.filter(n => {
@@ -1732,8 +1757,8 @@ Account: ${this.design.account}`;
             <span class="ds-bom-actions-hint">CCW_Prep CSV · click a row to highlight on canvas</span>
           </div>
           ${bom.length ? `
-          <table class="ds-table ds-bom-table"><thead><tr><th>Item</th><th>PID</th><th>Qty</th></tr></thead>
-          <tbody>${bom.map(b => `<tr class="ds-bom-row" data-pid="${escapeAttr(b.pid)}"><td title="${escapeAttr(b.pid)}">${escapeHtml((b.desc || b.pid).slice(0, 42))}</td><td class="ds-pid-cell">${escapeHtml(b.pid)}</td><td>${b.qty}</td></tr>`).join("")}</tbody></table>
+          <table class="ds-table ds-bom-table"><thead><tr><th>Item</th><th>PID</th><th>Qty</th><th></th></tr></thead>
+          <tbody>${bom.map(b => `<tr class="ds-bom-row" data-pid="${escapeAttr(b.pid)}"><td title="${escapeAttr(b.pid)}">${escapeHtml((b.desc || b.pid).slice(0, 42))}</td><td class="ds-pid-cell">${escapeHtml(b.pid)}</td><td>${b.qty}</td><td>${window.__DS_EXPERT?.bomRowActions?.() || ""}</td></tr>`).join("")}</tbody></table>
           <div class="ds-bom-total">${bom.length} CCW lines · ${bom.reduce((s, b) => s + b.qty, 0)} qty</div>
           ${deco.length ? `<div class="ds-bom-deco">${deco.length} layout-only item(s) on canvas (tables, generic displays, credenza) — not in CCW export.</div>` : ""}
           <div class="ds-bom-deco">Licenses, Smart Net, copper/AV cabling, and services — quote in CCW or use Manual BOM.</div>
@@ -1742,6 +1767,7 @@ Account: ${this.design.account}`;
         body.querySelectorAll(".ds-bom-row").forEach(row => {
           row.addEventListener("click", () => window.__DS_PREMIUM?.highlightBomPid?.(this, row.dataset.pid));
         });
+        window.__DS_EXPERT?.wireBomCopy?.(body, this);
         document.getElementById("ds-add-bom")?.addEventListener("click", () => {
           const pid = prompt("PID:"); if (!pid) return;
           (this.design.bomOverrides ||= []).push({ pid, desc: prompt("Desc:", pid) || pid, qty: parseInt(prompt("Qty:", "1") || "1", 10), type: "manual" });
