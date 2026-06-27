@@ -170,20 +170,25 @@
 #ds-svg .ds-room-node.selected .ds-node-chassis{filter:drop-shadow(0 0 12px rgba(2,200,255,.45)) drop-shadow(0 3px 8px rgba(0,0,0,.4))}
 #ds-svg .ds-node-sub{display:none}
 #ds-svg .ds-node-layer{fill:var(--accent);font-size:9px;opacity:.85;pointer-events:none}
-#ds-svg .ds-link-path{fill:none;pointer-events:stroke;opacity:.88;stroke-linecap:round;stroke-linejoin:round;transition:opacity .15s,filter .15s}
+#ds-svg .ds-link-under{fill:none;pointer-events:none;stroke:rgba(0,8,20,.5);stroke-linecap:round;stroke-linejoin:round}
+#ds-svg .ds-link-path{fill:none;pointer-events:stroke;opacity:.92;stroke-linecap:round;stroke-linejoin:round;transition:opacity .15s,stroke-width .15s}
 #ds-svg .ds-device.ds-display .ds-display-bezel{filter:drop-shadow(0 4px 14px rgba(0,0,0,.45))}
 #ds-svg .ds-device.ds-display.ds-node-selected .ds-display-bezel{filter:drop-shadow(0 0 12px rgba(2,200,255,.4)) drop-shadow(0 4px 14px rgba(0,0,0,.45))}
-#ds-svg .ds-link.highlighted .ds-link-path{opacity:1;filter:drop-shadow(0 0 6px rgba(2,200,255,.5))}
-#ds-svg .ds-link.dimmed .ds-link-path{opacity:.22}
+#ds-svg .ds-link.highlighted .ds-link-path{opacity:1}
+#ds-svg .ds-link.highlighted .ds-link-under{stroke:rgba(0,8,20,.62)}
+#ds-svg .ds-link.dimmed .ds-link-path{opacity:.24}
+#ds-svg .ds-link.dimmed .ds-link-under{opacity:.18}
 #ds-svg .ds-link.dimmed .ds-link-label-group{opacity:.28}
-#ds-svg .ds-link-path.selected{stroke-width:4!important;opacity:1;filter:drop-shadow(0 0 8px rgba(2,200,255,.55))}
-#ds-svg .ds-link.hover .ds-link-path{opacity:1;stroke-width:3.5!important;filter:drop-shadow(0 0 6px rgba(2,200,255,.45))}
+#ds-svg .ds-link-path.selected{stroke-width:3.25!important;opacity:1}
+#ds-svg .ds-link.selected .ds-link-under{stroke-width:6.75!important;stroke:rgba(0,8,20,.65)}
+#ds-svg .ds-link.hover .ds-link-path{opacity:1;stroke-width:3!important}
+#ds-svg .ds-link.hover .ds-link-under{stroke-width:6.5!important;stroke:rgba(0,8,20,.58)}
 #ds-svg .ds-node-hub-ring{fill:none;stroke:rgba(255,144,0,.35);stroke-width:1.5;stroke-dasharray:4 3;pointer-events:none}
 #ds-svg .ds-node.ds-deco .ds-node-chassis{opacity:.72;stroke-dasharray:5 4}
 #ds-svg .ds-node.ds-deco .ds-node-label{fill:#a8b8c8;font-weight:500}
 #ds-svg .ds-link-label{fill:#eef6ff;font-size:9.5px;font-weight:700;pointer-events:none}
-#ds-svg .ds-link-label-bg{fill:rgba(4,16,31,.94);stroke:rgba(2,200,255,.22);stroke-width:.75;
-  filter:drop-shadow(0 2px 4px rgba(0,0,0,.3))}
+#ds-svg .ds-link-label-detail{fill:#9ec0dc;font-size:8px;font-weight:600;pointer-events:none}
+#ds-svg .ds-link-label-bg{fill:rgba(4,16,31,.92);stroke:rgba(2,200,255,.2);stroke-width:.75}
 #ds-svg .ds-layer-band{pointer-events:none}
 #ds-svg .ds-layer-pill{pointer-events:none;filter:drop-shadow(0 2px 8px rgba(0,0,0,.25))}
 #ds-svg .ds-layer-title{fill:rgba(220,235,255,.88);font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;font-family:system-ui,sans-serif}
@@ -493,8 +498,9 @@
 .ds-room-portfolio-bg{fill:rgba(0,212,255,.15);stroke:rgba(0,212,255,.4);stroke-width:.5}
 .ds-room-portfolio-text{font-size:9px;font-weight:800;fill:#00d4ff}
 .ds-node-pid{font-size:8px;font-weight:600;fill:#7a9ab8;pointer-events:none}
-.ds-link.av-chain .ds-link-path{stroke-width:3!important;filter:drop-shadow(0 0 4px rgba(0,212,255,.5))}
-.ds-link.av-chain .ds-link-label-bg{fill:rgba(0,40,60,.92);stroke:rgba(0,212,255,.5)}
+.ds-link.av-chain .ds-link-path{stroke-width:2.75!important;opacity:1}
+.ds-link.av-chain .ds-link-under{stroke:rgba(0,12,28,.55)!important}
+.ds-link.av-chain .ds-link-label-bg{fill:rgba(4,16,31,.92);stroke:rgba(0,212,255,.35)}
 .ds-portfolio-summary{margin:0 0 10px;font-size:11px;color:#8ecae0;line-height:1.4}
 
 /* Engineer / CCIE workflow panel */

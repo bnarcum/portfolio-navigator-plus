@@ -35,17 +35,17 @@
   const LAYER_Y = { wan: 40, security: 120, core: 200, distribution: 300, access: 400, mgmt: 500, collab: 580, dc: 260 };
 
   const LINK_MEDIA_STYLE = {
-    "fiber-sm": { stroke: "#6eb8ff", w: 2.75 },
-    "fiber-mm": { stroke: "#6eb8ff", w: 2.75 },
-    "fiber-40g": { stroke: "#88a8ff", w: 3.25 },
-    dac: { stroke: "#88a8ff", w: 2.5 },
-    hdmi: { stroke: "#5ce0a8", w: 2.75, dash: "8 5" },
-    "usb-c": { stroke: "#5ce0a8", w: 2.25, dash: "5 3" },
+    "fiber-sm": { stroke: "#6eb8ff", w: 2.25 },
+    "fiber-mm": { stroke: "#6eb8ff", w: 2.25 },
+    "fiber-40g": { stroke: "#88a8ff", w: 2.5 },
+    dac: { stroke: "#88a8ff", w: 2.25 },
+    hdmi: { stroke: "#5ce0a8", w: 2.5, dash: "8 5" },
+    "usb-c": { stroke: "#5ce0a8", w: 2, dash: "5 3" },
     speaker: { stroke: "#c8a0e8", w: 2, dash: "4 3" },
     control: { stroke: "#c8a0e8", w: 2, dash: "4 3" },
     wireless: { stroke: "#88aacc", w: 2, dash: "3 4" },
-    cat6a: { stroke: "#e8b870", w: 2.5 },
-    cat6: { stroke: "#d4a060", w: 2.5 }
+    cat6a: { stroke: "#e8b870", w: 2.25 },
+    cat6: { stroke: "#d4a060", w: 2.25 }
   };
 
   /** One Cisco strategy — Design Studio Intent hero (self-contained; mirrors main app deck) */
@@ -272,18 +272,33 @@
 
   function linkRoute(ax, ay, bx, by, offset) {
     const dx = bx - ax, dy = by - ay;
-    const r = Math.min(14, Math.max(4, Math.min(Math.abs(dx), Math.abs(dy)) / 3));
-    if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return `M ${ax} ${ay} L ${bx} ${by}`;
-    if (Math.abs(dx) >= Math.abs(dy)) {
+    const adx = Math.abs(dx), ady = Math.abs(dy);
+    const dist = Math.hypot(dx, dy);
+    if (dist < 14) {
+      if (dist < 2.5) return `M ${ax} ${ay} L ${bx} ${by}`;
+      const mx = (ax + bx) / 2, my = (ay + by) / 2;
+      if (adx >= ady) return `M ${ax} ${ay} Q ${mx + offset * 0.45} ${my} ${bx} ${by}`;
+      return `M ${ax} ${ay} Q ${mx} ${my + offset * 0.45} ${bx} ${by}`;
+    }
+    const r = Math.min(20, Math.max(5, Math.min(adx, ady) * 0.28));
+    if (adx >= ady) {
       const mx = (ax + bx) / 2 + offset;
-      if (Math.abs(ay - by) < r * 2) return `M ${ax} ${ay} L ${bx} ${by}`;
-      const sy = by > ay ? 1 : -1;
-      return `M ${ax} ${ay} H ${mx - r} Q ${mx} ${ay} ${mx} ${ay + r * sy} V ${by - r * sy} Q ${mx} ${by} ${mx + r} ${by} H ${bx}`;
+      if (ady < r * 2.5) {
+        const t = Math.min(adx * 0.42, 64);
+        return `M ${ax} ${ay} C ${ax + t} ${ay}, ${bx - t} ${by}, ${bx} ${by}`;
+      }
+      const sy = dy >= 0 ? 1 : -1;
+      const hx1 = mx - r, hx2 = mx + r;
+      return `M ${ax} ${ay} H ${hx1} C ${mx} ${ay} ${mx} ${ay} ${mx} ${ay + r * sy} V ${by - r * sy} C ${mx} ${by} ${mx} ${by} ${hx2} ${by} H ${bx}`;
     }
     const my = (ay + by) / 2 + offset;
-    if (Math.abs(ax - bx) < r * 2) return `M ${ax} ${ay} L ${bx} ${by}`;
-    const sx = bx > ax ? 1 : -1;
-    return `M ${ax} ${ay} V ${my - r} Q ${ax} ${my} ${ax + r * sx} ${my} H ${bx - r * sx} Q ${bx} ${my} ${bx} ${by - r * sx} V ${by}`;
+    if (adx < r * 2.5) {
+      const t = Math.min(ady * 0.42, 64);
+      return `M ${ax} ${ay} C ${ax} ${ay + t}, ${bx} ${by - t}, ${bx} ${by}`;
+    }
+    const sx = dx >= 0 ? 1 : -1;
+    const vy1 = my - r, vy2 = my + r;
+    return `M ${ax} ${ay} V ${vy1} C ${ax} ${my} ${ax} ${my} ${ax + r * sx} ${my} H ${bx - r * sx} C ${bx} ${my} ${bx} ${my} ${bx} ${vy2} V ${by}`;
   }
 
   function linkLabelPos(a, b, offset, roomMode) {
@@ -347,10 +362,13 @@
 
   function computeLinkOffsets(links) {
     const offsets = new Map();
-    const byFrom = {};
-    links.forEach(l => { (byFrom[l.from] ||= []).push(l); });
-    Object.values(byFrom).forEach(bucket => {
-      bucket.forEach((l, i) => offsets.set(l.id, (i - (bucket.length - 1) / 2) * 32));
+    const byPair = {};
+    links.forEach(l => {
+      const key = [l.from, l.to].sort().join("|");
+      (byPair[key] ||= []).push(l);
+    });
+    Object.values(byPair).forEach(bucket => {
+      bucket.forEach((l, i) => offsets.set(l.id, (i - (bucket.length - 1) / 2) * 22));
     });
     return offsets;
   }
@@ -1521,12 +1539,13 @@ Account: ${this.design.account}`;
         const ms = linkMediaStyle(id);
         const m = document.createElementNS("http://www.w3.org/2000/svg", "marker");
         m.setAttribute("id", mid);
-        m.setAttribute("markerWidth", "8");
-        m.setAttribute("markerHeight", "8");
-        m.setAttribute("refX", "7");
+        m.setAttribute("markerUnits", "userSpaceOnUse");
+        m.setAttribute("markerWidth", "6");
+        m.setAttribute("markerHeight", "6");
+        m.setAttribute("refX", "5.2");
         m.setAttribute("refY", "3");
         m.setAttribute("orient", "auto");
-        m.innerHTML = `<path d="M0,0 L8,3 L0,6 Z" fill="${ms.stroke}"/>`;
+        m.innerHTML = `<path d="M0.6,0.8 L5.2,3 L0.6,5.2" fill="none" stroke="${ms.stroke}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`;
         defs.appendChild(m);
       });
     }
@@ -1558,6 +1577,7 @@ Account: ${this.design.account}`;
         const off = (this._linkOffsets && this._linkOffsets.get(l.id)) || 0;
         const path = linkRoute(a.x, a.y, b.x, b.y, off);
         const lp = linkLabelPos(a, b, off, this.tab === "room");
+        g.querySelector(".ds-link-under")?.setAttribute("d", path);
         g.querySelector(".ds-link-path")?.setAttribute("d", path);
         const grp = g.querySelector(".ds-link-label-group");
         if (grp) grp.setAttribute("transform", `translate(${lp.x},${lp.y})`);
@@ -1613,10 +1633,13 @@ Account: ${this.design.account}`;
         const lh = portDetail ? 24 : 14;
         const ms = linkMediaStyle(l.media);
         const dash = ms.dash ? ` stroke-dasharray="${ms.dash}"` : "";
+        const sw = hl ? ms.w + 0.75 : ms.w;
+        const underW = sw + 3.5;
         return `<g class="ds-link${sel}${hl}${dim}${avHl}" data-link="${l.id}" data-media="${escapeAttr(l.media || "cat6")}">
-          <path class="ds-link-path${sel}" d="${path}" marker-end="url(#ds-arrow-${l.media || "cat6"})" style="stroke:${ms.stroke};stroke-width:${hl ? ms.w + 1 : ms.w}${dash ? ";stroke-dasharray:" + ms.dash : ""}"/>
+          <path class="ds-link-under" d="${path}" style="stroke-width:${underW}"/>
+          <path class="ds-link-path${sel}" d="${path}" marker-end="url(#ds-arrow-${l.media || "cat6"})" style="stroke:${ms.stroke};stroke-width:${sw}${dash ? ";stroke-dasharray:" + ms.dash : ""}"/>
           ${showLbl ? `<g class="ds-link-label-group" transform="translate(${lp.x},${lp.y})">
-            <rect class="ds-link-label-bg" x="${-lw / 2}" y="-11" width="${lw}" height="${lh}" rx="3"/>
+            <rect class="ds-link-label-bg" x="${-lw / 2}" y="-11" width="${lw}" height="${lh}" rx="6"/>
             <text class="ds-link-label" text-anchor="middle" y="0">${escapeHtml(lbl)}</text>
             ${portDetail ? `<text class="ds-link-label-detail" text-anchor="middle" y="10">${escapeHtml(portDetail)}</text>` : ""}
           </g>` : ""}
@@ -1884,7 +1907,7 @@ Account: ${this.design.account}`;
       return { x: (cx - rect.left - this.pan.x) / this.pan.zoom, y: (cy - rect.top - this.pan.y) / this.pan.zoom };
     }
 
-    onSvgDown(e) { if (!e.target.closest(".ds-node") && !e.target.closest(".ds-link-path") && !e.target.closest(".ds-port")) this.panDrag = { ox: e.clientX, oy: e.clientY, px: this.pan.x, py: this.pan.y }; }
+    onSvgDown(e) { if (!e.target.closest(".ds-node") && !e.target.closest(".ds-link-path") && !e.target.closest(".ds-link-under") && !e.target.closest(".ds-port")) this.panDrag = { ox: e.clientX, oy: e.clientY, px: this.pan.x, py: this.pan.y }; }
 
     onSvgMove(e) {
       if (this.drag?.node) {
