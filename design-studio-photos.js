@@ -89,6 +89,12 @@
     return null;
   }
 
+  function photoBlendMode(url) {
+    if (!url) return "normal";
+    if (/family-heroes\//i.test(url)) return "normal";
+    return "darken";
+  }
+
   function renderDeviceSvg(def, w, h, selected, stencilId, photoUrl) {
     const shape = def?.shape || "switch";
     const sx = w / VW;
@@ -102,20 +108,21 @@
     const sel = selected ? " ds-node-selected" : "";
     const isCeilingMic = shape === "ceiling-mic";
     const isRound = isCeilingMic;
-    const imgPad = isRound ? 10 : 6;
+    const imgPad = isRound ? 8 : 4;
     const imgX = imgPad;
-    const imgY = isRound ? 6 : 4;
+    const imgY = isRound ? 4 : 2;
     const imgW = VW - imgPad * 2;
-    const imgH = (isRound ? 44 : VH - 8);
+    const imgH = isRound ? 48 : VH - 4;
+    const blend = photoBlendMode(photoUrl);
 
     const chassis = isRound
-      ? `<ellipse class="ds-photo-bg" cx="50" cy="28" rx="46" ry="24" fill="#f1f5f9" stroke="${accent}" stroke-width="1.5"/>`
-      : `<rect class="ds-photo-bg" x="1" y="1" width="${VW - 2}" height="${VH - 2}" rx="8" fill="#f8fafc" stroke="${accent}" stroke-width="1.35"/>
-         <rect x="0" y="9" width="5" height="${VH - 18}" rx="2" fill="${accent}" opacity="0.92"/>`;
+      ? `<ellipse class="ds-photo-frame" cx="50" cy="28" rx="46" ry="24" fill="rgba(4,16,31,0.25)" stroke="${accent}" stroke-width="1.25"/>`
+      : `<rect class="ds-photo-frame" x="1" y="1" width="${VW - 2}" height="${VH - 2}" rx="8" fill="rgba(4,16,31,0.2)" stroke="${accent}" stroke-width="1.15"/>
+         <rect x="0" y="9" width="4" height="${VH - 18}" rx="2" fill="${accent}" opacity="0.85"/>`;
 
     const clip = isRound
       ? `<clipPath id="${gid}-clip"><ellipse cx="50" cy="28" rx="44" ry="22"/></clipPath>`
-      : `<clipPath id="${gid}-clip"><rect x="3" y="3" width="${VW - 6}" height="${VH - 6}" rx="7"/></clipPath>`;
+      : `<clipPath id="${gid}-clip"><rect x="2" y="2" width="${VW - 4}" height="${VH - 4}" rx="7"/></clipPath>`;
 
     const selRing = selected
       ? (isRound
@@ -128,7 +135,8 @@
       ${chassis}
       <image class="ds-photo-img" href="${photoUrl}" xlink:href="${photoUrl}"
         x="${imgX}" y="${imgY}" width="${imgW}" height="${imgH}"
-        clip-path="url(#${gid}-clip)" preserveAspectRatio="xMidYMid meet"/>
+        clip-path="url(#${gid}-clip)" preserveAspectRatio="xMidYMid meet"
+        style="mix-blend-mode:${blend}"/>
       ${selRing}
     </g>`;
   }
@@ -137,7 +145,8 @@
     const url = resolveUrl(stencilId, def);
     const sz = size || 22;
     if (url) {
-      return `<img class="ds-st-photo" src="${url.replace(/"/g, "&quot;")}" width="${sz}" height="${sz}" alt="" loading="lazy"/>`;
+      const blend = photoBlendMode(url);
+      return `<img class="ds-st-photo" src="${url.replace(/"/g, "&quot;")}" width="${sz}" height="${sz}" alt="" loading="lazy" style="mix-blend-mode:${blend}"/>`;
     }
     return window.__DS_STENCILS?.renderSymbolPreview?.(
       window.__DS_STENCILS.resolveSymbolId(def, stencilId),

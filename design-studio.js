@@ -1015,7 +1015,7 @@
     updateRoomPicker() {
       const sel = document.getElementById("ds-room-picker");
       if (!sel) return;
-      const show = this.tab === "room" && this.design.rooms.length > 0;
+      const show = this.tab === "room" && this.design.rooms.length === 1;
       sel.hidden = !show;
       if (!show) return;
       sel.innerHTML = this.design.rooms.map(r =>

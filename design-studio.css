@@ -171,7 +171,7 @@
 #ds-svg .ds-layer-band{fill:rgba(2,200,255,.025);stroke:rgba(2,200,255,.1);stroke-width:1}
 #ds-svg .ds-layer-title{fill:rgba(180,200,220,.72);font-size:10px;font-weight:700;letter-spacing:.02em}
 
-#ds-toolbar{position:absolute;top:8px;left:8px;right:8px;display:flex;gap:5px;flex-wrap:wrap;z-index:2;
+#ds-toolbar{position:absolute;top:8px;left:8px;right:8px;display:flex;gap:5px;flex-wrap:wrap;z-index:14;
   padding:6px 8px;border-radius:8px;background:rgba(7,24,45,.88);border:1px solid var(--border);backdrop-filter:blur(8px)}
 #ds-toolbar select,#ds-toolbar button{font-size:10px;padding:4px 7px;border-radius:5px;
   border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer}
@@ -371,7 +371,7 @@
 .ds-explore-progress{font-size:9px;color:#7dd3a8;font-weight:700}
 
 .ds-score.idle{background:rgba(255,255,255,.08);color:#9ab4c8;border:1px solid rgba(255,255,255,.12)}
-.ds-stale-banner{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:12;display:flex;align-items:center;justify-content:space-between;gap:12px;
+.ds-stale-banner{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);top:auto;z-index:12;display:flex;align-items:center;justify-content:space-between;gap:12px;
   padding:8px 12px 8px 14px;border-radius:8px;background:rgba(180,60,20,.92);border:1px solid rgba(255,140,60,.5);color:#fff;font-size:11px;max-width:min(720px,94%)}
 .ds-stale-text{flex:1;line-height:1.35}
 .ds-stale-actions{display:flex;flex-shrink:0;gap:6px;align-items:center}
@@ -454,9 +454,10 @@
 .ds-bom-row{cursor:pointer}
 .ds-bom-row:hover{background:rgba(0,212,255,.08)}
 .ds-node.ds-device-photo .ds-photo-img{pointer-events:none}
-.ds-device-photo .ds-photo-bg{filter:drop-shadow(0 2px 6px rgba(0,0,0,.35))}
-.ds-st-photo{display:block;object-fit:contain;background:#f8fafc;border-radius:4px;border:1px solid rgba(2,200,255,.25)}
+.ds-device-photo .ds-photo-frame{filter:drop-shadow(0 2px 8px rgba(0,0,0,.4))}
+.ds-st-photo{display:block;object-fit:contain;background:transparent;border-radius:4px;border:1px solid rgba(2,200,255,.2)}
 .ds-stencil .ds-st-photo{width:22px;height:22px}
+.ds-node.ds-bom-highlight{filter:drop-shadow(0 0 8px #00d4ff)}
 .ds-room-guide-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
 
 body.design-studio-open #app-chrome,
