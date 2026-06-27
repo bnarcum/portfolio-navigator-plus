@@ -590,6 +590,7 @@
       this.design = loadDesign();
       this.tab = "intent"; this.panelTab = "bom";
       this.selectedNode = null; this.selectedLink = null;
+      this.selectedNodes = new Set(); this.clipboard = null; this.marquee = null;
       this.linkFrom = null; this.linkFromPort = null; this.linkMode = false;
       this.drag = null; this.pan = { x: 40, y: 40, zoom: 1 };
       this.layerFilter = "all"; this.paletteFilter = "";
@@ -634,6 +635,7 @@
           <button type="button" class="ds-btn" id="ds-start-over" title="Clear canvas, rooms, and BOM">Start Over</button>
           <button type="button" class="ds-btn" id="ds-import-stack">Import Stack</button>
           <button type="button" class="ds-btn" id="ds-export-svg">SVG</button>
+          <button type="button" class="ds-btn" id="ds-export-png" title="Export diagram as a PNG image">PNG</button>
           <button type="button" class="ds-btn" id="ds-export-pack" title="CCW BOM + cable schedule + summary JSON">Full Pack</button>
           <button type="button" class="ds-btn ds-export-ccw" id="ds-export-ccw">Export to CCW</button>
           <button type="button" class="ds-btn" id="ds-ai-design">Ask AI</button>
@@ -673,6 +675,24 @@
               <div id="ds-toolbar"></div>
               <div id="ds-minimap"><svg id="ds-minimap-svg"></svg></div>
               <div id="ds-legend" hidden></div>
+              <div id="ds-align-bar" hidden role="toolbar" aria-label="Align selected devices">
+                <button type="button" data-align="left" title="Align left edges">⇤</button>
+                <button type="button" data-align="hcenter" title="Align horizontal centers">⇆</button>
+                <button type="button" data-align="right" title="Align right edges">⇥</button>
+                <span class="ds-align-sep"></span>
+                <button type="button" data-align="top" title="Align top edges">⤒</button>
+                <button type="button" data-align="vcenter" title="Align vertical centers">⇳</button>
+                <button type="button" data-align="bottom" title="Align bottom edges">⤓</button>
+                <span class="ds-align-sep"></span>
+                <button type="button" data-align="dist-h" title="Distribute horizontally">↔</button>
+                <button type="button" data-align="dist-v" title="Distribute vertically">↕</button>
+                <span class="ds-align-count" id="ds-align-count"></span>
+              </div>
+              <div id="ds-zoom-ctl" aria-label="Zoom controls">
+                <button type="button" id="ds-zoom-out" title="Zoom out">−</button>
+                <button type="button" id="ds-zoom-label" title="Reset zoom to 100%">100%</button>
+                <button type="button" id="ds-zoom-in" title="Zoom in">+</button>
+              </div>
               <svg id="ds-svg" xmlns="http://www.w3.org/2000/svg">
                 <g id="ds-viewport">
                   <g id="ds-room-zones"></g>
@@ -681,6 +701,7 @@
                   <g id="ds-nodes"></g>
                   <path id="ds-linkdraft" class="ds-linkdraft" d="" />
                   <g id="ds-guides"></g>
+                  <rect id="ds-marquee" class="ds-marquee" x="0" y="0" width="0" height="0" hidden />
                 </g>
               </svg>
             </div>
@@ -792,6 +813,7 @@
       $("ds-export-ccw").onclick = () => this.exportCcw();
       $("ds-export-pack").onclick = () => this.exportPack();
       $("ds-export-svg").onclick = () => this.exportSvg();
+      $("ds-export-png").onclick = () => this.exportPng();
       $("ds-ai-design").onclick = () => this.askAi();
       $("ds-undo").onclick = () => this.history.undo();
       $("ds-redo").onclick = () => this.history.redo();
@@ -804,6 +826,13 @@
       $("ds-dup").onclick = () => this.duplicateSelected();
       $("ds-fit").onclick = () => this.fitView();
       $("ds-cmdk-btn").onclick = () => this.openCmdK();
+      $("ds-align-bar")?.addEventListener("click", e => {
+        const b = e.target.closest("[data-align]");
+        if (b) this.alignSelection(b.dataset.align);
+      });
+      $("ds-zoom-in").onclick = () => this.zoomBy(1.2);
+      $("ds-zoom-out").onclick = () => this.zoomBy(1 / 1.2);
+      $("ds-zoom-label").onclick = () => this.zoomReset();
       const tb = document.getElementById("ds-toolbar");
       tb?.addEventListener("click", e => {
         if (e.target.closest("#ds-walk-corridor")) { e.preventDefault(); this.openWalk(); }
@@ -859,6 +888,7 @@
       svg.onclick = e => {
         if (e.target === svg || e.target.id === "ds-viewport" || e.target.classList?.contains("ds-layer-band")) {
           this.selectedNode = null; this.selectedLink = null; this.linkFrom = null; this.linkFromPort = null;
+          this.selectedNodes.clear(); this.updateAlignBar();
           this.renderInspector(); this.renderCanvas();
         }
       };
@@ -885,10 +915,23 @@
         }
         const tag = (e.target.tagName || "").toLowerCase();
         if (tag === "input" || tag === "textarea" || tag === "select") return;
+        const mod = e.metaKey || e.ctrlKey;
         if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); this.deleteSelected(); }
-        if (e.key === "d" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); this.duplicateSelected(); }
-        if (e.key === "z" && (e.metaKey || e.ctrlKey) && !e.shiftKey) { e.preventDefault(); this.history.undo(); }
-        if ((e.key === "z" && e.shiftKey && (e.metaKey || e.ctrlKey)) || (e.key === "y" && e.ctrlKey)) { e.preventDefault(); this.history.redo(); }
+        if (e.key === "d" && mod) { e.preventDefault(); this.duplicateSelected(); }
+        if (e.key === "a" && mod) { e.preventDefault(); this.selectAllNodes(); }
+        if (e.key === "c" && mod) { e.preventDefault(); this.copySelection(); }
+        if (e.key === "x" && mod) { e.preventDefault(); this.cutSelection(); }
+        if (e.key === "v" && mod) { e.preventDefault(); this.pasteClipboard(); }
+        if (e.key.startsWith("Arrow") && (this.selectedNodes.size || this.selectedNode)) {
+          e.preventDefault();
+          const big = e.shiftKey;
+          if (e.key === "ArrowLeft") this.nudgeSelection(-1, 0, big);
+          else if (e.key === "ArrowRight") this.nudgeSelection(1, 0, big);
+          else if (e.key === "ArrowUp") this.nudgeSelection(0, -1, big);
+          else if (e.key === "ArrowDown") this.nudgeSelection(0, 1, big);
+        }
+        if (e.key === "z" && mod && !e.shiftKey) { e.preventDefault(); this.history.undo(); }
+        if ((e.key === "z" && e.shiftKey && mod) || (e.key === "y" && e.ctrlKey)) { e.preventDefault(); this.history.redo(); }
         if (e.key === "l") this.toggleLinkMode();
         if (e.key === "f" && !(e.metaKey || e.ctrlKey)) this.fitView();
         if (e.key === "p" && !(e.metaKey || e.ctrlKey)) {
@@ -900,7 +943,13 @@
         if (e.key === "[" && this.tab === "room") this.cycleRoom(-1);
         if (e.key === "]" && this.tab === "room") this.cycleRoom(1);
         if (e.key === "/") { e.preventDefault(); $("ds-palette-search")?.focus(); }
-        if (e.key === "Escape") { if (document.getElementById("ds-gallery-modal")?.hidden === false) this.closeGallery(); else this.close(); }
+        if (e.key === "Escape") {
+          if (document.getElementById("ds-gallery-modal")?.hidden === false) this.closeGallery();
+          else if (this.selectedNodes.size || this.selectedNode || this.selectedLink) {
+            this.selectedNodes.clear(); this.selectedNode = null; this.selectedLink = null;
+            this.updateAlignBar(); this.renderInspector(); this.renderCanvas();
+          } else this.close();
+        }
       });
     }
 
@@ -1335,6 +1384,7 @@ Account: ${this.design.account}`;
       this.customRoomMix = null;
       this.selectedNode = null;
       this.selectedLink = null;
+      this.selectedNodes.clear();
       this.linkFrom = null;
       this.linkFromPort = null;
       const ta = document.getElementById("ds-intent-text");
@@ -1395,6 +1445,42 @@ Account: ${this.design.account}`;
       this.toast("SVG exported");
     }
 
+    exportPng() {
+      const vp = document.getElementById("ds-viewport");
+      if (!vp) return;
+      const clone = vp.cloneNode(true);
+      clone.querySelectorAll(".ds-ports, .ds-port, .ds-layer-band, .ds-layer-title, .ds-connect-handle, .ds-node-badge, .ds-guide, #ds-marquee").forEach(el => el.remove());
+      const bbox = vp.getBBox?.() || { x: 0, y: 0, width: 1200, height: 800 };
+      const symDefs = window.CPN_CISCO_SYMBOLS ? `<defs>${window.CPN_CISCO_SYMBOLS}</defs>` : "";
+      const vbX = bbox.x - 24, vbY = bbox.y - 24, vbW = bbox.width + 48, vbH = bbox.height + 48;
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${vbW}" height="${vbH}" viewBox="${vbX} ${vbY} ${vbW} ${vbH}" style="background:#0a1628;font-family:system-ui,sans-serif">${symDefs}${clone.innerHTML}</svg>`;
+      const scale = 2;
+      const img = new Image();
+      const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.ceil(vbW * scale);
+        canvas.height = Math.ceil(vbH * scale);
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#0a1628";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(b => {
+          if (!b) { this.toast("PNG export failed"); return; }
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(b);
+          a.download = `Topology_${(this.design.account || "design").replace(/[^\w-]+/g, "-")}.png`;
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+          this.toast("PNG exported");
+        }, "image/png");
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); this.toast("PNG export failed"); };
+      img.src = url;
+    }
+
     toggleLinkMode() {
       this.linkMode = !this.linkMode;
       this.linkFrom = null; this.linkFromPort = null;
@@ -1423,16 +1509,34 @@ Account: ${this.design.account}`;
     }
 
     duplicateSelected() {
-      const n = this.design.nodes.find(x => x.id === this.selectedNode);
-      if (!n) return;
-      const copy = { ...n, id: uid(), x: n.x + 40, y: n.y + 40, label: n.label + " copy" };
-      this.design.nodes.push(copy);
-      this.selectedNode = copy.id;
-      this.pushHistory(); this.render();
+      const sel = this.selectedNodeObjs();
+      if (!sel.length) return;
+      const ids = new Set(sel.map(n => n.id));
+      const idMap = {};
+      const copies = sel.map(n => {
+        const copy = { ...JSON.parse(JSON.stringify(n)), id: uid(), x: n.x + 40, y: n.y + 40 };
+        if (sel.length === 1) copy.label = (n.label || "") + " copy";
+        idMap[n.id] = copy.id;
+        return copy;
+      });
+      this.design.nodes.push(...copies);
+      // Carry over links that connected the duplicated set.
+      this.design.links.filter(l => ids.has(l.from) && ids.has(l.to)).forEach(l => {
+        this.design.links.push({ ...JSON.parse(JSON.stringify(l)), id: uid(), from: idMap[l.from], to: idMap[l.to] });
+      });
+      this.selectedNodes = new Set(copies.map(n => n.id));
+      this.selectedNode = copies[copies.length - 1].id;
+      this.pushHistory(); this.render(); this.updateAlignBar();
     }
 
     deleteSelected() {
-      if (this.selectedLink) {
+      if (this.selectedNodes.size) {
+        const ids = this.selectedNodes;
+        this.design.links = this.design.links.filter(l => !ids.has(l.from) && !ids.has(l.to));
+        this.design.nodes = this.design.nodes.filter(n => !ids.has(n.id));
+        this.selectedNodes = new Set();
+        this.selectedNode = null;
+      } else if (this.selectedLink) {
         this.design.links = this.design.links.filter(l => l.id !== this.selectedLink);
         this.selectedLink = null;
       } else if (this.selectedNode) {
@@ -1440,7 +1544,7 @@ Account: ${this.design.account}`;
         this.design.nodes = this.design.nodes.filter(n => n.id !== this.selectedNode);
         this.selectedNode = null;
       } else return;
-      this.pushHistory(); this.render();
+      this.pushHistory(); this.render(); this.updateAlignBar();
     }
 
     visibleNodes() {
@@ -1475,6 +1579,7 @@ Account: ${this.design.account}`;
       this.renderInspector();
       this.renderPanel();
       this.renderMinimap();
+      this.updateAlignBar();
       const bom = computeBom(this.design);
       const score = computeScore(this.design);
       const badge = document.getElementById("ds-score-badge");
@@ -1789,8 +1894,10 @@ Account: ${this.design.account}`;
 
       const nodesG = document.getElementById("ds-nodes");
       const mode = this.tab === "room" ? "room" : "network";
+      const linkedIds = new Set();
+      this.design.links.forEach(l => { linkedIds.add(l.from); linkedIds.add(l.to); });
       nodesG.innerHTML = nodes.map(n => {
-        const sel = this.selectedNode === n.id ? " selected" : "";
+        const sel = this.isNodeSelected(n.id) ? " selected" : "";
         const def = STN()?.getDef?.(n.stencilId, mode);
         const w = n.w || def?.w || 76, h = n.h || def?.h || 46;
         const qty = n.qty > 1 ? ` ×${n.qty}` : "";
@@ -1828,13 +1935,18 @@ Account: ${this.design.account}`;
             <circle class="ds-connect-dot" cx="${w + 11}" cy="${h / 2}" r="8"/>
             <path class="ds-connect-plus" d="M${w + 11} ${h / 2 - 4}V${h / 2 + 4}M${w + 7} ${h / 2}H${w + 15}"/>
           </g>`}
+          ${(!this.presentation && this.tab === "network" && !isDeco && !linkedIds.has(n.id)) ? `<g class="ds-node-badge" data-badge="orphan">
+            <title>Not connected — add a link to this device</title>
+            <circle class="ds-node-badge-dot" cx="${w - 3}" cy="3" r="7"/>
+            <text class="ds-node-badge-mark" x="${w - 3}" y="6" text-anchor="middle">!</text>
+          </g>` : ""}
         </g>`;
       }).join("");
 
       linksG.querySelectorAll(".ds-link").forEach(el => {
         el.onmouseenter = () => { el.classList.add("hover"); };
         el.onmouseleave = () => { el.classList.remove("hover"); };
-        el.onclick = e => { e.stopPropagation(); this.selectedLink = el.dataset.link; this.selectedNode = null; this.renderInspector(); this.renderCanvas(); };
+        el.onclick = e => { e.stopPropagation(); this.selectedLink = el.dataset.link; this.selectedNode = null; this.selectedNodes.clear(); this.updateAlignBar(); this.renderInspector(); this.renderCanvas(); };
       });
 
       nodesG.querySelectorAll(".ds-node").forEach(el => {
@@ -1843,8 +1955,31 @@ Account: ${this.design.account}`;
           if (e.target.closest?.(".ds-connect-handle")) return;
           e.stopPropagation();
           const id = el.dataset.node;
-          this.selectedNode = id; this.selectedLink = null;
-          this.drag = { node: this.design.nodes.find(n => n.id === id) };
+          const node = this.design.nodes.find(n => n.id === id);
+          if (!node) return;
+          this.selectedLink = null;
+          if (e.shiftKey || e.metaKey || e.ctrlKey) {
+            // Toggle membership; do not start a drag on a modifier click.
+            if (this.selectedNodes.has(id)) this.selectedNodes.delete(id);
+            else this.selectedNodes.add(id);
+            this.selectedNode = this.selectedNodes.has(id) ? id : ([...this.selectedNodes].pop() || null);
+            this.updateAlignBar();
+            this.renderInspector();
+            this.renderCanvas();
+            return;
+          }
+          // Plain click on a node outside the current multi-selection resets it.
+          if (!this.selectedNodes.has(id)) this.selectedNodes = new Set([id]);
+          this.selectedNode = id;
+          const moving = this.selectedNodes.size > 1
+            ? this.design.nodes.filter(n => this.selectedNodes.has(n.id))
+            : [node];
+          const pt = this.clientToSvg(e.clientX, e.clientY);
+          this.drag = {
+            node, group: moving, ox: pt.x, oy: pt.y,
+            start: moving.map(n => ({ id: n.id, x: n.x, y: n.y }))
+          };
+          this.updateAlignBar();
           this.renderInspector();
           this.renderCanvas();
         };
@@ -2045,6 +2180,8 @@ Account: ${this.design.account}`;
       const vp = document.getElementById("ds-viewport");
       vp?.setAttribute("transform", `translate(${this.pan.x},${this.pan.y}) scale(${this.pan.zoom})`);
       void vp?.getBBox?.();
+      const zl = document.getElementById("ds-zoom-label");
+      if (zl) zl.textContent = `${Math.round(this.pan.zoom * 100)}%`;
     }
 
     cmdkActions() {
@@ -2059,10 +2196,23 @@ Account: ${this.design.account}`;
         { id: "tab-room", label: "Go to Room diagram", run: () => this.setTab("room") },
         { id: "tab-intent", label: "Go to Intent", run: () => this.setTab("intent") },
         { id: "export-svg", label: "Export diagram as SVG", run: () => this.exportSvg() },
+        { id: "export-png", label: "Export diagram as PNG", run: () => this.exportPng() },
         { id: "export-pack", label: "Export full design pack", run: () => document.getElementById("ds-export-pack")?.click() || this.exportPack?.() },
         { id: "bands", label: "Toggle network layer bands", run: () => { this.design.showLayerBands = this.design.showLayerBands === false; this.renderCanvas(); } },
+        { id: "select-all", label: "Select all devices", hint: "⌘A", run: () => this.selectAllNodes() },
         { id: "duplicate", label: "Duplicate selection", hint: "⌘D", run: () => this.duplicateSelected() },
-        { id: "delete", label: "Delete selection", hint: "⌫", run: () => this.deleteSelected() }
+        { id: "copy", label: "Copy selection", hint: "⌘C", run: () => this.copySelection() },
+        { id: "paste", label: "Paste", hint: "⌘V", run: () => this.pasteClipboard() },
+        { id: "delete", label: "Delete selection", hint: "⌫", run: () => this.deleteSelected() },
+        { id: "align-left", label: "Align selection: left edges", run: () => this.alignSelection("left") },
+        { id: "align-hcenter", label: "Align selection: horizontal centers", run: () => this.alignSelection("hcenter") },
+        { id: "align-right", label: "Align selection: right edges", run: () => this.alignSelection("right") },
+        { id: "align-top", label: "Align selection: top edges", run: () => this.alignSelection("top") },
+        { id: "align-vcenter", label: "Align selection: vertical centers", run: () => this.alignSelection("vcenter") },
+        { id: "align-bottom", label: "Align selection: bottom edges", run: () => this.alignSelection("bottom") },
+        { id: "dist-h", label: "Distribute selection horizontally", run: () => this.alignSelection("dist-h") },
+        { id: "dist-v", label: "Distribute selection vertically", run: () => this.alignSelection("dist-v") },
+        { id: "zoom-reset", label: "Reset zoom to 100%", run: () => this.zoomReset() }
       ];
       return list;
     }
@@ -2123,7 +2273,19 @@ Account: ${this.design.account}`;
       return { x: (cx - rect.left - this.pan.x) / this.pan.zoom, y: (cy - rect.top - this.pan.y) / this.pan.zoom };
     }
 
-    onSvgDown(e) { if (!e.target.closest(".ds-node") && !e.target.closest(".ds-link-path") && !e.target.closest(".ds-link-under") && !e.target.closest(".ds-port")) this.panDrag = { ox: e.clientX, oy: e.clientY, px: this.pan.x, py: this.pan.y }; }
+    onSvgDown(e) {
+      const onEmpty = !e.target.closest(".ds-node") && !e.target.closest(".ds-link-path") &&
+        !e.target.closest(".ds-link-under") && !e.target.closest(".ds-port");
+      if (!onEmpty) return;
+      // Shift+drag on empty canvas = marquee select; plain drag = pan (keeps trackpad UX).
+      if (e.shiftKey) {
+        const pt = this.clientToSvg(e.clientX, e.clientY);
+        this.marquee = { x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y, additive: e.metaKey || e.ctrlKey };
+        this.drawMarquee();
+        return;
+      }
+      this.panDrag = { ox: e.clientX, oy: e.clientY, px: this.pan.x, py: this.pan.y };
+    }
 
     onSvgMove(e) {
       if (this.linkDrag) {
@@ -2132,8 +2294,27 @@ Account: ${this.design.account}`;
         this.highlightConnectTarget(e);
         return;
       }
+      if (this.marquee) {
+        const pt = this.clientToSvg(e.clientX, e.clientY);
+        this.marquee.x1 = pt.x; this.marquee.y1 = pt.y;
+        this.drawMarquee();
+        return;
+      }
       if (this.drag?.node) {
         const pt = this.clientToSvg(e.clientX, e.clientY);
+        // Group drag: translate every selected node by the pointer delta.
+        if (this.drag.group && this.drag.group.length > 1) {
+          let dx = pt.x - this.drag.ox, dy = pt.y - this.drag.oy;
+          if (this.design.snapGrid !== false) { dx = snap(dx); dy = snap(dy); }
+          this.drag.start.forEach(s => {
+            const n = this.design.nodes.find(x => x.id === s.id);
+            if (!n) return;
+            n.x = s.x + dx; n.y = s.y + dy;
+            this.updateNodeDragPosition(n);
+          });
+          this.clearGuides();
+          return;
+        }
         let nx = pt.x - (this.drag.node.w || 76) / 2, ny = pt.y - (this.drag.node.h || 46) / 2;
         if (this.design.snapGrid !== false) { nx = snap(nx); ny = snap(ny); }
         const aligned = this.applyAlignmentSnap(this.drag.node, nx, ny);
@@ -2162,9 +2343,176 @@ Account: ${this.design.account}`;
         }
         return;
       }
+      if (this.marquee) {
+        this.commitMarquee();
+        this.marquee = null;
+        this.hideMarquee();
+        this.updateAlignBar();
+        this.renderInspector();
+        this.renderCanvas();
+        return;
+      }
       this.clearGuides();
       if (this.drag) this.pushHistory();
       this.drag = null; this.panDrag = null;
+      this.updateAlignBar();
+    }
+
+    /* ---- Multi-selection helpers ---- */
+    isNodeSelected(id) { return this.selectedNodes.has(id) || this.selectedNode === id; }
+
+    selectedNodeObjs() {
+      const ids = this.selectedNodes.size ? this.selectedNodes : (this.selectedNode ? new Set([this.selectedNode]) : new Set());
+      return this.design.nodes.filter(n => ids.has(n.id));
+    }
+
+    drawMarquee() {
+      const r = document.getElementById("ds-marquee");
+      if (!r || !this.marquee) return;
+      const { x0, y0, x1, y1 } = this.marquee;
+      r.hidden = false;
+      r.setAttribute("x", Math.min(x0, x1));
+      r.setAttribute("y", Math.min(y0, y1));
+      r.setAttribute("width", Math.abs(x1 - x0));
+      r.setAttribute("height", Math.abs(y1 - y0));
+    }
+
+    hideMarquee() {
+      const r = document.getElementById("ds-marquee");
+      if (r) { r.hidden = true; r.setAttribute("width", 0); r.setAttribute("height", 0); }
+    }
+
+    commitMarquee() {
+      const { x0, y0, x1, y1, additive } = this.marquee;
+      const rx = Math.min(x0, x1), ry = Math.min(y0, y1);
+      const rw = Math.abs(x1 - x0), rh = Math.abs(y1 - y0);
+      if (rw < 3 && rh < 3) { if (!additive) this.selectedNodes.clear(); return; }
+      if (!additive) this.selectedNodes.clear();
+      this.visibleNodes().forEach(n => {
+        const w = n.w || 76, h = n.h || 46;
+        // Intersection test (any overlap selects).
+        if (n.x < rx + rw && n.x + w > rx && n.y < ry + rh && n.y + h > ry) this.selectedNodes.add(n.id);
+      });
+      this.selectedNode = [...this.selectedNodes].pop() || null;
+      this.selectedLink = null;
+    }
+
+    updateAlignBar() {
+      const bar = document.getElementById("ds-align-bar");
+      if (!bar) return;
+      const n = this.selectedNodes.size;
+      const show = n >= 2 && !this.presentation && this.tab !== "intent";
+      bar.hidden = !show;
+      if (show) {
+        const c = document.getElementById("ds-align-count");
+        if (c) c.textContent = `${n} selected`;
+      }
+    }
+
+    /** Align or distribute the current multi-selection. */
+    alignSelection(kind) {
+      const sel = this.selectedNodeObjs();
+      if (sel.length < 2) return;
+      const box = n => ({ l: n.x, t: n.y, w: n.w || 76, h: n.h || 46, r: n.x + (n.w || 76), b: n.y + (n.h || 46), cx: n.x + (n.w || 76) / 2, cy: n.y + (n.h || 46) / 2 });
+      const boxes = sel.map(box);
+      const minL = Math.min(...boxes.map(b => b.l));
+      const maxR = Math.max(...boxes.map(b => b.r));
+      const minT = Math.min(...boxes.map(b => b.t));
+      const maxB = Math.max(...boxes.map(b => b.b));
+      const cx = (minL + maxR) / 2, cy = (minT + maxB) / 2;
+      if (kind === "left") sel.forEach(n => n.x = minL);
+      else if (kind === "right") sel.forEach(n => n.x = maxR - (n.w || 76));
+      else if (kind === "hcenter") sel.forEach(n => n.x = cx - (n.w || 76) / 2);
+      else if (kind === "top") sel.forEach(n => n.y = minT);
+      else if (kind === "bottom") sel.forEach(n => n.y = maxB - (n.h || 46));
+      else if (kind === "vcenter") sel.forEach(n => n.y = cy - (n.h || 46) / 2);
+      else if (kind === "dist-h") {
+        const sorted = [...sel].sort((a, b) => box(a).cx - box(b).cx);
+        const first = box(sorted[0]).cx, last = box(sorted[sorted.length - 1]).cx;
+        const step = (last - first) / (sorted.length - 1);
+        sorted.forEach((n, i) => { n.x = (first + step * i) - (n.w || 76) / 2; });
+      } else if (kind === "dist-v") {
+        const sorted = [...sel].sort((a, b) => box(a).cy - box(b).cy);
+        const first = box(sorted[0]).cy, last = box(sorted[sorted.length - 1]).cy;
+        const step = (last - first) / (sorted.length - 1);
+        sorted.forEach((n, i) => { n.y = (first + step * i) - (n.h || 46) / 2; });
+      }
+      this.pushHistory();
+      this.renderCanvas();
+      this.toast(`Aligned ${sel.length} devices`);
+    }
+
+    /* ---- Clipboard ---- */
+    copySelection() {
+      const sel = this.selectedNodeObjs();
+      if (!sel.length) return;
+      const ids = new Set(sel.map(n => n.id));
+      this.clipboard = {
+        nodes: sel.map(n => JSON.parse(JSON.stringify(n))),
+        links: this.design.links.filter(l => ids.has(l.from) && ids.has(l.to)).map(l => JSON.parse(JSON.stringify(l)))
+      };
+      this.toast(`Copied ${sel.length} device${sel.length > 1 ? "s" : ""}`);
+    }
+
+    cutSelection() {
+      this.copySelection();
+      this.deleteSelected();
+    }
+
+    pasteClipboard() {
+      if (!this.clipboard?.nodes?.length) return;
+      const mode = this.tab === "room" ? "room" : "network";
+      const idMap = {};
+      const newNodes = this.clipboard.nodes.map(src => {
+        const copy = { ...JSON.parse(JSON.stringify(src)), id: uid(), x: (src.x || 0) + 30, y: (src.y || 0) + 30 };
+        copy.canvas = mode;
+        if (mode === "room") copy.roomId = this.activeRoomId || copy.roomId;
+        idMap[src.id] = copy.id;
+        return copy;
+      });
+      this.design.nodes.push(...newNodes);
+      (this.clipboard.links || []).forEach(l => {
+        if (idMap[l.from] && idMap[l.to]) {
+          this.design.links.push({ ...JSON.parse(JSON.stringify(l)), id: uid(), from: idMap[l.from], to: idMap[l.to] });
+        }
+      });
+      this.selectedNodes = new Set(newNodes.map(n => n.id));
+      this.selectedNode = newNodes[newNodes.length - 1].id;
+      this.selectedLink = null;
+      this.pushHistory();
+      this.render();
+      this.updateAlignBar();
+      this.toast(`Pasted ${newNodes.length} device${newNodes.length > 1 ? "s" : ""}`);
+    }
+
+    selectAllNodes() {
+      this.selectedNodes = new Set(this.visibleNodes().map(n => n.id));
+      this.selectedNode = [...this.selectedNodes].pop() || null;
+      this.selectedLink = null;
+      this.updateAlignBar();
+      this.renderInspector();
+      this.renderCanvas();
+    }
+
+    /** Nudge selected nodes by the grid (or 1px with no grid); larger step with shift. */
+    nudgeSelection(dx, dy, big) {
+      const sel = this.selectedNodeObjs();
+      if (!sel.length) return;
+      const step = (this.design.snapGrid !== false ? 24 : 1) * (big ? 4 : 1);
+      sel.forEach(n => { n.x += dx * step; n.y += dy * step; });
+      this.pushHistory();
+      this.renderCanvas();
+    }
+
+    /* ---- Zoom controls ---- */
+    zoomBy(factor) {
+      this.pan.zoom = Math.max(0.2, Math.min(3, this.pan.zoom * factor));
+      this.applyTransform();
+    }
+
+    zoomReset() {
+      this.pan.zoom = 1;
+      this.applyTransform();
     }
 
     linkExists(a, b) {
