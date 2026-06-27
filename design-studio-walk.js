@@ -33,30 +33,13 @@
   const NET_LAYER_Z = { wan: -18, security: -12, core: -6, distribution: 0, dc: 2, access: 8, mgmt: 4, collab: 12 };
 
   const EYE_HEIGHT = 1.62;
-  const PATH_LIFT = 0.14;
-  const PAD_LIFT = 0.22;
-
-  function surfaceEyeY(x, z) {
-    const topo = state.topology;
-    const distSeg = window.__DS_WALK_LAYOUT?.distToSegment;
-    if (!topo || !distSeg) return EYE_HEIGHT;
-    for (const p of topo.pads || []) {
-      const dx = x - p.x, dz = z - p.z;
-      if (dx * dx + dz * dz <= (p.r * 0.82) ** 2) return EYE_HEIGHT + PAD_LIFT;
-    }
-    for (const s of topo.segments || []) {
-      if (distSeg(x, z, s.ax, s.az, s.bx, s.bz).dist <= (s.width || 2) * 0.52) {
-        return EYE_HEIGHT + PATH_LIFT;
-      }
-    }
-    return EYE_HEIGHT;
-  }
+  const PLAYER_R = 0.4;
 
   const state = {
     studio: null, mode: null, overlay: null, animId: 0, clock: 0, lastFrame: 0,
     THREE: null, renderer: null, scene: null, camera: null, raycaster: null,
     keys: {}, pointerLocked: false, lookDrag: false, lookLast: { x: 0, y: 0 },
-    yaw: 0, pitch: 0, vel: { x: 0, y: 0, z: 0 }, onGround: true,
+    yaw: 0, pitch: 0, facing: 0, vel: { x: 0, y: 0, z: 0 }, onGround: true,
     pos: { x: 0, y: EYE_HEIGHT, z: 0 }, fly: null,
     thirdPerson: true, avatar: null,
     chambers: [], devicePods: [], cables: [], colliders: [], bounds: null,
@@ -817,13 +800,17 @@
       stand.x = snap.x;
       stand.z = snap.z;
     }
-    stand.y = surfaceEyeY(stand.x, stand.z);
+    const safe = resolveCollision(stand.x, stand.z);
+    stand.x = safe.x;
+    stand.z = safe.z;
+    stand.y = EYE_HEIGHT;
     return stand;
   }
 
   function faceChamber(ch) {
     const p = chamberWorldPos(ch);
     state.yaw = Math.atan2(p.x - state.pos.x, p.z - state.pos.z);
+    state.facing = state.yaw;
     state.pitch = -0.06;
   }
 
@@ -956,34 +943,56 @@
     if (best) teleportToChamber(best, false);
   }
 
-  function isBlocked(x, z, playerR = 0.36) {
-    for (const col of state.colliders) {
-      if (col.kind !== "pod") continue;
-      const dx = x - col.x, dz = z - col.z;
-      if (dx * dx + dz * dz < (col.r + playerR) ** 2) return true;
+  /**
+   * Push a point out of every solid device collider (circle vs circle).
+   * Returns the resolved position; never leaves the player overlapping a
+   * collider, so the player slides smoothly around devices instead of jamming.
+   */
+  function resolveCollision(x, z) {
+    for (let iter = 0; iter < 3; iter++) {
+      let moved = false;
+      for (const col of state.colliders) {
+        if (col.kind !== "pod") continue;
+        const minDist = col.r + PLAYER_R;
+        let dx = x - col.x, dz = z - col.z;
+        let d2 = dx * dx + dz * dz;
+        if (d2 >= minDist * minDist) continue;
+        let d = Math.sqrt(d2);
+        if (d < 1e-4) { dx = 1; dz = 0; d = 1; }
+        const push = (minDist - d) / d;
+        x += dx * push;
+        z += dz * push;
+        moved = true;
+      }
+      if (!moved) break;
     }
-    return false;
+    return { x, z };
+  }
+
+  function clampToWorld(x, z) {
+    const b = state.bounds;
+    if (!b) return { x, z };
+    const m = 2.5;
+    return {
+      x: Math.max(b.minX - m, Math.min(b.maxX + m, x)),
+      z: Math.max(b.minZ - m, Math.min(b.maxZ + m, z))
+    };
   }
 
   function tryMoveCorridor(dx, dz) {
-    const pr = 0.36;
-    let nx = state.pos.x + dx, nz = state.pos.z + dz;
-    const b = state.bounds;
-    if (b) {
-      const margin = 1.5;
-      nx = Math.max(b.minX - margin, Math.min(b.maxX + margin, nx));
-      nz = Math.max(b.minZ - margin, Math.min(b.maxZ + margin, nz));
+    const desired = clampToWorld(state.pos.x + dx, state.pos.z + dz);
+    const resolved = resolveCollision(desired.x, desired.z);
+    // Remove velocity pointing into the surface so we don't keep ramming it.
+    const corrX = resolved.x - desired.x;
+    const corrZ = resolved.z - desired.z;
+    if (corrX || corrZ) {
+      const cl = Math.hypot(corrX, corrZ) || 1;
+      const nx = corrX / cl, nz = corrZ / cl;
+      const into = state.vel.x * nx + state.vel.z * nz;
+      if (into < 0) { state.vel.x -= into * nx; state.vel.z -= into * nz; }
     }
-    const step = (tx, tz) => {
-      if (isBlocked(tx, tz, pr)) return false;
-      state.pos.x = tx;
-      state.pos.z = tz;
-      if (state.onGround) state.pos.y = surfaceEyeY(tx, tz);
-      return true;
-    };
-    if (step(nx, nz)) return;
-    if (step(nx, state.pos.z)) return;
-    step(state.pos.x, nz);
+    state.pos.x = resolved.x;
+    state.pos.z = resolved.z;
   }
 
   function flyEase(t) {
@@ -1002,7 +1011,7 @@
       const e = flyEase(f.t);
       state.pos.x = fromPt.x + (toPt.x - fromPt.x) * e;
       state.pos.z = fromPt.z + (toPt.z - fromPt.z) * e;
-      state.pos.y = surfaceEyeY(state.pos.x, state.pos.z);
+      state.pos.y = EYE_HEIGHT;
       state.yaw = Math.atan2(toPt.x - state.pos.x, toPt.z - state.pos.z);
       if (f.t >= 1) {
         f.i = idx + 1;
@@ -1046,9 +1055,8 @@
     if (!state.fly && !state.trace) {
       state.vel.y = (state.vel.y ?? 0) - 30 * dt;
       state.pos.y += state.vel.y * dt;
-      const ground = surfaceEyeY(state.pos.x, state.pos.z);
-      if (state.pos.y <= ground) {
-        state.pos.y = ground;
+      if (state.pos.y <= EYE_HEIGHT) {
+        state.pos.y = EYE_HEIGHT;
         state.vel.y = 0;
         state.onGround = true;
       } else {
@@ -1056,34 +1064,29 @@
       }
     }
 
-    const THREE = state.THREE;
     const maxSpd = state.keys["Shift"] ? 11 : 8;
     const accel = 34;
     const friction = 10;
-    let fwd, right;
-    if (state.thirdPerson && state.camera) {
-      fwd = new THREE.Vector3();
-      state.camera.getWorldDirection(fwd);
-      fwd.y = 0;
-      if (fwd.lengthSq() < 1e-6) fwd.set(Math.sin(state.yaw), 0, Math.cos(state.yaw));
-      else fwd.normalize();
-      right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
-    } else {
-      fwd = new THREE.Vector3(Math.sin(state.yaw), 0, Math.cos(state.yaw));
-      right = new THREE.Vector3(Math.cos(state.yaw), 0, -Math.sin(state.yaw));
-    }
+    // Movement basis is always relative to the camera orbit yaw (mouse-controlled).
+    const fwdX = Math.sin(state.yaw), fwdZ = Math.cos(state.yaw);
+    const rightX = Math.cos(state.yaw), rightZ = -Math.sin(state.yaw);
 
     let ix = 0, iz = 0;
-    if (state.keys["w"] || state.keys["ArrowUp"]) { ix += fwd.x; iz += fwd.z; }
-    if (state.keys["s"] || state.keys["ArrowDown"]) { ix -= fwd.x; iz -= fwd.z; }
-    if (state.keys["a"] || state.keys["ArrowLeft"]) { ix -= right.x; iz -= right.z; }
-    if (state.keys["d"] || state.keys["ArrowRight"]) { ix += right.x; iz += right.z; }
+    if (state.keys["w"] || state.keys["ArrowUp"]) { ix += fwdX; iz += fwdZ; }
+    if (state.keys["s"] || state.keys["ArrowDown"]) { ix -= fwdX; iz -= fwdZ; }
+    if (state.keys["a"] || state.keys["ArrowLeft"]) { ix -= rightX; iz -= rightZ; }
+    if (state.keys["d"] || state.keys["ArrowRight"]) { ix += rightX; iz += rightZ; }
 
     if (ix !== 0 || iz !== 0) {
       const len = Math.hypot(ix, iz) || 1;
       state.vel.x += (ix / len) * accel * dt;
       state.vel.z += (iz / len) * accel * dt;
-      if (state.thirdPerson) state.yaw = Math.atan2(ix / len, iz / len);
+      // Smoothly turn the avatar toward the direction it is moving.
+      const target = Math.atan2(ix / len, iz / len);
+      let d = target - state.facing;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      state.facing += d * Math.min(1, dt * 12);
     } else {
       const damp = Math.exp(-friction * dt);
       state.vel.x *= damp;
@@ -1097,7 +1100,13 @@
 
     const mx = state.vel.x * dt;
     const mz = state.vel.z * dt;
-    if (mx || mz) tryMoveCorridor(mx, mz);
+    if (mx || mz) {
+      tryMoveCorridor(mx, mz);
+    } else {
+      const safe = resolveCollision(state.pos.x, state.pos.z);
+      state.pos.x = safe.x;
+      state.pos.z = safe.z;
+    }
 
     if (state.trace) {
       const wps = state.trace.waypoints;
@@ -1106,7 +1115,7 @@
       const ax = wps[0].x, az = wps[0].z, bx = wps[1].x, bz = wps[1].z;
       state.pos.x = ax + (bx - ax) * t;
       state.pos.z = az + (bz - az) * t;
-      state.pos.y = surfaceEyeY(state.pos.x, state.pos.z);
+      state.pos.y = EYE_HEIGHT;
       state.yaw = Math.atan2(bx - ax, bz - az);
       state.vel = { x: 0, y: 0, z: 0 };
       if (t >= 1) { setStatus(`Arrived: ${state.trace.label}`); state.trace = null; }
@@ -1247,7 +1256,7 @@
       cam.position.set(cx, camY, cz);
       cam.lookAt(state.pos.x, state.pos.y + 0.95, state.pos.z);
       state.avatar.position.set(state.pos.x, state.pos.y - EYE_HEIGHT, state.pos.z);
-      state.avatar.rotation.y = state.yaw;
+      state.avatar.rotation.y = state.facing;
       state.avatar.visible = true;
       if (state.viewmodel) state.viewmodel.visible = false;
     } else {

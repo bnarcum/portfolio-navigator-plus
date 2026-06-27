@@ -47,15 +47,15 @@
     return blockMat(THREE, null, WOOL[media] || WOOL.default);
   }
 
-  /** Flat strip along one diagram link (exact from → to). */
-  function addLinkPath(THREE, scene, ax, az, bx, bz, mat, width = 1.5, lift = 0.14) {
+  /** Flat painted strip along one diagram link (exact from → to). */
+  function addLinkPath(THREE, scene, ax, az, bx, bz, mat, width = 1.5) {
     const dx = bx - ax, dz = bz - az;
     const len = Math.hypot(dx, dz) || 0.1;
     const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(len, 0.08, width),
+      new THREE.BoxGeometry(len, 0.06, width),
       mat
     );
-    mesh.position.set((ax + bx) / 2, lift, (az + bz) / 2);
+    mesh.position.set((ax + bx) / 2, 0.04, (az + bz) / 2);
     mesh.rotation.y = Math.atan2(dx, dz);
     scene.add(mesh);
     return mesh;
@@ -86,7 +86,7 @@
       const ax = cor.from.pos.x, az = cor.from.pos.z;
       const bx = cor.to.pos.x, bz = cor.to.pos.z;
       if (![ax, az, bx, bz].every(Number.isFinite)) return;
-      addLinkPath(THREE, scene, ax, az, bx, bz, woolMat(THREE, cor.media), 1.55, 0.12);
+      addLinkPath(THREE, scene, ax, az, bx, bz, woolMat(THREE, cor.media), 1.55);
     });
 
     (graph?.chambers || []).forEach(ch => {
@@ -94,10 +94,10 @@
       if (!Number.isFinite(px) || !Number.isFinite(pz)) return;
       const accent = ZONE_PAD[ch.zone] || ZONE_PAD.default;
       const padMesh = new THREE.Mesh(
-        new THREE.CylinderGeometry(2.15, 2.15, 0.1, 20),
+        new THREE.CylinderGeometry(2.2, 2.2, 0.08, 24),
         blockMat(THREE, null, accent)
       );
-      padMesh.position.set(px, 0.18, pz);
+      padMesh.position.set(px, 0.05, pz);
       scene.add(padMesh);
     });
   }
