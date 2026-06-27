@@ -444,6 +444,7 @@
       this.layerFilter = "all"; this.paletteFilter = "";
       this.presentation = false; this.showPorts = false; this.showMinimap = true;
       this.activeRoomId = null;
+      this.lastPillarId = null;
       this.history = new History(this); this.el = null;
     }
 
@@ -486,6 +487,7 @@
               <div id="ds-stale-hint" class="ds-stale-hint" hidden></div>
               <textarea id="ds-intent-text" placeholder="e.g. SNRA campus + 12 conference rooms and 6 huddles — or AI-ready DC spine-leaf with GPU compute…"></textarea>
               <div id="ds-intent-rationale" hidden></div>
+              <div id="ds-explore-intent"></div>
               <div class="ds-intent-section">
                 <div class="ds-intent-section-head"><strong>Quick start</strong><span>Click to fill the brief</span></div>
                 <div class="ds-templates" id="ds-templates"></div>
@@ -526,6 +528,7 @@
               <button type="button" data-panel="sites">Sites</button>
             </div>
             <div id="ds-panel-body"></div>
+            <div id="ds-explore-dock" hidden></div>
             <div id="ds-status"><span id="ds-status-left"></span><span id="ds-status-right"></span></div>
           </aside>
         </div>
@@ -538,6 +541,7 @@
               <button type="button" data-gtab="room">Rooms</button>
             </div>
             <div id="ds-gallery-grid"></div>
+            <p class="ds-gallery-explore-hint">Each template links to validated guides and dCloud labs — click a card to add it, or use the links to learn first.</p>
           </div>
         </div>`;
       document.body.appendChild(root);
@@ -669,6 +673,10 @@
       });
     }
 
+    refreshExplore() {
+      window.__DS_EXPLORE?.refresh?.(this);
+    }
+
     wireOneCiscoPillars() {
       const deck = document.getElementById("ds-one-cisco-deck");
       if (!deck) return;
@@ -677,6 +685,7 @@
         btn.onclick = () => {
           const pillar = byId[btn.dataset.pillar];
           if (!pillar?.intent) return;
+          this.lastPillarId = pillar.id;
           const ta = document.getElementById("ds-intent-text");
           if (ta) {
             ta.value = pillar.intent;
@@ -684,6 +693,7 @@
           }
           this.toast(`Brief loaded — ${pillar.shortLabel || pillar.label}`);
           this.previewIntent();
+          this.refreshExplore();
         };
       });
     }
@@ -753,6 +763,7 @@
 
     renderGalleryGrid(gtab) {
       const grid = document.getElementById("ds-gallery-grid");
+      const explore = window.__DS_EXPLORE;
       if (!grid) return;
       if (gtab === "room") {
         grid.innerHTML = Object.entries(TPL()?.ROOM_TEMPLATES || {}).map(([key, t]) => `
@@ -761,6 +772,7 @@
             <strong>${escapeHtml(t.name)}</strong>
             <span>${t.items?.length || 0} devices · ${t.links?.length || 0} links</span>
             ${t.ct ? `<small class="ds-cvd-ref" title="${escapeAttr(t.ctUrl || "")}">CT: ${escapeHtml(t.ct)}</small>` : ""}
+            ${explore?.cardFooter ? explore.cardFooter("room", key) : ""}
           </div>`).join("");
         grid.querySelectorAll("[data-room]").forEach(el => {
           el.onclick = () => { this.addRoomTemplate(el.dataset.room); this.closeGallery(); };
@@ -773,11 +785,21 @@
             <span>${t.nodes?.length || 0} nodes · ${t.links?.length || 0} links</span>
             <small>${escapeHtml((t.tags || []).join(", "))}</small>
             ${t.cvd ? `<small class="ds-cvd-ref" title="${escapeAttr(t.cvdUrl || "")}">CVD: ${escapeHtml(t.cvd)}</small>` : ""}
+            ${explore?.cardFooter ? explore.cardFooter("network", key) : ""}
           </div>`).join("");
         grid.querySelectorAll("[data-net]").forEach(el => {
           el.onclick = () => { this.applyRefArch(el.dataset.net); this.closeGallery(); };
         });
       }
+      explore?.refresh?.(this);
+      grid.querySelectorAll("[data-stop-card]").forEach(el => el.addEventListener("click", e => e.stopPropagation()));
+      grid.querySelectorAll("[data-browse-query]").forEach(btn => {
+        btn.addEventListener("click", e => {
+          e.stopPropagation();
+          const q = btn.getAttribute("data-browse-query") || "";
+          if (typeof window.openDcloudBrowser === "function") window.openDcloudBrowser({ query: q });
+        });
+      });
     }
 
     openGallery() { document.getElementById("ds-gallery-modal").hidden = false; this.renderGalleryGrid("network"); }
@@ -875,6 +897,7 @@
       this.previewIntent();
       this.setTab("intent");
       this.render();
+      setTimeout(() => this.refreshExplore(), 500);
     }
 
     close() { saveDesign(this.design); this.el?.classList.remove("open"); this.el?.classList.remove("ds-present-mode"); document.body.classList.remove("design-studio-open"); }
@@ -898,6 +921,7 @@
         if (tab === "room") requestAnimationFrame(() => this.fitView());
       }
       this.renderPanel();
+      this.refreshExplore();
     }
 
     renderRoomGuide() {
@@ -970,6 +994,7 @@
             : `<strong>Brief parsed</strong> — click <em>Generate Draft</em> to apply it to the canvas.`;
         } else hint.hidden = true;
       }
+      this.refreshExplore();
     }
 
     runGenerate() {

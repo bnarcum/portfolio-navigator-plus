@@ -320,6 +320,50 @@
   display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase}
 .ds-gallery-thumb.room{background:linear-gradient(135deg,rgba(100,80,255,.12),rgba(2,200,255,.08))}
 .ds-gallery-card small.ds-cvd-ref{display:block;margin-top:6px;color:var(--accent);font-size:9px;line-height:1.35}
+.ds-gallery-explore{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}
+.ds-gallery-explore-link,.ds-gallery-explore-more{font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;text-decoration:none;cursor:pointer}
+.ds-gallery-explore-link{color:var(--accent);border:1px solid rgba(2,200,255,.35);background:rgba(2,200,255,.08)}
+.ds-gallery-explore-link--dcloud{color:#b8f0ff;border-color:rgba(0,212,255,.4);background:rgba(0,212,255,.1)}
+.ds-gallery-explore-more{color:var(--muted);border:1px solid var(--border);background:transparent}
+.ds-gallery-explore-hint{margin:0;padding:10px 18px 14px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);line-height:1.45}
+
+#ds-explore-dock{margin:0 10px 8px;max-height:42vh;overflow-y:auto}
+#ds-explore-intent{margin:14px 0 0}
+.ds-explore{margin:0;padding:12px 14px;border-radius:10px;border:1px solid rgba(0,212,255,.22);
+  background:linear-gradient(145deg,rgba(0,212,255,.06),rgba(7,24,45,.92))}
+#ds-explore-dock .ds-explore{padding:10px 12px;font-size:11px}
+.ds-explore-head{margin:0 0 10px}
+.ds-explore-eyebrow{display:block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#5ceaff;margin-bottom:4px}
+.ds-explore-head p{margin:0;font-size:11px;line-height:1.45;color:#c8dce8}
+.ds-explore-path{margin:0 0 10px;padding:8px 10px;border-radius:8px;border:1px solid rgba(0,212,255,.15);background:rgba(4,16,31,.55)}
+.ds-explore-path-label{display:block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8ecae0;margin-bottom:2px}
+.ds-explore-path strong{font-size:12px;color:#fff}
+.ds-explore-path-tag{display:block;font-size:10px;color:#b8d8ea;margin-top:2px}
+.ds-explore-path-steps{margin:6px 0 0;padding:0 0 0 18px;font-size:10px;color:#d0e8f4;line-height:1.5}
+.ds-explore-path-steps li{margin:2px 0}
+.ds-explore-path-steps span{font-weight:700;color:#00d4ff;margin-right:4px}
+.ds-explore-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:8px}
+#ds-explore-dock .ds-explore-grid{grid-template-columns:1fr}
+.ds-explore-card{display:flex;flex-direction:column;gap:4px;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(4,16,31,.7);text-decoration:none;color:inherit}
+.ds-explore-card--doc:hover{border-color:rgba(2,200,255,.45)}
+.ds-explore-card--dcloud{border-color:rgba(0,212,255,.28)}
+.ds-explore-badge{align-self:flex-start;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;padding:2px 6px;border-radius:4px;
+  color:var(--accent);border:1px solid rgba(2,200,255,.35);background:rgba(2,200,255,.1)}
+.ds-explore-badge--dcloud{color:#00d4ff;border-color:rgba(0,212,255,.45);background:rgba(0,212,255,.12)}
+.ds-explore-card strong{font-size:11px;line-height:1.35;color:#f0f8ff}
+.ds-explore-meta{font-size:9px;color:#8ecae0}
+.ds-explore-hint{margin:0;font-size:10px;line-height:1.4;color:#b8d0e0}
+.ds-explore-cta{font-size:10px;font-weight:700;color:var(--accent);margin-top:2px}
+.ds-explore-actions{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.ds-explore-btn{font-size:10px;font-weight:700;padding:5px 9px;border-radius:5px;text-decoration:none;cursor:pointer;border:none}
+.ds-explore-btn--launch{background:#00d4ff;color:#003648}
+.ds-explore-btn--launch:hover{background:#fff}
+.ds-explore-btn--ghost{background:transparent;border:1px solid rgba(0,212,255,.35);color:#b8f0ff}
+.ds-explore-foot{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}
+.ds-explore-browse{font-size:10px;font-weight:700;padding:5px 10px;border-radius:6px;border:1px solid rgba(0,212,255,.35);
+  background:rgba(0,212,255,.1);color:#b8f0ff;cursor:pointer}
+.ds-explore-browse:hover{border-color:#00d4ff;color:#fff}
+.ds-explore-note{font-size:9px;color:var(--subtle)}
 
 body.design-studio-open #app-chrome,
 body.design-studio-open #gw,
