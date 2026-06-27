@@ -812,8 +812,8 @@
       this.design.activeRoomId = roomId;
       this.updateRoomPicker();
       this.renderRoomGuide();
-      this.fitView();
       this.renderCanvas();
+      requestAnimationFrame(() => this.fitView());
       this.renderInspector();
     }
 
@@ -892,7 +892,11 @@
       wrap.classList.toggle("network-mode", tab === "network");
       this.updateRoomPicker();
       this.renderRoomGuide();
-      if (tab !== "intent") { this.renderPalette(); this.renderCanvas(); if (tab === "room") this.fitView(); }
+      if (tab !== "intent") {
+        this.renderPalette();
+        this.renderCanvas();
+        if (tab === "room") requestAnimationFrame(() => this.fitView());
+      }
       this.renderPanel();
     }
 
@@ -1708,12 +1712,22 @@ Account: ${this.design.account}`;
       this.applyTransform();
     }
 
+    roomChromeTop() {
+      if (this.tab !== "room") return 0;
+      const guide = document.getElementById("ds-room-guide");
+      if (!guide || guide.hidden) return 52;
+      const wrap = document.getElementById("ds-canvas-wrap");
+      const guideBottom = guide.offsetTop + guide.offsetHeight;
+      return Math.max(guideBottom + 10, wrap?.classList.contains("room-mode") ? 118 : 52);
+    }
+
     fitView() {
       const nodes = this.visibleNodes();
       const rect = document.getElementById("ds-svg")?.getBoundingClientRect();
       if (!nodes.length || !rect?.width) { this.pan = { x: 40, y: 40, zoom: 1 }; this.applyTransform(); return; }
+      const labelPad = this.tab === "room" ? ROOM_LABEL_BELOW : 0;
       let xs = nodes.flatMap(n => [n.x, n.x + (n.w || 76)]);
-      let ys = nodes.flatMap(n => [n.y, n.y + (n.h || 46)]);
+      let ys = nodes.flatMap(n => [n.y, n.y + (n.h || 46) + labelPad]);
       if (this.tab === "room" && this.activeRoomId) {
         const room = this.design.rooms.find(r => r.id === this.activeRoomId);
         const ox = room?.layoutOrigin?.x ?? ROOM_LAYOUT_OX;
@@ -1726,13 +1740,19 @@ Account: ${this.design.account}`;
           });
         }
       }
-      const pad = this.tab === "room" ? 56 : 80;
-      const w = Math.max(...xs) - Math.min(...xs) + pad * 2;
-      const h = Math.max(...ys) - Math.min(...ys) + pad * 2;
-      const maxZoom = this.tab === "room" ? 1.05 : 1.1;
-      this.pan.zoom = Math.max(0.35, Math.min(rect.width / w, rect.height / h, maxZoom));
-      this.pan.x = pad - Math.min(...xs) * this.pan.zoom;
-      this.pan.y = pad - Math.min(...ys) * this.pan.zoom;
+      const minX = Math.min(...xs);
+      const minY = Math.min(...ys);
+      const maxX = Math.max(...xs);
+      const maxY = Math.max(...ys);
+      const pad = this.tab === "room" ? 48 : 80;
+      const contentW = maxX - minX + pad * 2;
+      const contentH = maxY - minY + pad * 2;
+      const chromeTop = this.roomChromeTop();
+      const availH = Math.max(120, rect.height - chromeTop);
+      const maxZoom = this.tab === "room" ? 1.12 : 1.1;
+      this.pan.zoom = Math.max(0.35, Math.min(rect.width / contentW, availH / contentH, maxZoom));
+      this.pan.x = (rect.width - (maxX - minX) * this.pan.zoom) / 2 - minX * this.pan.zoom;
+      this.pan.y = chromeTop + (availH - (maxY - minY) * this.pan.zoom) / 2 - minY * this.pan.zoom;
       this.applyTransform();
     }
 
