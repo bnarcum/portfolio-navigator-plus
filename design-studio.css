@@ -653,6 +653,37 @@
 .ds-fp-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
 .ds-btn-link{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
 
+#ds-walk-overlay.ds-walk-epic{background:#000}
+#ds-walk-overlay.ds-walk-epic .ds-walk-hud{
+  position:absolute;top:10px;left:10px;right:10px;z-index:8;max-width:calc(100% - 20px);
+  background:rgba(0,0,0,.52);border:1px solid rgba(255,255,255,.08);border-radius:10px;
+  backdrop-filter:blur(14px);box-shadow:0 8px 32px rgba(0,0,0,.45);padding:8px 12px}
+#ds-walk-overlay.ds-walk-epic .ds-walk-stage{flex:1;min-height:0}
+#ds-walk-overlay.ds-walk-epic .ds-walk-hud-mid,
+#ds-walk-overlay.ds-walk-epic .ds-walk-devices,
+#ds-walk-overlay.ds-walk-epic .ds-walk-focus,
+#ds-walk-overlay.ds-walk-epic .ds-walk-status{display:none}
+#ds-walk-overlay.ds-walk-epic .ds-walk-mission{
+  position:absolute;top:58px;left:10px;z-index:7;max-width:min(300px,42vw);margin:0;
+  background:rgba(0,0,0,.55);backdrop-filter:blur(10px);border-radius:10px;
+  border:1px solid rgba(255,144,0,.22);box-shadow:0 6px 24px rgba(0,0,0,.4)}
+#ds-walk-overlay.ds-walk-epic .ds-walk-title{
+  font-size:13px;letter-spacing:.18em;color:#fff;text-shadow:0 0 20px rgba(2,200,255,.35)}
+#ds-walk-overlay.ds-walk-epic .ds-walk-crosshair{
+  width:28px;height:28px;margin:-14px 0 0 -14px;opacity:.75;
+  filter:drop-shadow(0 0 6px rgba(2,200,255,.6))}
+#ds-walk-overlay.ds-walk-epic .ds-walk-vignette{
+  position:absolute;inset:0;z-index:2;pointer-events:none;
+  background:radial-gradient(ellipse at center,transparent 42%,rgba(0,0,0,.55) 100%)}
+#ds-walk-overlay.ds-walk-epic .ds-walk-letterbox{
+  position:absolute;left:0;right:0;z-index:2;pointer-events:none;background:rgba(0,0,0,.72)}
+#ds-walk-overlay.ds-walk-epic .ds-walk-letterbox-top{top:0;height:5vh;min-height:24px}
+#ds-walk-overlay.ds-walk-epic .ds-walk-letterbox-bottom{bottom:0;height:5vh;min-height:24px}
+#ds-walk-overlay.ds-walk-epic #ds-walk-canvas{
+  filter:contrast(1.06) saturate(1.12)}
+.ds-walk-audio-btn{min-width:28px;padding:4px 8px!important;font-size:13px!important}
+.ds-walk-audio-btn.muted{opacity:.45}
+
 body.design-studio-open #app-chrome,
 body.design-studio-open #gw,
 body.design-studio-open #panel,

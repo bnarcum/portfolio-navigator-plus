@@ -64,7 +64,7 @@ try {
 
   if (!post.briefingHidden) errors.push("briefing still visible after click");
   if (post.overlayClass.includes("ds-briefing-open")) errors.push("ds-briefing-open class still set");
-  if (!/Mission active|waypoint/i.test(post.status)) {
+  if (!/Mission active|deploy|waypoint/i.test(post.status)) {
     errors.push(`unexpected status after start: "${post.status}"`);
   }
 

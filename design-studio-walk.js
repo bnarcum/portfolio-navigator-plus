@@ -41,7 +41,8 @@
     chambers: [], devicePods: [], cables: [], colliders: [], bounds: null,
     trace: null, maze: null, graph: null, texCache: new Map(), disposables: [],
     focusId: null, navIndex: 0, mission: null, waypointGroup: null, nearChamber: null,
-    reticleChamber: null, bobPhase: 0, viewmodel: null, worldBounds: null
+    reticleChamber: null, bobPhase: 0, viewmodel: null, worldBounds: null,
+    dustParticles: null, footPhase: 0
   };
 
   function esc(s) {
@@ -294,7 +295,7 @@
     }, 512, 96);
     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
     const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(3.6, 0.68, 1);
+    sprite.scale.set(2.4, 0.45, 1);
     sprite.renderOrder = 10;
     state.disposables.push(mat);
     return sprite;
@@ -320,19 +321,19 @@
     g.add(pillar);
 
     const frame = new THREE.Mesh(
-      new THREE.BoxGeometry(2.5 * scale, 1.65 * scale, 0.12 * scale),
+      new THREE.BoxGeometry(1.9 * scale, 1.25 * scale, 0.1 * scale),
       new THREE.MeshStandardMaterial({ color: 0x1a3050, metalness: 0.8, roughness: 0.2, emissive: theme.accent, emissiveIntensity: 0.06 })
     );
-    frame.position.set(0, 1.35 * scale, 0.82 * scale);
+    frame.position.set(0, 1.05 * scale, 0.72 * scale);
     g.add(frame);
 
     let photoTex = await loadTexture(THREE, ch.photoUrl);
     if (!photoTex) photoTex = makeFallbackIconTexture(THREE, ch.label, theme);
     const photo = new THREE.Mesh(
-      new THREE.PlaneGeometry(2.2 * scale, 1.4 * scale),
+      new THREE.PlaneGeometry(1.65 * scale, 1.0 * scale),
       new THREE.MeshStandardMaterial({ map: photoTex, metalness: 0.15, roughness: 0.45, emissive: 0x111111, emissiveIntensity: 0.15 })
     );
-    photo.position.set(0, 1.35 * scale, 0.9 * scale);
+    photo.position.set(0, 1.05 * scale, 0.78 * scale);
     g.add(photo);
 
     const ring = new THREE.Mesh(
@@ -348,13 +349,20 @@
     g.add(glow);
 
     const label = makeLabelSprite(THREE, ch.label, ch.pid, theme);
-    label.position.set(0, 2.55 * scale, 0);
+    label.position.set(0, 2.1 * scale, 0);
+    label.visible = false;
     g.add(label);
 
     const zoneBadge = makeLabelSprite(THREE, (ch.zone || "device").toUpperCase(), "", theme);
-    zoneBadge.scale.set(1.8 * scale, 0.35 * scale, 1);
-    zoneBadge.position.set(0, 0.55 * scale, 1.1 * scale);
+    zoneBadge.scale.set(1.4 * scale, 0.28 * scale, 1);
+    zoneBadge.position.set(0, 0.45 * scale, 1.0 * scale);
+    zoneBadge.visible = false;
     g.add(zoneBadge);
+
+    g.userData.labelSprite = label;
+    g.userData.zoneBadge = zoneBadge;
+    g.userData.glowLight = glow;
+    g.userData.ring = ring;
 
     g.position.set(ch.pos.x, 0, ch.pos.z);
     state.devicePods.push(g);
@@ -397,25 +405,134 @@
     return g;
   }
 
-  function addEnvironment(THREE, scene, dark = false) {
-    scene.fog = new THREE.FogExp2(dark ? 0x020810 : 0x040c18, dark ? 0.045 : 0.028);
-    scene.add(new THREE.HemisphereLight(0x99bbdd, 0x081018, dark ? 0.6 : 0.85));
-    const dir = new THREE.DirectionalLight(0xaaddff, dark ? 0.85 : 1.15);
-    dir.position.set(10, 24, 8);
-    scene.add(dir);
-    const rim = new THREE.DirectionalLight(0x02c8ff, dark ? 0.25 : 0.35);
-    rim.position.set(-12, 8, -14);
-    scene.add(rim);
+  function makeFloorTexture(THREE) {
+    return makeCanvasTexture(THREE, (ctx, w, h) => {
+      ctx.fillStyle = "#0a1420";
+      ctx.fillRect(0, 0, w, h);
+      for (let y = 0; y < h; y += 32) {
+        for (let x = 0; x < w; x += 32) {
+          ctx.strokeStyle = (x + y) % 64 === 0 ? "rgba(2,200,255,0.12)" : "rgba(2,200,255,0.04)";
+          ctx.strokeRect(x + 0.5, y + 0.5, 31, 31);
+        }
+      }
+      const g = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w * 0.55);
+      g.addColorStop(0, "rgba(2,200,255,0.08)");
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+    }, 512, 512);
+  }
+
+  function addEpicVenue(THREE, scene, bounds, kind) {
+    if (!bounds) return;
+    const pad = 14;
+    const w = Math.max(bounds.maxX - bounds.minX + pad * 2, 28);
+    const d = Math.max(bounds.maxZ - bounds.minZ + pad * 2, 28);
+    const h = kind === "room" ? 11 : 14;
+    const cx = (bounds.minX + bounds.maxX) / 2;
+    const cz = (bounds.minZ + bounds.maxZ) / 2;
+    const floorTex = makeFloorTexture(THREE);
+    floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
+    floorTex.repeat.set(w / 8, d / 8);
+
     const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(120, 120),
-      new THREE.MeshStandardMaterial({ color: dark ? 0x060e18 : 0x081828, metalness: 0.35, roughness: 0.75 })
+      new THREE.PlaneGeometry(w, d),
+      new THREE.MeshStandardMaterial({
+        map: floorTex, color: 0x8899aa, metalness: 0.72, roughness: 0.28,
+        emissive: 0x020810, emissiveIntensity: 0.15
+      })
     );
     floor.rotation.x = -Math.PI / 2;
+    floor.position.set(cx, 0, cz);
     scene.add(floor);
-    const grid = new THREE.GridHelper(120, 60, 0x02c8ff, dark ? 0x0a1828 : 0x0c2840);
-    grid.material.opacity = dark ? 0.18 : 0.22;
-    grid.material.transparent = true;
-    scene.add(grid);
+
+    const wallMat = new THREE.MeshStandardMaterial({
+      color: 0x0c1828, metalness: 0.55, roughness: 0.65, emissive: 0x061018, emissiveIntensity: 0.2
+    });
+    const stripMat = new THREE.MeshStandardMaterial({
+      color: 0x02c8ff, emissive: 0x02c8ff, emissiveIntensity: 0.85, metalness: 0.9, roughness: 0.2
+    });
+    const walls = [
+      { sx: w, sz: 0.35, x: cx, z: cz - d / 2, ry: 0 },
+      { sx: w, sz: 0.35, x: cx, z: cz + d / 2, ry: 0 },
+      { sx: 0.35, sz: d, x: cx - w / 2, z: cz, ry: 0 },
+      { sx: 0.35, sz: d, x: cx + w / 2, z: cz, ry: 0 }
+    ];
+    walls.forEach(wl => {
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(wl.sx, h, wl.sz), wallMat);
+      wall.position.set(wl.x, h / 2, wl.z);
+      scene.add(wall);
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(wl.sx * 0.92, 0.12, wl.sz + 0.2), stripMat);
+      strip.position.set(wl.x, h - 0.4, wl.z);
+      scene.add(strip);
+    });
+
+    const ceil = new THREE.Mesh(
+      new THREE.PlaneGeometry(w, d),
+      new THREE.MeshStandardMaterial({ color: 0x060e18, metalness: 0.3, roughness: 0.9, side: THREE.DoubleSide })
+    );
+    ceil.rotation.x = Math.PI / 2;
+    ceil.position.set(cx, h, cz);
+    scene.add(ceil);
+
+    const spots = Math.min(8, Math.ceil(w * d / 120));
+    for (let i = 0; i < spots; i++) {
+      const sx = cx + (Math.random() - 0.5) * w * 0.75;
+      const sz = cz + (Math.random() - 0.5) * d * 0.75;
+      const spot = new THREE.SpotLight(0xaaddff, kind === "room" ? 1.4 : 1.1, 22, 0.55, 0.6, 1);
+      spot.position.set(sx, h - 0.5, sz);
+      spot.target.position.set(sx, 0, sz);
+      scene.add(spot);
+      scene.add(spot.target);
+      const cone = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.02, 0.35, 3.5, 16, 1, true),
+        new THREE.MeshBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.04, side: THREE.DoubleSide, depthWrite: false })
+      );
+      cone.position.set(sx, h - 2, sz);
+      scene.add(cone);
+    }
+
+    const dome = new THREE.Mesh(
+      new THREE.SphereGeometry(Math.max(w, d) * 0.9, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: 0x081828, side: THREE.BackSide, transparent: true, opacity: 0.35 })
+    );
+    dome.position.set(cx, 0, cz);
+    scene.add(dome);
+  }
+
+  function addDustParticles(THREE, scene, bounds) {
+    if (!bounds) return;
+    const count = 180;
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(count * 3);
+    const cx = (bounds.minX + bounds.maxX) / 2;
+    const cz = (bounds.minZ + bounds.maxZ) / 2;
+    const spreadX = (bounds.maxX - bounds.minX) + 10;
+    const spreadZ = (bounds.maxZ - bounds.minZ) + 10;
+    for (let i = 0; i < count; i++) {
+      pos[i * 3] = cx + (Math.random() - 0.5) * spreadX;
+      pos[i * 3 + 1] = 1 + Math.random() * 8;
+      pos[i * 3 + 2] = cz + (Math.random() - 0.5) * spreadZ;
+    }
+    geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    const mat = new THREE.PointsMaterial({ color: 0x88ddff, size: 0.06, transparent: true, opacity: 0.35, depthWrite: false });
+    const pts = new THREE.Points(geo, mat);
+    pts.userData.dust = true;
+    scene.add(pts);
+    state.dustParticles = pts;
+  }
+
+  function addEnvironment(THREE, scene, dark = false) {
+    scene.fog = new THREE.FogExp2(dark ? 0x020610 : 0x060e1a, dark ? 0.038 : 0.022);
+    scene.add(new THREE.HemisphereLight(0x6688aa, 0x040810, dark ? 0.35 : 0.45));
+    const dir = new THREE.DirectionalLight(0x99ccee, dark ? 0.55 : 0.75);
+    dir.position.set(10, 24, 8);
+    scene.add(dir);
+    const rim = new THREE.DirectionalLight(0x02c8ff, dark ? 0.18 : 0.28);
+    rim.position.set(-12, 8, -14);
+    scene.add(rim);
+    const amb = new THREE.AmbientLight(0x1a2840, dark ? 0.25 : 0.35);
+    scene.add(amb);
   }
 
   function addWorldScenery(THREE, scene, graph) {
@@ -442,10 +559,13 @@
       edge.position.copy(slab.position);
       edge.position.y = 0.05;
       scene.add(edge);
-      const sign = makeLabelSprite(THREE, a.layer.toUpperCase(), graph.kind === "network" ? "layer" : "zone", theme);
-      sign.position.set(a.cx, 3.2, a.minZ - 1.2);
-      sign.scale.set(2.8, 0.55, 1);
-      scene.add(sign);
+      if (graph.kind === "network") {
+        const sign = makeLabelSprite(THREE, a.layer.toUpperCase(), "layer", theme);
+        sign.position.set(a.cx, 2.8, a.minZ - 0.8);
+        sign.scale.set(1.6, 0.32, 1);
+        sign.material.opacity = 0.55;
+        scene.add(sign);
+      }
     });
     graph.corridors.forEach(cor => {
       const a = cor.from.pos, b = cor.to.pos;
@@ -488,18 +608,30 @@
     state.cables = [];
     state.colliders = [];
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor(0x040c18, 1);
+    renderer.setClearColor(0x040810, 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace || renderer.outputEncoding;
+    if (THREE.ACESFilmicToneMapping) {
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.18;
+    }
     state.renderer = renderer;
 
     const scene = new THREE.Scene();
     state.scene = scene;
     addEnvironment(THREE, scene, false);
+    state.bounds = graph.layoutBounds || {
+      minX: Math.min(...graph.chambers.map(c => c.pos.x)) - 8,
+      maxX: Math.max(...graph.chambers.map(c => c.pos.x)) + 8,
+      minZ: Math.min(...graph.chambers.map(c => c.pos.z)) - 8,
+      maxZ: Math.max(...graph.chambers.map(c => c.pos.z)) + 8
+    };
+    addEpicVenue(THREE, scene, state.bounds, graph.kind);
+    addDustParticles(THREE, scene, state.bounds);
     addWorldScenery(THREE, scene, graph);
 
-    const camera = new THREE.PerspectiveCamera(68, 1, 0.1, 220);
+    const camera = new THREE.PerspectiveCamera(76, 1, 0.1, 220);
     camera.rotation.order = "YXZ";
     state.camera = camera;
     scene.add(camera);
@@ -512,10 +644,12 @@
 
     const xs = graph.chambers.map(c => c.pos.x);
     const zs = graph.chambers.map(c => c.pos.z);
-    state.bounds = graph.layoutBounds || {
-      minX: Math.min(...xs) - 8, maxX: Math.max(...xs) + 8,
-      minZ: Math.min(...zs) - 8, maxZ: Math.max(...zs) + 8
-    };
+    if (!graph.layoutBounds) {
+      state.bounds = {
+        minX: Math.min(...xs) - 8, maxX: Math.max(...xs) + 8,
+        minZ: Math.min(...zs) - 8, maxZ: Math.max(...zs) + 8
+      };
+    }
 
     const spawn = graph.chambers.find(c => /switch|9200|9300/i.test(c.label)) || graph.chambers[0];
     teleportToChamber(spawn, true);
@@ -535,9 +669,13 @@
     state.cables = [];
     state.colliders = [];
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor(0x020810, 1);
+    renderer.setClearColor(0x020608, 1);
+    if (THREE.ACESFilmicToneMapping) {
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.05;
+    }
     state.renderer = renderer;
 
     const scene = new THREE.Scene();
@@ -822,6 +960,14 @@
       state.vel = { x: 0, z: 0 };
       if (t >= 1) { setStatus(`Arrived: ${state.trace.label}`); state.trace = null; }
     }
+    const footSpd = Math.hypot(state.vel.x, state.vel.z);
+    if (footSpd > 0.3) {
+      state.footPhase += dt;
+      if (state.footPhase > 0.36) {
+        state.footPhase = 0;
+        window.__DS_WALK_AUDIO?.sfx?.footstep?.();
+      }
+    }
     applyCamera();
   }
 
@@ -846,6 +992,7 @@
 
   function openFieldPanel(ch) {
     if (!ch) return;
+    window.__DS_WALK_AUDIO?.sfx?.inspect?.();
     window.__DS_MISSIONS?.onVisit?.(state.mission, state.graph, ch.id, ch);
     highlightNavChip(ch.id);
     window.__DS_FIELD_PANEL?.render?.(ch, state.studio, state.graph);
@@ -890,6 +1037,24 @@
         el.innerHTML = `<strong>${esc(ch.label)}</strong>${ch.pid ? `<span>${esc(ch.pid)}</span>` : ""}`;
       } else el.hidden = true;
     }
+    state.devicePods.forEach(pod => {
+      const pch = pod.userData?.chamber;
+      if (!pch) return;
+      const p = chamberWorldPos(pch);
+      const dist = Math.hypot(p.x - state.pos.x, p.z - state.pos.z);
+      const focused = ch?.id === pch.id;
+      const showLabel = focused || dist < 6.5;
+      if (pod.userData.labelSprite) {
+        pod.userData.labelSprite.visible = showLabel;
+        pod.userData.labelSprite.material.opacity = focused ? 1 : 0.65;
+      }
+      if (pod.userData.zoneBadge) pod.userData.zoneBadge.visible = focused;
+      if (pod.userData.glowLight) pod.userData.glowLight.intensity = focused ? 1.4 : 0.55;
+      if (pod.userData.ring) {
+        pod.userData.ring.material.opacity = focused ? 0.9 : 0.35;
+        pod.userData.ring.scale.setScalar(focused ? 1.08 : 1);
+      }
+    });
   }
 
   function safePointerLock(el) {
@@ -908,7 +1073,9 @@
     window.__DS_MISSIONS.syncWaypoints(state, state.mission, graph);
     window.__DS_MISSIONS.renderBriefing(state.mission, () => {
       window.__DS_MISSIONS.syncWaypoints(state, state.mission, graph);
-      setStatus("Mission active — follow the glowing waypoints");
+      setStatus("Mission active — deploy to the floor");
+      window.__DS_WALK_AUDIO?.sfx?.missionStart?.();
+      window.__DS_WALK_AUDIO?.start?.();
       safePointerLock(state.overlay?.querySelector("#ds-walk-canvas"));
     });
     window.__DS_FIELD_PANEL?.bindWalk?.(state);
@@ -1029,6 +1196,18 @@
     ctx.stroke();
   }
 
+  function animateDust(dt) {
+    const pts = state.dustParticles;
+    if (!pts?.geometry?.attributes?.position) return;
+    const arr = pts.geometry.attributes.position.array;
+    for (let i = 0; i < arr.length / 3; i++) {
+      arr[i * 3 + 1] += dt * (0.12 + (i % 7) * 0.015);
+      if (arr[i * 3 + 1] > 9.5) arr[i * 3 + 1] = 0.6 + Math.random() * 0.5;
+    }
+    pts.geometry.attributes.position.needsUpdate = true;
+    pts.rotation.y += dt * 0.015;
+  }
+
   function loop(now) {
     if (!state.renderer || !state.scene || !state.camera) return;
     const t = (now || performance.now()) / 1000;
@@ -1037,6 +1216,7 @@
     state.clock += dt;
     updatePlayer(dt);
     animateCables(state.clock);
+    animateDust(dt);
     updateReticleFocus();
     window.__DS_MISSIONS?.animateWaypoints?.(state, state.clock);
     if (state.mission && !state.mission.complete) window.__DS_MISSIONS?.renderHud?.(state.mission);
@@ -1046,10 +1226,12 @@
   }
 
   function hudHtml(mode) {
+    const title = mode === "retro" ? "SIGNAL QUEST" : "FIELD OPS";
     return `<div class="ds-walk-hud">
       <div class="ds-walk-hud-top">
-        <strong class="ds-walk-title">${mode === "retro" ? "⬡ Signal Quest" : "⬡ Field Tech Walk"}</strong>
-        <span class="ds-walk-hint">WASD · Drag look · E inspect · [ ] devices · Minimap jump</span>
+        <strong class="ds-walk-title">${title}</strong>
+        <span class="ds-walk-hint">WASD move · drag look · E inspect · double-click lock</span>
+        <button type="button" class="ds-walk-btn ds-walk-audio-btn" data-action="audio-toggle" title="Toggle music">♫</button>
         <button type="button" class="ds-walk-close" title="Exit walkthrough">✕</button>
       </div>
       <div class="ds-walk-xp-track"><div class="ds-walk-xp-bar" id="ds-walk-xp-bar"></div></div>
@@ -1084,7 +1266,9 @@
         e.preventDefault();
         e.stopPropagation();
         window.__DS_MISSIONS?.dismissBriefing?.(state.mission, state.mission?._briefingStart);
-        setStatus("Mission active — follow the glowing waypoints");
+        window.__DS_WALK_AUDIO?.sfx?.missionStart?.();
+        window.__DS_WALK_AUDIO?.start?.();
+        setStatus("Mission active — deploy to the floor");
       }
       else if (a === "mission-replay") {
         if (state.graph) {
@@ -1106,6 +1290,12 @@
       }
       else if (a === "fp-trace-poe") startTrace("poe");
       else if (a === "fp-trace-av") startTrace("av");
+      else if (a === "audio-toggle") {
+        const muted = window.__DS_WALK_AUDIO?.toggleMute?.();
+        btn.textContent = muted ? "♪̸" : "♫";
+        btn.classList.toggle("muted", !!muted);
+        if (!muted && !window.__DS_WALK_AUDIO?.isRunning?.()) window.__DS_WALK_AUDIO?.start?.();
+      }
     });
   }
 
@@ -1200,6 +1390,7 @@
         return;
       }
       if (!canvas.contains(e.target) && e.target !== canvas) return;
+      window.__DS_WALK_AUDIO?.start?.();
       state.lookDrag = true;
       downPos = { x: e.clientX, y: e.clientY };
       state.lookLast = { x: e.clientX, y: e.clientY };
@@ -1276,6 +1467,7 @@
     state.fly = null;
     state.vel = { x: 0, z: 0 };
     state.lastFrame = 0;
+    state.dustParticles = null;
     state.renderer?.dispose?.();
     state.renderer = null;
     state.scene = null;
@@ -1315,9 +1507,12 @@
     overlay.hidden = false;
     overlay.removeAttribute("hidden");
     overlay.setAttribute("aria-hidden", "false");
-    overlay.className = `ds-walk-overlay ds-walk-${mode}`;
+    overlay.className = `ds-walk-overlay ds-walk-epic ds-walk-${mode}`;
     overlay.innerHTML = `${hudHtml(mode)}
       <div class="ds-walk-stage">
+        <div class="ds-walk-vignette" aria-hidden="true"></div>
+        <div class="ds-walk-letterbox ds-walk-letterbox-top" aria-hidden="true"></div>
+        <div class="ds-walk-letterbox ds-walk-letterbox-bottom" aria-hidden="true"></div>
         <div class="ds-walk-crosshair" aria-hidden="true"></div>
         <div class="ds-walk-prompt" id="ds-walk-prompt" hidden>Press E to inspect</div>
         <div class="ds-walk-inspect" id="ds-walk-inspect" hidden></div>
@@ -1419,6 +1614,7 @@
     }
     window.__DS_MISSIONS?.cleanupBriefing?.();
     window.__DS_FIELD_PANEL?.close?.();
+    window.__DS_WALK_AUDIO?.stop?.();
     state.mode = null;
     if (!silent) state.studio = null;
   }
