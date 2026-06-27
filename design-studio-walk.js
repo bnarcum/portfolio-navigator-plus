@@ -33,6 +33,24 @@
   const NET_LAYER_Z = { wan: -18, security: -12, core: -6, distribution: 0, dc: 2, access: 8, mgmt: 4, collab: 12 };
 
   const EYE_HEIGHT = 1.62;
+  const PATH_LIFT = 0.14;
+  const PAD_LIFT = 0.22;
+
+  function surfaceEyeY(x, z) {
+    const topo = state.topology;
+    const distSeg = window.__DS_WALK_LAYOUT?.distToSegment;
+    if (!topo || !distSeg) return EYE_HEIGHT;
+    for (const p of topo.pads || []) {
+      const dx = x - p.x, dz = z - p.z;
+      if (dx * dx + dz * dz <= (p.r * 0.82) ** 2) return EYE_HEIGHT + PAD_LIFT;
+    }
+    for (const s of topo.segments || []) {
+      if (distSeg(x, z, s.ax, s.az, s.bx, s.bz).dist <= (s.width || 2) * 0.52) {
+        return EYE_HEIGHT + PATH_LIFT;
+      }
+    }
+    return EYE_HEIGHT;
+  }
 
   const state = {
     studio: null, mode: null, overlay: null, animId: 0, clock: 0, lastFrame: 0,
@@ -46,7 +64,7 @@
     focusId: null, navIndex: 0, mission: null, waypointGroup: null, nearChamber: null,
     reticleChamber: null, bobPhase: 0, viewmodel: null, worldBounds: null,
     dustParticles: null, footPhase: 0,
-    topology: null, easyNav: true, worldColliders: []
+    topology: null, easyNav: true
   };
 
   function esc(s) {
@@ -164,23 +182,6 @@
     return window.__DS_WALK_LAYOUT?.buildWalkTopology?.(graph.chambers, graph.corridors) || null;
   }
 
-  function makeWalkway(THREE, cor) {
-    const VOX = window.__DS_WALK_VOXEL;
-    const ax = cor.from.pos.x, az = cor.from.pos.z;
-    const bx = cor.to.pos.x, bz = cor.to.pos.z;
-    const g = new THREE.Group();
-    if (VOX) {
-      const wool = VOX.woolMat(THREE, cor.media);
-      const pts = VOX.sampleSegment(ax, az, bx, bz, 1.1).filter((_, i) => i % 3 === 1);
-      pts.forEach(p => {
-        const block = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.12, 0.92), wool);
-        block.position.set(p.x, 0.08, p.z);
-        g.add(block);
-      });
-    }
-    g.userData = { corridor: cor, walkway: true };
-    return g;
-  }
 
   function addVoxelEnvironment(THREE, scene, bright = true) {
     scene.add(new THREE.AmbientLight(0xffffff, bright ? 0.72 : 0.45));
@@ -192,12 +193,12 @@
     scene.add(fill);
   }
 
-  function setupVoxelWorld(THREE, scene, bounds, graph) {
+  function setupDiagramWorld(THREE, scene, bounds, graph) {
     const VOX = window.__DS_WALK_VOXEL;
     if (!VOX || !bounds) return;
     const sky = VOX.setBlockSky(THREE, scene);
     state.disposables.push(sky);
-    VOX.addVoxelWorld(THREE, scene, bounds, graph, state.disposables, state.worldColliders);
+    VOX.addDiagramWorld(THREE, scene, bounds, graph, state.disposables);
   }
 
   function setupAvatar(THREE, scene) {
@@ -419,7 +420,7 @@
     g.position.set(ch.pos.x, 0, ch.pos.z);
     g.rotation.y = podFaceYaw(ch);
     state.devicePods.push(g);
-    state.colliders.push({ x: ch.pos.x, z: ch.pos.z, r: 1.85 * scale, id: ch.id, kind: "pod" });
+    state.colliders.push({ x: ch.pos.x, z: ch.pos.z, r: 0.55 * scale, id: ch.id, kind: "pod" });
     return g;
   }
 
@@ -439,10 +440,10 @@
     const dx = bx - ax, dz = bz - az;
     const len = Math.hypot(dx, dz) || 0.1;
     const g = new THREE.Group();
-    const y = 0.07;
+    const y = 0.14;
 
     const tray = new THREE.Mesh(
-      new THREE.BoxGeometry(len, 0.05, 0.55),
+      new THREE.BoxGeometry(len, 0.03, 0.35),
       new THREE.MeshStandardMaterial({
         color: 0x0c1828, emissive: cor.color, emissiveIntensity: 0.35,
         metalness: 0.65, roughness: 0.35
@@ -725,7 +726,6 @@
     state.devicePods = [];
     state.cables = [];
     state.colliders = [];
-    state.worldColliders = [];
 
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
@@ -742,7 +742,7 @@
       minZ: Math.min(...graph.chambers.map(c => c.pos.z)) - 8,
       maxZ: Math.max(...graph.chambers.map(c => c.pos.z)) + 8
     };
-    setupVoxelWorld(THREE, scene, state.bounds, graph);
+    setupDiagramWorld(THREE, scene, state.bounds, graph);
 
     const camera = new THREE.PerspectiveCamera(76, 1, 0.1, 220);
     camera.rotation.order = "YXZ";
@@ -753,10 +753,7 @@
     state.raycaster = new THREE.Raycaster();
 
     state.topology = buildTopology(graph);
-    graph.corridors.forEach(cor => {
-      scene.add(makeCableRun(THREE, cor));
-      scene.add(makeWalkway(THREE, cor));
-    });
+    graph.corridors.forEach(cor => scene.add(makeCableRun(THREE, cor)));
 
     const spawn = graph.chambers.find(c => /switch|9200|9300/i.test(c.label)) || graph.chambers[0];
     state.chambers = graph.chambers;
@@ -808,18 +805,19 @@
   function chamberStandPos(ch) {
     const p = chamberWorldPos(ch);
     const pad = state.topology?.pads?.find(pad => pad.id === ch.id);
-    const standDist = Math.min(pad?.r ? pad.r * 0.72 : 2.6, 3.2);
+    const standDist = Math.min(pad?.r ? pad.r * 0.95 : 3.2, 3.6);
     const dir = chamberApproachDir(ch);
     const stand = {
       x: p.x + dir.dx * standDist,
-      y: EYE_HEIGHT,
-      z: p.z + dir.dz * standDist
+      z: p.z + dir.dz * standDist,
+      y: EYE_HEIGHT
     };
     if (state.topology?.isWalkable) {
       const snap = snapToWalkable(stand.x, stand.z);
       stand.x = snap.x;
       stand.z = snap.z;
     }
+    stand.y = surfaceEyeY(stand.x, stand.z);
     return stand;
   }
 
@@ -958,14 +956,9 @@
     if (best) teleportToChamber(best, false);
   }
 
-  function isBlocked(x, z, playerR = 0.42) {
-    const b = state.bounds;
-    if (b) {
-      if (x < b.minX + playerR || x > b.maxX - playerR) return true;
-      if (z < b.minZ + playerR || z > b.maxZ - playerR) return true;
-    }
-    const all = state.colliders.concat(state.worldColliders || []);
-    for (const col of all) {
+  function isBlocked(x, z, playerR = 0.36) {
+    for (const col of state.colliders) {
+      if (col.kind !== "pod") continue;
       const dx = x - col.x, dz = z - col.z;
       if (dx * dx + dz * dz < (col.r + playerR) ** 2) return true;
     }
@@ -973,11 +966,24 @@
   }
 
   function tryMoveCorridor(dx, dz) {
-    const pr = 0.42;
-    const nx = state.pos.x + dx, nz = state.pos.z + dz;
-    if (!isBlocked(nx, nz, pr)) { state.pos.x = nx; state.pos.z = nz; return; }
-    if (!isBlocked(nx, state.pos.z, pr)) state.pos.x = nx;
-    else if (!isBlocked(state.pos.x, nz, pr)) state.pos.z = nz;
+    const pr = 0.36;
+    let nx = state.pos.x + dx, nz = state.pos.z + dz;
+    const b = state.bounds;
+    if (b) {
+      const margin = 1.5;
+      nx = Math.max(b.minX - margin, Math.min(b.maxX + margin, nx));
+      nz = Math.max(b.minZ - margin, Math.min(b.maxZ + margin, nz));
+    }
+    const step = (tx, tz) => {
+      if (isBlocked(tx, tz, pr)) return false;
+      state.pos.x = tx;
+      state.pos.z = tz;
+      if (state.onGround) state.pos.y = surfaceEyeY(tx, tz);
+      return true;
+    };
+    if (step(nx, nz)) return;
+    if (step(nx, state.pos.z)) return;
+    step(state.pos.x, nz);
   }
 
   function flyEase(t) {
@@ -996,7 +1002,7 @@
       const e = flyEase(f.t);
       state.pos.x = fromPt.x + (toPt.x - fromPt.x) * e;
       state.pos.z = fromPt.z + (toPt.z - fromPt.z) * e;
-      state.pos.y = EYE_HEIGHT;
+      state.pos.y = surfaceEyeY(state.pos.x, state.pos.z);
       state.yaw = Math.atan2(toPt.x - state.pos.x, toPt.z - state.pos.z);
       if (f.t >= 1) {
         f.i = idx + 1;
@@ -1038,10 +1044,11 @@
     if (updateFly(dt)) { applyCamera(); return; }
 
     if (!state.fly && !state.trace) {
-      state.vel.y = (state.vel.y ?? 0) - 28 * dt;
+      state.vel.y = (state.vel.y ?? 0) - 30 * dt;
       state.pos.y += state.vel.y * dt;
-      if (state.pos.y <= EYE_HEIGHT) {
-        state.pos.y = EYE_HEIGHT;
+      const ground = surfaceEyeY(state.pos.x, state.pos.z);
+      if (state.pos.y <= ground) {
+        state.pos.y = ground;
         state.vel.y = 0;
         state.onGround = true;
       } else {
@@ -1099,7 +1106,7 @@
       const ax = wps[0].x, az = wps[0].z, bx = wps[1].x, bz = wps[1].z;
       state.pos.x = ax + (bx - ax) * t;
       state.pos.z = az + (bz - az) * t;
-      state.pos.y = EYE_HEIGHT;
+      state.pos.y = surfaceEyeY(state.pos.x, state.pos.z);
       state.yaw = Math.atan2(bx - ax, bz - az);
       state.vel = { x: 0, y: 0, z: 0 };
       if (t >= 1) { setStatus(`Arrived: ${state.trace.label}`); state.trace = null; }
@@ -1572,7 +1579,7 @@
         if (e.code === "Space" && !state.fly && !state.trace) {
           e.preventDefault();
           if (state.onGround) {
-            state.vel.y = 9.2;
+            state.vel.y = 10.5;
             state.onGround = false;
           }
           return;
@@ -1673,7 +1680,6 @@
     state.devicePods = [];
     state.cables = [];
     state.colliders = [];
-    state.worldColliders = [];
     state.bounds = null;
     state.fly = null;
     state.vel = { x: 0, y: 0, z: 0 };

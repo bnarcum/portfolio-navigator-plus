@@ -92,8 +92,8 @@
   /** Walkable pads + link segments aligned to diagram positions (single source of truth). */
   function buildWalkTopology(chambers, corridors, opts = {}) {
     if (!chambers?.length) return null;
-    const padR = opts.padR ?? 3.1;
-    const pathW = opts.pathWidth ?? 2.1;
+    const padR = opts.padR ?? 2.4;
+    const pathW = opts.pathWidth ?? 1.55;
     const cellSize = opts.cellSize ?? 2.15;
 
     const pads = chambers.map(ch => ({
