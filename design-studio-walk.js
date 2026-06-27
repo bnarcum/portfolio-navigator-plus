@@ -198,12 +198,16 @@
       if (grid[r][c] === undefined) grid[r][c] = 1;
       return grid[r][c];
     };
+    const carve = (r, c) => {
+      if (!grid[r]) grid[r] = [];
+      grid[r][c] = 0;
+    };
     const placements = [];
     graph.chambers.forEach((ch, i) => {
       const r = 1 + Math.floor(i / cols) * 4;
       const c = 1 + (i % cols) * 4;
       for (let dr = -1; dr <= 1; dr++)
-        for (let dc = -1; dc <= 1; dc++) cell(r + dr, c + dc) = 0;
+        for (let dc = -1; dc <= 1; dc++) carve(r + dr, c + dc);
       placements.push({ chamber: ch, r, c });
     });
     graph.corridors.forEach(cor => {
@@ -211,8 +215,8 @@
       const pb = placements.find(p => p.chamber.id === cor.to.id);
       if (!pa || !pb) return;
       let r = pa.r, c = pa.c;
-      while (r !== pb.r) { r += r < pb.r ? 1 : -1; cell(r, c) = 0; }
-      while (c !== pb.c) { c += c < pb.c ? 1 : -1; cell(r, c) = 0; }
+      while (r !== pb.r) { r += r < pb.r ? 1 : -1; carve(r, c); }
+      while (c !== pb.c) { c += c < pb.c ? 1 : -1; carve(r, c); }
     });
     const maxR = grid.length;
     const maxC = Math.max(...grid.map(row => row?.length || 0), cols * 4 + 2);

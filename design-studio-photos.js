@@ -182,9 +182,10 @@
     if (url) {
       return `<span class="ds-st-photo-wrap"><img class="ds-st-photo" src="${url.replace(/"/g, "&quot;")}" width="${sz}" height="${sz}" alt="" loading="lazy"/></span>`;
     }
-    return window.__DS_STENCILS?.renderSymbolPreview?.(
-      window.__DS_STENCILS.resolveSymbolId(def, stencilId), accent, sz, stencilId, def
-    ) || "▣";
+    const sym = window.__DS_STENCILS?.resolveSymbolId?.(def, stencilId) || "switch";
+    const color = accent || "#02C8FF";
+    return `<svg class="ds-st-icon-svg" viewBox="0 0 80 80" width="${sz}" height="${sz}" aria-hidden="true" style="color:${color}">
+      <use href="#icon-${sym}"/></svg>`;
   }
 
   window.__DS_PHOTOS = {

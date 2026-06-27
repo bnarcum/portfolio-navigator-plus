@@ -257,9 +257,13 @@
   }
 
   function renderSymbolPreview(symbolId, accent, size, stencilId, def) {
-    if (window.__DS_PHOTOS?.renderPreview && stencilId) {
-      const preview = window.__DS_PHOTOS.renderPreview(stencilId, def || getDef(stencilId, "network"), accent, size);
-      if (preview && preview.includes("ds-st-photo")) return preview;
+    const d = def || (stencilId ? getDef(stencilId, "network") : null);
+    if (stencilId && window.__DS_PHOTOS?.resolveUrl) {
+      const url = window.__DS_PHOTOS.resolveUrl(stencilId, d);
+      if (url) {
+        const sz = size || 22;
+        return `<span class="ds-st-photo-wrap"><img class="ds-st-photo" src="${url.replace(/"/g, "&quot;")}" width="${sz}" height="${sz}" alt="" loading="lazy"/></span>`;
+      }
     }
     const sym = symbolId || "switch";
     const color = accent || "#02C8FF";
