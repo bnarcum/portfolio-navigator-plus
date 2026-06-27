@@ -192,10 +192,18 @@
   }
 
   const STORY_CHAPTERS = [
-    { id: "executive", title: "Executive summary", tab: "intent", blurb: "One Cisco vision, opportunity brief, and design rationale with cited CVD/CT guides." },
-    { id: "architecture", title: "Network architecture", tab: "network", blurb: "Validated campus, WAN, or DC topology aligned to Cisco reference designs." },
-    { id: "collaboration", title: "Collaboration spaces", tab: "room", blurb: "Walk every room — displays, codecs, PoE, and Cisco Tested layouts." },
-    { id: "commercial", title: "Commercial readiness", tab: "network", panel: "bom", blurb: "BOM, validation score, PoE budget, and CCW export." }
+    { id: "executive", title: "Executive summary", short: "Executive", tab: "intent",
+      blurb: "The One Cisco vision, opportunity brief, and design rationale with cited CVD / CT guides.",
+      action: "Skim the brief and the validated designs it cites." },
+    { id: "architecture", title: "Network architecture", short: "Network", tab: "network",
+      blurb: "A validated campus, WAN, or data-center topology aligned to Cisco reference designs.",
+      action: "Trace the core → distribution → access path on the canvas." },
+    { id: "collaboration", title: "Collaboration spaces", short: "Rooms", tab: "room",
+      blurb: "Every meeting space — displays, codecs, PoE, and Cisco Tested room layouts.",
+      action: "Open a room and walk it in 3D to see how devices connect." },
+    { id: "commercial", title: "Commercial readiness", short: "Commercial", tab: "network", panel: "bom",
+      blurb: "Bill of materials, validation score, PoE budget, and one-click CCW export.",
+      action: "Check the validation score, then export the BOM to CCW." }
   ];
 
   function storyBarHost() {
@@ -225,22 +233,26 @@
       const cls = done ? " done" : active ? " active" : "";
       return `<button type="button" class="ds-story-step${cls}" data-chapter="${i}" title="${esc(c.title)}" aria-current="${active ? "step" : "false"}">
         <span class="ds-story-dot">${done ? "✓" : i + 1}</span>
-        <span class="ds-story-step-label">${esc(c.title.split(" ")[0])}</span>
+        <span class="ds-story-step-label">${esc(c.short || c.title)}</span>
       </button>`;
     }).join("");
     host.innerHTML = `<div id="ds-story-bar" role="navigation" aria-label="Story mode">
-      <div class="ds-story-top">
-        <span class="ds-story-label">Story mode</span>
-        <span class="ds-story-title">${esc(ch.title)}</span>
-        <span class="ds-story-count">${studio.storyChapter + 1} of ${STORY_CHAPTERS.length}</span>
-        <button type="button" class="ds-story-exit">Exit</button>
+      <div class="ds-story-rail">
+        <span class="ds-story-label">Story</span>
+        <div class="ds-story-steps">${steps}</div>
+        <button type="button" class="ds-story-exit" title="Exit story mode">Exit ✕</button>
       </div>
-      <p class="ds-story-blurb">${esc(ch.blurb)}</p>
-      <div class="ds-story-steps">${steps}</div>
-      <div class="ds-story-nav-row">
-        <button type="button" class="ds-btn ds-story-back"${isFirst ? " disabled" : ""}>← Back</button>
-        <span class="ds-story-hint">Tip: ← → arrow keys also work</span>
-        <button type="button" class="ds-btn primary ds-story-next">${isLast ? "Finish" : "Next step →"}</button>
+      <div class="ds-story-detail">
+        <div class="ds-story-copy">
+          <strong class="ds-story-title">${esc(ch.title)}</strong>
+          <span class="ds-story-blurb">${esc(ch.blurb)}</span>
+          ${ch.action ? `<span class="ds-story-action"><b>Do this</b>${esc(ch.action)}</span>` : ""}
+        </div>
+        <div class="ds-story-nav">
+          <button type="button" class="ds-btn ds-story-back"${isFirst ? " disabled" : ""}>← Back</button>
+          <span class="ds-story-progress">${studio.storyChapter + 1} / ${STORY_CHAPTERS.length}</span>
+          <button type="button" class="ds-btn primary ds-story-next">${isLast ? "Finish ✓" : "Next →"}</button>
+        </div>
       </div>
     </div>`;
     host.querySelector(".ds-story-exit")?.addEventListener("click", () => exitStory(studio));
