@@ -533,6 +533,16 @@
 /* Network path walkthrough */
 #ds-walk-overlay{position:absolute;inset:0;z-index:20;display:flex!important;flex-direction:column;background:linear-gradient(180deg,#040c18 0%,#081828 100%);min-height:0}
 #ds-walk-overlay[hidden]{display:none!important}
+#ds-walk-overlay.ds-walk-locked .ds-walk-crosshair{opacity:1}
+.ds-walk-stage{flex:1;position:relative;min-height:280px;display:flex;flex-direction:column}
+.ds-walk-crosshair{position:absolute;left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;z-index:4;pointer-events:none;opacity:.35;
+  background:radial-gradient(circle,transparent 40%,rgba(2,200,255,.9) 41%,rgba(2,200,255,.9) 43%,transparent 44%),
+  linear-gradient(rgba(2,200,255,.85),rgba(2,200,255,.85)),linear-gradient(90deg,rgba(2,200,255,.85),rgba(2,200,255,.85));
+  background-size:100% 100%,1px 100%,100% 1px;background-position:center;background-repeat:no-repeat}
+.ds-walk-minimap{position:absolute;bottom:12px;left:12px;z-index:5;border:1px solid rgba(2,200,255,.35);border-radius:6px;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,.45)}
+.ds-walk-focus{margin-top:6px;padding:6px 10px;border-radius:6px;background:rgba(2,200,255,.08);border:1px solid rgba(2,200,255,.25);font-size:10px;color:#e8f4ff;display:flex;gap:8px;align-items:center}
+.ds-walk-focus strong{font-weight:800}
+.ds-walk-focus span{color:#9ec0dc;font-size:9px}
 #ds-toolbar .ds-walk-toolbar{border-color:rgba(0,212,255,.4);color:#7ee8ff}
 #ds-toolbar .ds-walk-toolbar:hover{background:rgba(0,212,255,.12)}
 .ds-walk-status.ds-walk-error{color:#ff8888}
@@ -546,7 +556,7 @@
 .ds-walk-btn:hover{background:rgba(2,200,255,.18)}
 .ds-walk-btn.active{background:rgba(2,200,255,.28);border-color:rgba(2,200,255,.55)}
 .ds-walk-status{font-size:10px;color:var(--muted);margin-top:6px}
-.ds-walk-canvas-wrap{flex:1;position:relative;min-height:280px;height:0}
+.ds-walk-canvas-wrap{flex:1;position:relative;min-height:0;height:auto}
 #ds-walk-canvas{width:100%;height:100%;display:block;cursor:crosshair;background:#040c18}
 .ds-room-view-toggle .ds-view-btn[data-view="walk"],
 .ds-room-view-toggle .ds-view-btn[data-view="retro"]{border-color:rgba(0,212,255,.35);color:#7ee8ff}

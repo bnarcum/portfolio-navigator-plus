@@ -77,28 +77,42 @@ try {
   // Walk toolbar
   await page.click("#ds-walk-retro");
   await page.waitForTimeout(800);
-  const retro = await page.evaluate(() => ({
-    overlayHidden: document.getElementById("ds-walk-overlay")?.hidden,
-    walkOpen: window.__DS_WALK?.isOpen?.(),
-    status: document.getElementById("ds-walk-status")?.textContent || "",
-    canvasW: document.getElementById("ds-walk-canvas")?.width || 0
-  }));
+  const retro = await page.evaluate(() => {
+    const stats = window.__DS_WALK?.debugStats?.() || {};
+    return {
+      overlayHidden: document.getElementById("ds-walk-overlay")?.hidden,
+      walkOpen: window.__DS_WALK?.isOpen?.(),
+      status: document.getElementById("ds-walk-status")?.textContent || "",
+      canvasW: document.getElementById("ds-walk-canvas")?.width || 0,
+      pods: stats.pods || 0,
+      minimap: !document.getElementById("ds-walk-minimap")?.hidden
+    };
+  });
   if (retro.overlayHidden !== false) errors.push("retro overlay still hidden after click");
   if (!retro.walkOpen) errors.push(`retro walk not open; status="${retro.status}"`);
   if (retro.canvasW < 100) errors.push(`retro canvas width ${retro.canvasW}`);
+  if (retro.pods < 3) errors.push(`expected device pods in retro, got ${retro.pods}`);
+  if (!retro.minimap) errors.push("retro minimap not visible");
 
   await page.evaluate(() => window.__DS_WALK?.close?.());
   await page.waitForTimeout(200);
 
   await page.click("#ds-walk-corridor");
   await page.waitForTimeout(1200);
-  const corridor = await page.evaluate(() => ({
-    walkOpen: window.__DS_WALK?.isOpen?.(),
-    status: document.getElementById("ds-walk-status")?.textContent || "",
-    hasError: document.getElementById("ds-walk-status")?.classList.contains("ds-walk-error")
-  }));
+  const corridor = await page.evaluate(() => {
+    const stats = window.__DS_WALK?.debugStats?.() || {};
+    return {
+      walkOpen: window.__DS_WALK?.isOpen?.(),
+      status: document.getElementById("ds-walk-status")?.textContent || "",
+      hasError: document.getElementById("ds-walk-status")?.classList.contains("ds-walk-error"),
+      pods: stats.pods || 0,
+      hasRenderer: !!stats.hasRenderer
+    };
+  });
   if (!corridor.walkOpen) errors.push(`corridor walk not open; status="${corridor.status}"`);
   if (corridor.hasError) errors.push(`corridor error status: ${corridor.status}`);
+  if (corridor.pods < 3) errors.push(`expected device pods in corridor, got ${corridor.pods}`);
+  if (!corridor.hasRenderer) errors.push("corridor missing WebGL renderer");
 
   if (errors.length) {
     console.error("FAIL\n" + errors.map(e => `  - ${e}`).join("\n"));
