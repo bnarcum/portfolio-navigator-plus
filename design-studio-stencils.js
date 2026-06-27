@@ -32,6 +32,12 @@
     spine: "#6080FF", leaf: "#6080FF", cloud: "#02C8FF", "collab-switch": "#FF9000"
   };
 
+  const ROOM_SHAPE_ACCENT = {
+    codec: "#0A60FF", display: "#02C8FF", camera: "#1E8CFF",
+    mic: "#2dce5c", touch: "#A855F7", switch: "#FF9000",
+    rack: "#6B7A90", table: "#6B7A90"
+  };
+
   const FURNITURE_SVG = {
     rack: `<rect class="ds-node-chassis" x="22" y="2" width="56" height="52" rx="4" fill="#0a1525" stroke="#506080" stroke-width="1.5"/>
       <rect x="26" y="6" width="48" height="10" rx="2" fill="#12243a" stroke="#304860"/>
@@ -211,6 +217,8 @@
   }
 
   function resolveAccent(def) {
+    const shape = def?.shape;
+    if (shape && ROOM_SHAPE_ACCENT[shape]) return ROOM_SHAPE_ACCENT[shape];
     return LAYER_ACCENT[def?.layer] || ROLE_ACCENT[def?.role] || "#02C8FF";
   }
 
@@ -247,22 +255,29 @@
     const accent = resolveAccent(def);
     const gid = "dsg-" + String(stencilId || shape).replace(/[^a-z0-9]/gi, "").slice(0, 12);
     const sel = selected ? " ds-node-selected" : "";
+    const isRoomShape = ["codec", "display", "camera", "mic", "touch", "switch"].includes(shape);
 
     return `<g class="ds-device${sel}" transform="scale(${sx},${sy})">
       <defs>
         <linearGradient id="${gid}-bg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#142f52"/>
+          <stop offset="0%" stop-color="${accent}" stop-opacity="${isRoomShape ? "0.22" : "0.12"}"/>
+          <stop offset="42%" stop-color="#142f52"/>
           <stop offset="100%" stop-color="#07182D"/>
+        </linearGradient>
+        <linearGradient id="${gid}-shine" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.08"/>
+          <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
         </linearGradient>
       </defs>
       <rect class="ds-node-chassis" x="1" y="1" width="${VW - 2}" height="${VH - 2}" rx="8"
-        fill="url(#${gid}-bg)" stroke="${accent}" stroke-width="1.25" opacity="0.98"/>
-      <rect x="0" y="9" width="5" height="${VH - 18}" rx="2" fill="${accent}" opacity="0.88"/>
-      <rect x="10" y="${VH - 9}" width="${VW - 20}" height="2.5" rx="1" fill="${accent}" opacity="0.22"/>
-      <g class="ds-node-symbol" style="color:${accent}" transform="translate(${(VW - 36) / 2},5) scale(0.45)">
+        fill="url(#${gid}-bg)" stroke="${accent}" stroke-width="${isRoomShape ? "1.5" : "1.25"}" opacity="0.98"/>
+      <rect x="1" y="1" width="${VW - 2}" height="${VH - 2}" rx="8" fill="url(#${gid}-shine)" pointer-events="none"/>
+      <rect x="0" y="9" width="5" height="${VH - 18}" rx="2" fill="${accent}" opacity="0.92"/>
+      <rect x="10" y="${VH - 9}" width="${VW - 20}" height="2.5" rx="1" fill="${accent}" opacity="0.28"/>
+      <g class="ds-node-symbol" style="color:${accent}" transform="translate(${(VW - 40) / 2},4) scale(${isRoomShape ? "0.48" : "0.45"})">
         <use href="#icon-${sym}" width="80" height="80"/>
       </g>
-      ${selected ? `<rect x="0.5" y="0.5" width="${VW - 1}" height="${VH - 1}" rx="9" fill="none" stroke="${accent}" stroke-width="1.75" opacity="0.55"/>` : ""}
+      ${selected ? `<rect x="0.5" y="0.5" width="${VW - 1}" height="${VH - 1}" rx="9" fill="none" stroke="${accent}" stroke-width="1.75" opacity="0.6"/>` : ""}
     </g>`;
   }
 

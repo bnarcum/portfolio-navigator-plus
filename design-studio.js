@@ -23,13 +23,14 @@
   const LAYER_COL_W = 132;
   const LAYER_START_Y = 100;
   const LAYER_ROW_H = 104;
-  const ROOM_LAYOUT_OX = 120;
-  const ROOM_LAYOUT_OY = 108;
-  const ROOM_ZONE_GAP = 56;
-  const ROOM_ZONE_MIN_H = 112;
-  const ROOM_ZONE_PAD = 28;
-  const ROOM_ITEM_GAP = 36;
-  const ROOM_ROW_GAP = 32;
+  const ROOM_LAYOUT_OX = 100;
+  const ROOM_LAYOUT_OY = 132;
+  const ROOM_ZONE_GAP = 20;
+  const ROOM_ZONE_MIN_H = 84;
+  const ROOM_ZONE_PAD = 18;
+  const ROOM_ITEM_GAP = 28;
+  const ROOM_ROW_GAP = 22;
+  const ROOM_ZONE_TYPE = { display: "video", ceiling: "audio", table: "furniture", rack: "network" };
   /** @deprecated kept for minimap compat */
   const LAYER_Y = { wan: 40, security: 120, core: 200, distribution: 300, access: 400, mgmt: 500, collab: 580, dc: 260 };
 
@@ -258,6 +259,17 @@
     return String(label).replace(/^Room \d+\s+/, "");
   }
 
+  function roomPillLabel(room, idx) {
+    const tpl = TPL()?.ROOM_TEMPLATES?.[room.template];
+    const typeMap = {
+      huddle: "Huddle", conference: "Conf", boardroom: "Board", training: "Train",
+      executive: "Exec", teamsRoom: "Teams", zoomRoom: "Zoom", ctMediumDualDisplay: "Dual",
+      ctSmallCollab: "Small", divisible: "Div"
+    };
+    const short = typeMap[room.template] || (tpl?.category || "Room").slice(0, 5);
+    return `${idx} ${short}`;
+  }
+
   function linkRoute(ax, ay, bx, by, offset) {
     const dx = bx - ax, dy = by - ay;
     if (Math.abs(dx) >= Math.abs(dy)) {
@@ -302,7 +314,7 @@
 
   function layoutZoneEntries(zone, entries, baseX, baseY, snapGrid) {
     const pad = ROOM_ZONE_PAD;
-    const labelHead = 22;
+    const labelHead = 14;
     if (!entries.length) return;
     const innerW = Math.max(zone.w - pad * 2, 96);
     const innerH = Math.max(zone.h - pad * 2 - labelHead, 64);
@@ -356,7 +368,7 @@
         layoutZoneEntries(zone, entries, baseX, baseY, false);
         const bottoms = entries.map(e => {
           const def = STN()?.getDef?.(e.n.stencilId, "room");
-          return e.n.y + (e.n.h || def?.h || 46);
+          return e.n.y + (e.n.h || def?.h || 46) + 18;
         });
         const rights = entries.map(e => {
           const def = STN()?.getDef?.(e.n.stencilId, "room");
@@ -592,9 +604,7 @@
       $("ds-undo").onclick = () => this.history.undo();
       $("ds-redo").onclick = () => this.history.redo();
       $("ds-room-picker").onchange = e => {
-        this.activeRoomId = e.target.value || null;
-        this.design.activeRoomId = this.activeRoomId;
-        this.fitView(); this.renderCanvas();
+        this.switchToRoom(e.target.value || null);
       };
       $("ds-link-mode").onclick = () => this.toggleLinkMode();
       $("ds-ports").onclick = () => { this.showPorts = !this.showPorts; $("ds-ports").classList.toggle("active", this.showPorts); $("ds-ports").textContent = "Ports: " + (this.showPorts ? "on" : "off"); this.renderCanvas(); };
@@ -793,16 +803,23 @@
       this.toast("Added " + tpl.name);
     }
 
+    switchToRoom(roomId) {
+      if (!roomId || roomId === this.activeRoomId) return;
+      this.activeRoomId = roomId;
+      this.design.activeRoomId = roomId;
+      this.updateRoomPicker();
+      this.renderRoomGuide();
+      this.fitView();
+      this.renderCanvas();
+      this.renderInspector();
+    }
+
     cycleRoom(dir) {
       const rooms = this.design.rooms;
       if (!rooms.length) return;
       const idx = Math.max(0, rooms.findIndex(r => r.id === this.activeRoomId));
       const next = rooms[(idx + dir + rooms.length) % rooms.length];
-      this.activeRoomId = next.id;
-      this.design.activeRoomId = next.id;
-      this.updateRoomPicker();
-      this.fitView();
-      this.render();
+      this.switchToRoom(next.id);
     }
 
     togglePresentation() {
@@ -891,10 +908,28 @@
       const citeLabel = tpl.ct || "Cisco hybrid work design guide";
       const idx = this.design.rooms.findIndex(r => r.id === this.activeRoomId) + 1;
       const total = this.design.rooms.length;
+      const multi = total > 1;
+      const pills = this.design.rooms.map((r, i) => {
+        const active = r.id === this.activeRoomId ? " active" : "";
+        return `<button type="button" class="ds-room-pill${active}" data-room-id="${r.id}" title="${escapeAttr(r.name)}">${escapeHtml(roomPillLabel(r, i + 1))}</button>`;
+      }).join("");
       bar.hidden = false;
-      bar.innerHTML = `<span class="ds-room-guide-title">${escapeHtml(room.name)}</span>
-        <span class="ds-room-guide-meta">${idx} of ${total} · ${escapeHtml(tpl.category || "Room")} · PoE switch feeds endpoints per CT</span>
-        ${cite ? `<a class="ds-room-guide-link" href="${escapeAttr(cite)}" target="_blank" rel="noopener">${escapeHtml(citeLabel)} ↗</a>` : ""}`;
+      bar.innerHTML = `<div class="ds-room-guide-head">
+          <span class="ds-room-badge" aria-live="polite">Room ${idx} of ${total}</span>
+          <span class="ds-room-guide-title">${escapeHtml(room.name)}</span>
+          <span class="ds-room-guide-meta">${escapeHtml(tpl.category || "Room")} · PoE switch feeds endpoints per CT</span>
+          ${cite ? `<a class="ds-room-guide-link" href="${escapeAttr(cite)}" target="_blank" rel="noopener">${escapeHtml(citeLabel)} ↗</a>` : ""}
+        </div>
+        ${multi ? `<div id="ds-room-nav" class="ds-room-nav" role="navigation" aria-label="Room navigator">
+          <button type="button" class="ds-room-nav-btn ds-room-nav-prev" title="Previous room">‹</button>
+          <div class="ds-room-nav-strip">${pills}</div>
+          <button type="button" class="ds-room-nav-btn ds-room-nav-next" title="Next room">›</button>
+        </div>` : ""}`;
+      bar.querySelector(".ds-room-nav-prev")?.addEventListener("click", () => this.cycleRoom(-1));
+      bar.querySelector(".ds-room-nav-next")?.addEventListener("click", () => this.cycleRoom(1));
+      bar.querySelectorAll(".ds-room-pill").forEach(btn => {
+        btn.addEventListener("click", () => this.switchToRoom(btn.dataset.roomId));
+      });
     }
 
     updateRoomPicker() {
@@ -1227,10 +1262,11 @@ Account: ${this.design.account}`;
         const zones = room.computedZones || tpl.zones;
         Object.entries(zones).forEach(([name, z]) => {
           const label = String(name).replace(/^\w/, c => c.toUpperCase());
-          html += `<g class="ds-zone" data-room="${room.id}" data-zone="${escapeAttr(name)}" transform="translate(${ox + z.x},${oy + z.y})">
+          const ztype = ROOM_ZONE_TYPE[name] || "default";
+          html += `<g class="ds-zone ds-zone-${ztype}" data-room="${room.id}" data-zone="${escapeAttr(name)}" transform="translate(${ox + z.x},${oy + z.y})">
             <rect class="ds-zone-rect" width="${z.w}" height="${z.h}" rx="8"/>
-            <rect class="ds-zone-label-bg" x="6" y="4" width="${Math.min(label.length * 7 + 12, z.w - 8)}" height="16" rx="4"/>
-            <text class="ds-zone-label-text" x="12" y="15">${escapeHtml(label)}</text>
+            <rect class="ds-zone-label-bg" x="6" y="4" width="${Math.min(label.length * 7.5 + 14, z.w - 8)}" height="17" rx="4"/>
+            <text class="ds-zone-label-text" x="12" y="16">${escapeHtml(label)}</text>
           </g>`;
         });
       });
@@ -1433,13 +1469,21 @@ Account: ${this.design.account}`;
         const showLayer = n.layer && this.tab === "network" && !showBands;
         const isHub = mode === "room" && /switch|9200|9300|collab/i.test(n.stencilId || "");
         const isDeco = def?.decorative;
-        return `<g class="ds-node${sel}${isHub ? " ds-hub" : ""}${isDeco ? " ds-deco" : ""}" data-node="${n.id}" transform="translate(${n.x},${n.y})">
+        const isRoom = mode === "room";
+        const lblText = (dispLabel || "").slice(0, 24) + qty;
+        const lblW = Math.max(w, Math.min(lblText.length * 6.2 + 12, 148));
+        const lblX = (w - lblW) / 2;
+        const roomLbl = isRoom
+          ? `<rect class="ds-node-label-bg ds-node-label-bg-below" x="${lblX}" y="${h + 3}" width="${lblW}" height="15" rx="3"/>
+             <text class="ds-node-label ds-node-label-below" x="${w / 2}" y="${h + 14}" text-anchor="middle">${escapeHtml(lblText)}</text>`
+          : `<rect class="ds-node-label-bg" x="2" y="${h - 18}" width="${w - 4}" height="14" rx="3"/>
+             <text class="ds-node-label" x="${w / 2}" y="${h - 7}" text-anchor="middle">${escapeHtml(lblText)}</text>`;
+        return `<g class="ds-node${sel}${isHub ? " ds-hub" : ""}${isDeco ? " ds-deco" : ""}${isRoom ? " ds-room-node" : ""}" data-node="${n.id}" transform="translate(${n.x},${n.y})">
           <title>${escapeHtml(title)}</title>
           ${isHub ? `<rect class="ds-node-hub-ring" x="-4" y="-4" width="${w + 8}" height="${h + 8}" rx="10"/>` : ""}
           ${svgInner}
           <rect class="ds-node-hit" width="${w}" height="${h}" rx="6" fill="transparent"/>
-          <rect class="ds-node-label-bg" x="2" y="${h - 18}" width="${w - 4}" height="14" rx="3"/>
-          <text class="ds-node-label" x="${w / 2}" y="${h - 7}" text-anchor="middle">${escapeHtml((dispLabel || "").slice(0, 22) + qty)}</text>
+          ${roomLbl}
           ${showLayer ? `<text class="ds-node-layer" x="4" y="11">${escapeHtml(LAYER_LABELS[n.layer]?.slice(0, 12) || n.layer)}</text>` : ""}
           <g class="ds-ports">${ports}</g>
         </g>`;
@@ -1679,7 +1723,7 @@ Account: ${this.design.account}`;
           });
         }
       }
-      const pad = this.tab === "room" ? 48 : 80;
+      const pad = this.tab === "room" ? 56 : 80;
       const w = Math.max(...xs) - Math.min(...xs) + pad * 2;
       const h = Math.max(...ys) - Math.min(...ys) + pad * 2;
       const maxZoom = this.tab === "room" ? 1.05 : 1.1;

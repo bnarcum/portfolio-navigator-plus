@@ -495,12 +495,12 @@
       category: "Small",
       ct: "Traditional Huddle Room Design Guide",
       ctUrl: "https://www.cisco.com/c/dam/en/us/solutions/collateral/hybrid-work/webex-nyc-design-guide-traditional-huddle-room.pdf",
-      w: 640, h: 480,
-      zones: { display: { x: 100, y: 8, w: 440, h: 152 }, table: { x: 100, y: 176, w: 440, h: 132 }, rack: { x: 100, y: 324, w: 440, h: 96 } },
+      w: 520, h: 360,
+      zones: { display: { x: 60, y: 8, w: 400, h: 100 }, table: { x: 60, y: 116, w: 400, h: 100 }, rack: { x: 60, y: 224, w: 400, h: 72 } },
       items: [
-        { stencilId: "room-bar", zone: "display", relX: 0.5, relY: 0.28, label: "Room Bar" },
-        { stencilId: "display-75", zone: "display", relX: 0.5, relY: 0.72, label: "Display" },
-        { stencilId: "conf-table-8", zone: "table", relX: 0.5, relY: 0.55, label: "Table" },
+        { stencilId: "room-bar", zone: "display", relX: 0.35, relY: 0.5, label: "Room Bar" },
+        { stencilId: "display-75", zone: "display", relX: 0.72, relY: 0.5, label: "Display" },
+        { stencilId: "conf-table-8", zone: "table", relX: 0.5, relY: 0.5, label: "Table" },
         { stencilId: "c9200-collab", zone: "rack", relX: 0.5, relY: 0.5, label: "PoE Switch" }
       ],
       links: [
@@ -513,20 +513,20 @@
       category: "Medium",
       ct: "Medium Collaboration Room — Single Display",
       ctUrl: "https://www.cisco.com/c/dam/en/us/solutions/collateral/hybrid-work/webex-nyc-design-guide-medium-collaboration-room-single-display.pdf",
-      w: 620, h: 500,
+      w: 520, h: 400,
       zones: {
-        display: { x: 140, y: 28, w: 320, h: 140 },
-        ceiling: { x: 80, y: 188, w: 400, h: 48 },
-        table: { x: 80, y: 256, w: 400, h: 168 },
-        rack: { x: 32, y: 440, w: 360, h: 104 }
+        display: { x: 70, y: 8, w: 380, h: 108 },
+        ceiling: { x: 70, y: 124, w: 380, h: 40 },
+        table: { x: 70, y: 172, w: 380, h: 120 },
+        rack: { x: 70, y: 300, w: 380, h: 80 }
       },
       items: [
-        { stencilId: "quad-cam", zone: "display", relX: 0.5, relY: 0.22, label: "Quad Cam" },
-        { stencilId: "display-75", zone: "display", relX: 0.5, relY: 0.72, label: "Primary Display" },
-        { stencilId: "room-kit-eq", zone: "rack", relX: 0.25, relY: 0.42, label: "Room Kit EQ" },
-        { stencilId: "touch-10", zone: "rack", relX: 0.5, relY: 0.42, label: "Touch 10" },
-        { stencilId: "c9200-collab", zone: "rack", relX: 0.75, relY: 0.42, label: "C9200-24P" },
-        { stencilId: "conf-table-12", zone: "table", relX: 0.5, relY: 0.62, label: "Conference Table" },
+        { stencilId: "quad-cam", zone: "display", relX: 0.22, relY: 0.42, label: "Quad Cam" },
+        { stencilId: "display-75", zone: "display", relX: 0.72, relY: 0.5, label: "Primary Display" },
+        { stencilId: "room-kit-eq", zone: "rack", relX: 0.2, relY: 0.45, label: "Room Kit EQ" },
+        { stencilId: "touch-10", zone: "rack", relX: 0.5, relY: 0.45, label: "Touch 10" },
+        { stencilId: "c9200-collab", zone: "rack", relX: 0.8, relY: 0.45, label: "C9200-24P" },
+        { stencilId: "conf-table-12", zone: "table", relX: 0.5, relY: 0.58, label: "Conference Table" },
         { stencilId: "ceiling-mic", zone: "ceiling", relX: 0.32, relY: 0.5, label: "Ceiling Mic L" },
         { stencilId: "ceiling-mic", zone: "ceiling", relX: 0.68, relY: 0.5, label: "Ceiling Mic R" }
       ],
@@ -544,22 +544,22 @@
       category: "Large",
       ct: "Medium Collaboration Room — Video Centric",
       ctUrl: "https://www.cisco.com/c/dam/en/us/solutions/collateral/hybrid-work/webex-nyc-design-guide-medium-collaboration-room-video-centric.pdf",
-      w: 680, h: 520,
+      w: 540, h: 420,
       zones: {
-        display: { x: 140, y: 28, w: 400, h: 140 },
-        table: { x: 60, y: 196, w: 480, h: 200 },
-        rack: { x: 32, y: 420, w: 380, h: 112 }
+        display: { x: 70, y: 8, w: 400, h: 108 },
+        table: { x: 70, y: 124, w: 400, h: 148 },
+        rack: { x: 70, y: 280, w: 400, h: 88 }
       },
       items: [
-        { stencilId: "board-pro", zone: "display", relX: 0.35, relY: 0.62, label: "Board Pro" },
-        { stencilId: "display-86", zone: "display", relX: 0.78, relY: 0.62, label: "Aux Display" },
-        { stencilId: "quad-cam", zone: "display", relX: 0.35, relY: 0.2, label: "Primary Cam" },
-        { stencilId: "touch-10", zone: "rack", relX: 0.35, relY: 0.4, label: "Touch 10" },
-        { stencilId: "c9200-collab", zone: "rack", relX: 0.7, relY: 0.4, label: "C9200-24P" },
-        { stencilId: "conf-table-12", zone: "table", relX: 0.5, relY: 0.55, label: "Board Table" },
-        { stencilId: "ceiling-mic", zone: "table", relX: 0.3, relY: 0.15, label: "Mic-1" },
-        { stencilId: "ceiling-mic", zone: "table", relX: 0.5, relY: 0.1, label: "Mic-2" },
-        { stencilId: "ceiling-mic", zone: "table", relX: 0.7, relY: 0.15, label: "Mic-3" }
+        { stencilId: "board-pro", zone: "display", relX: 0.32, relY: 0.55, label: "Board Pro" },
+        { stencilId: "display-86", zone: "display", relX: 0.78, relY: 0.55, label: "Aux Display" },
+        { stencilId: "quad-cam", zone: "display", relX: 0.32, relY: 0.18, label: "Primary Cam" },
+        { stencilId: "touch-10", zone: "rack", relX: 0.35, relY: 0.42, label: "Touch 10" },
+        { stencilId: "c9200-collab", zone: "rack", relX: 0.72, relY: 0.42, label: "C9200-24P" },
+        { stencilId: "conf-table-12", zone: "table", relX: 0.5, relY: 0.58, label: "Board Table" },
+        { stencilId: "ceiling-mic", zone: "table", relX: 0.28, relY: 0.18, label: "Mic-1" },
+        { stencilId: "ceiling-mic", zone: "table", relX: 0.5, relY: 0.12, label: "Mic-2" },
+        { stencilId: "ceiling-mic", zone: "table", relX: 0.72, relY: 0.18, label: "Mic-3" }
       ],
       links: [
         { fi: 4, ti: 3, media: "cat6", label: "PoE-Touch", fromPort: "Gi1/0/1", toPort: "LAN" },

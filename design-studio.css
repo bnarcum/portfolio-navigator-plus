@@ -74,13 +74,33 @@
 #ds-canvas-wrap.room-mode #ds-toolbar{top:0;left:0;right:0;border-radius:0;border-left:0;border-right:0}
 #ds-canvas-wrap.room-mode #ds-room-guide{top:46px}
 #ds-canvas-wrap.room-mode #ds-svg{margin-top:0}
-#ds-room-guide{position:absolute;top:8px;left:12px;right:12px;z-index:12;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;
-  padding:8px 12px;border-radius:8px;border:1px solid rgba(2,200,255,.22);background:rgba(7,24,45,.88);pointer-events:auto}
+#ds-room-guide{position:absolute;top:8px;left:12px;right:12px;z-index:12;display:flex;flex-direction:column;gap:6px;
+  padding:10px 12px;border-radius:10px;border:1px solid rgba(2,200,255,.28);
+  background:linear-gradient(165deg,rgba(10,30,55,.94),rgba(7,24,45,.92));pointer-events:auto;
+  box-shadow:0 8px 28px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.06)}
 #ds-room-guide[hidden]{display:none!important}
-.ds-room-guide-title{font-size:12px;font-weight:700;color:var(--text)}
-.ds-room-guide-meta{font-size:10px;color:var(--muted)}
-.ds-room-guide-link{font-size:10px;font-weight:600;color:var(--accent);text-decoration:none}
+.ds-room-guide-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+.ds-room-badge{font-size:15px;font-weight:800;color:#02C8FF;letter-spacing:.02em;
+  padding:3px 10px;border-radius:6px;background:rgba(2,200,255,.12);border:1px solid rgba(2,200,255,.35);
+  white-space:nowrap}
+.ds-room-guide-title{font-size:13px;font-weight:700;color:var(--text)}
+.ds-room-guide-meta{font-size:11px;color:#b8c8d8}
+.ds-room-guide-link{font-size:10px;font-weight:600;color:var(--accent);text-decoration:none;margin-left:auto}
 .ds-room-guide-link:hover{text-decoration:underline}
+.ds-room-nav{display:flex;align-items:center;gap:5px;width:100%}
+.ds-room-nav-btn{flex-shrink:0;width:26px;height:26px;padding:0;border-radius:6px;border:1px solid var(--border);
+  background:rgba(7,24,45,.9);color:var(--text);font-size:16px;line-height:1;cursor:pointer;font-weight:700}
+.ds-room-nav-btn:hover{border-color:var(--accent);color:var(--accent)}
+.ds-room-nav-strip{display:flex;gap:4px;overflow-x:auto;flex:1;padding:2px 0;scrollbar-width:thin;
+  -webkit-overflow-scrolling:touch}
+.ds-room-nav-strip::-webkit-scrollbar{height:4px}
+.ds-room-nav-strip::-webkit-scrollbar-thumb{background:rgba(2,200,255,.35);border-radius:2px}
+.ds-room-pill{flex-shrink:0;padding:4px 9px;border-radius:999px;font-size:10px;font-weight:700;
+  border:1px solid rgba(255,255,255,.16);background:rgba(7,24,45,.75);color:#c8d8e8;cursor:pointer;
+  font-family:inherit;transition:border-color .15s,background .15s,color .15s}
+.ds-room-pill:hover{border-color:rgba(2,200,255,.5);color:#e8f4ff}
+.ds-room-pill.active{background:linear-gradient(135deg,#02C8FF,#0A60FF);border-color:transparent;color:#04101f;
+  box-shadow:0 2px 10px rgba(2,200,255,.35)}
 #ds-canvas-wrap.network-mode{
   background-color:#04101f;
   background-image:
@@ -90,18 +110,23 @@
     linear-gradient(90deg, rgba(2,200,255,.035) 1px, transparent 1px);
   background-size:100% 100%,100% 100%,24px 24px,24px 24px}
 #ds-canvas-wrap.room-mode{
-  background-color:#0a1628;
+  background-color:#0c1a2e;
   background-image:
-    radial-gradient(ellipse 60% 50% at 50% 20%, rgba(68,204,136,.07), transparent),
-    linear-gradient(rgba(68,204,136,.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(68,204,136,.03) 1px, transparent 1px);
-  background-size:100% 100%,20px 20px,20px 20px}
+    radial-gradient(ellipse 70% 55% at 50% 12%, rgba(10,96,255,.09), transparent 65%),
+    radial-gradient(ellipse 50% 40% at 85% 90%, rgba(45,206,92,.06), transparent),
+    linear-gradient(rgba(68,204,136,.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(68,204,136,.04) 1px, transparent 1px);
+  background-size:100% 100%,100% 100%,20px 20px,20px 20px}
 #ds-floorplan{position:absolute;inset:0;pointer-events:none;opacity:.35;background-size:contain;background-repeat:no-repeat;background-position:center}
 #ds-room-zones{pointer-events:none}
 .ds-room-title{font-size:13px;font-weight:700;fill:var(--text);opacity:.9;font-family:system-ui,sans-serif}
-.ds-zone-rect{fill:rgba(255,255,255,.03);stroke:rgba(255,255,255,.18);stroke-width:1;stroke-dasharray:5 4}
-.ds-zone-label-bg{fill:rgba(7,24,45,.85);stroke:rgba(255,255,255,.12);stroke-width:.5}
-.ds-zone-label-text{font-size:11px;fill:rgba(255,255,255,.75);font-weight:600;font-family:system-ui,sans-serif}
+.ds-zone-rect{fill:rgba(255,255,255,.03);stroke:rgba(255,255,255,.2);stroke-width:1.25;stroke-dasharray:6 4}
+.ds-zone-video .ds-zone-rect{fill:rgba(10,96,255,.07);stroke:rgba(10,96,255,.42)}
+.ds-zone-audio .ds-zone-rect{fill:rgba(45,206,92,.07);stroke:rgba(45,206,92,.4)}
+.ds-zone-network .ds-zone-rect{fill:rgba(255,144,0,.07);stroke:rgba(255,144,0,.42)}
+.ds-zone-furniture .ds-zone-rect{fill:rgba(255,255,255,.04);stroke:rgba(180,190,205,.28)}
+.ds-zone-label-bg{fill:rgba(7,24,45,.92);stroke:rgba(255,255,255,.14);stroke-width:.75}
+.ds-zone-label-text{font-size:11px;fill:#e8f0f8;font-weight:700;font-family:system-ui,sans-serif;letter-spacing:.03em}
 
 #ds-minimap{position:absolute;bottom:12px;left:12px;width:130px;height:90px;z-index:3;
   background:rgba(7,24,45,.9);border:1px solid var(--border);border-radius:6px;padding:4px;pointer-events:none}
@@ -124,6 +149,10 @@
 #ds-svg .ds-node-hit{stroke:transparent;stroke-width:1.5;fill:transparent}
 #ds-svg .ds-node-label{fill:#e8f4ff;font-size:11px;font-weight:600;pointer-events:none}
 #ds-svg .ds-node-label-bg{fill:rgba(4,16,31,.88);stroke:rgba(255,255,255,.08);stroke-width:.5}
+#ds-svg .ds-node-label-below{fill:#f0f6fc;font-size:10px;font-weight:700}
+#ds-svg .ds-node-label-bg-below{fill:rgba(4,16,31,.94);stroke:rgba(255,255,255,.12);stroke-width:.75}
+#ds-svg .ds-room-node .ds-node-chassis{filter:drop-shadow(0 3px 8px rgba(0,0,0,.4))}
+#ds-svg .ds-room-node.selected .ds-node-chassis{filter:drop-shadow(0 0 12px rgba(2,200,255,.45)) drop-shadow(0 3px 8px rgba(0,0,0,.4))}
 #ds-svg .ds-node-sub{display:none}
 #ds-svg .ds-node-layer{fill:var(--accent);font-size:9px;opacity:.85;pointer-events:none}
 #ds-svg .ds-link-path{fill:none;pointer-events:stroke;opacity:.92}
