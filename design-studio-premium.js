@@ -143,12 +143,24 @@
       bar.querySelector(".ds-room-guide-head")?.appendChild(toggle);
     }
     toggle.innerHTML = `
-      <button type="button" class="ds-view-btn${studio.roomView === "grid" ? "" : " active"}" data-view="diagram">Diagram</button>
+      <button type="button" class="ds-view-btn${studio.roomView === "diagram" ? " active" : ""}" data-view="diagram">Diagram</button>
+      <button type="button" class="ds-view-btn${studio.roomView === "walk" ? " active" : ""}" data-view="walk" title="3D corridor walkthrough">Walk</button>
+      <button type="button" class="ds-view-btn${studio.roomView === "retro" ? " active" : ""}" data-view="retro" title="Doom-style network dungeon">Retro</button>
       <button type="button" class="ds-view-btn${studio.roomView === "grid" ? " active" : ""}" data-view="grid">All ${studio.design.rooms.length} rooms</button>`;
     toggle.querySelectorAll(".ds-view-btn").forEach(b => {
       b.onclick = () => {
-        studio.roomView = b.dataset.view;
-        studio.renderCanvas();
+        const v = b.dataset.view;
+        if (v === "walk") {
+          studio.roomView = "walk";
+          window.__DS_WALK?.open?.(studio, "corridor");
+        } else if (v === "retro") {
+          studio.roomView = "retro";
+          window.__DS_WALK?.open?.(studio, "retro");
+        } else {
+          window.__DS_WALK?.close?.();
+          studio.roomView = v;
+          studio.renderCanvas();
+        }
         renderRoomViewToggle(studio);
         if (studio.roomView === "diagram") requestAnimationFrame(() => studio.fitView());
       };
@@ -174,6 +186,7 @@
     layer.querySelectorAll("[data-room-id]").forEach(btn => {
       btn.onclick = () => {
         studio.roomView = "diagram";
+        window.__DS_WALK?.close?.();
         studio.switchToRoom(btn.dataset.roomId);
         renderPortfolioOverlay(studio);
         renderRoomViewToggle(studio);

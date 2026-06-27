@@ -270,6 +270,63 @@
     return `${idx} ${short}`;
   }
 
+  function roundedOrthoPath(pts, r) {
+    if (!pts || pts.length < 2) return "";
+    let d = `M ${pts[0][0]} ${pts[0][1]}`;
+    for (let i = 1; i < pts.length; i++) {
+      const [x0, y0] = pts[i - 1];
+      const [x1, y1] = pts[i];
+      const [x2, y2] = pts[i + 1] || [x1, y1];
+      if (i === pts.length - 1) {
+        d += ` L ${x1} ${y1}`;
+        continue;
+      }
+      const dx1 = x1 - x0, dy1 = y1 - y0;
+      const dx2 = x2 - x1, dy2 = y2 - y1;
+      const l1 = Math.hypot(dx1, dy1) || 1;
+      const l2 = Math.hypot(dx2, dy2) || 1;
+      const cr = Math.min(r, l1 / 2, l2 / 2);
+      const ex = x1 - (dx1 / l1) * cr;
+      const ey = y1 - (dy1 / l1) * cr;
+      const nx = x1 + (dx2 / l2) * cr;
+      const ny = y1 + (dy2 / l2) * cr;
+      d += ` L ${ex} ${ey} Q ${x1} ${y1} ${nx} ${ny}`;
+    }
+    return d;
+  }
+
+  function getActiveRoomBounds(studio, nodes) {
+    const roomId = studio.activeRoomId || nodes.find(n => n.roomId)?.roomId;
+    if (!roomId) return null;
+    const room = studio.design.rooms.find(r => r.id === roomId);
+    if (!room) return null;
+    const tpl = TPL()?.ROOM_TEMPLATES?.[room.template];
+    const zones = room.computedZones || tpl?.zones;
+    if (!zones) return null;
+    const ox = room.layoutOrigin?.x ?? ROOM_LAYOUT_OX;
+    const oy = room.layoutOrigin?.y ?? ROOM_LAYOUT_OY;
+    let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
+    Object.values(zones).forEach(z => {
+      left = Math.min(left, ox + z.x);
+      right = Math.max(right, ox + z.x + z.w);
+      top = Math.min(top, oy + z.y);
+      bottom = Math.max(bottom, oy + z.y + z.h);
+    });
+    return { left, right, top, bottom, ox, oy };
+  }
+
+  function roomLinkRoute(ax, ay, bx, by, offset, media, bounds) {
+    const isAV = ["hdmi", "usb", "speaker", "control"].includes(media);
+    const margin = 18;
+    const laneX = isAV ? bounds.right + margin + offset : bounds.left - margin + offset;
+    return roundedOrthoPath([[ax, ay], [laneX, ay], [laneX, by], [bx, by]], 10);
+  }
+
+  function linkPathFor(ax, ay, bx, by, offset, media, ctx) {
+    if (ctx?.room && ctx.bounds) return roomLinkRoute(ax, ay, bx, by, offset, media || "cat6", ctx.bounds);
+    return linkRoute(ax, ay, bx, by, offset);
+  }
+
   function linkRoute(ax, ay, bx, by, offset) {
     const dx = bx - ax, dy = by - ay;
     const adx = Math.abs(dx), ady = Math.abs(dy);
@@ -360,16 +417,30 @@
     return `<text class="ds-layer-title" x="${cx}" y="${y - 6}" text-anchor="middle">${tspans}</text>`;
   }
 
-  function computeLinkOffsets(links) {
+  function computeLinkOffsets(links, roomMode) {
     const offsets = new Map();
     const byPair = {};
+    const byFrom = {};
     links.forEach(l => {
       const key = [l.from, l.to].sort().join("|");
       (byPair[key] ||= []).push(l);
+      (byFrom[l.from] ||= []).push(l);
     });
     Object.values(byPair).forEach(bucket => {
-      bucket.forEach((l, i) => offsets.set(l.id, (i - (bucket.length - 1) / 2) * 22));
+      bucket.forEach((l, i) => {
+        offsets.set(l.id, (offsets.get(l.id) || 0) + (i - (bucket.length - 1) / 2) * 14);
+      });
     });
+    if (roomMode) {
+      Object.values(byFrom).forEach(bucket => {
+        bucket.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+        bucket.forEach((l, i) => {
+          const lane = ["hdmi", "usb", "speaker", "control"].includes(l.media) ? 1 : 0;
+          const fan = (i - (bucket.length - 1) / 2) * 11;
+          offsets.set(l.id, (offsets.get(l.id) || 0) + fan + lane * 4);
+        });
+      });
+    }
     return offsets;
   }
 
@@ -594,6 +665,7 @@
               </div>
             </div>
             <div id="ds-canvas-wrap" class="network-mode">
+              <div id="ds-walk-overlay" hidden aria-hidden="true"></div>
               <div id="ds-canvas-vignette" aria-hidden="true"></div>
               <div id="ds-canvas-ambient" aria-hidden="true"></div>
               <div id="ds-stale-banner" class="ds-stale-banner" hidden></div>
@@ -956,6 +1028,8 @@
 
     switchToRoom(roomId) {
       if (!roomId || roomId === this.activeRoomId) return;
+      window.__DS_WALK?.close?.();
+      this.roomView = "diagram";
       this.activeRoomId = roomId;
       this.design.activeRoomId = roomId;
       this.updateRoomPicker();
@@ -1037,6 +1111,7 @@
 
     setTab(tab) {
       this.tab = tab;
+      if (tab !== "room") window.__DS_WALK?.close?.();
       if (tab === "network" || tab === "room") this.design.mode = tab;
       if (tab === "room" && !this.activeRoomId && this.design.rooms.length)
         this.activeRoomId = this.design.rooms[0].id;
@@ -1575,7 +1650,7 @@ Account: ${this.design.account}`;
         if (!g) return;
         const { a, b } = this.linkEndpoints(l);
         const off = (this._linkOffsets && this._linkOffsets.get(l.id)) || 0;
-        const path = linkRoute(a.x, a.y, b.x, b.y, off);
+        const path = linkPathFor(a.x, a.y, b.x, b.y, off, l.media, this._linkCtx);
         const lp = linkLabelPos(a, b, off, this.tab === "room");
         g.querySelector(".ds-link-under")?.setAttribute("d", path);
         g.querySelector(".ds-link-path")?.setAttribute("d", path);
@@ -1599,7 +1674,9 @@ Account: ${this.design.account}`;
       const nodes = this.visibleNodes();
       const nodeIds = new Set(nodes.map(n => n.id));
       const links = this.visibleLinks(nodeIds);
-      this._linkOffsets = computeLinkOffsets(links);
+      const roomMode = this.tab === "room";
+      this._linkCtx = roomMode ? { room: true, bounds: getActiveRoomBounds(this, nodes) } : null;
+      this._linkOffsets = computeLinkOffsets(links, roomMode);
 
       const bandsG = document.getElementById("ds-layer-bands");
       if (this.tab === "network" && this.design.showLayerBands !== false && !this.presentation) {
@@ -1624,7 +1701,7 @@ Account: ${this.design.account}`;
         const isAv = this.tab === "room" && (l.media === "hdmi" || l.media === "usb" || /camera|display|codec|hdmi|usb/i.test(l.label || ""));
         const avHl = this.presentation && isAv ? " av-chain" : "";
         const dim = selNode && !hl && !sel && !avHl ? " dimmed" : "";
-        const path = linkRoute(a.x, a.y, b.x, b.y, off);
+        const path = linkPathFor(a.x, a.y, b.x, b.y, off, l.media, this._linkCtx);
         const lp = linkLabelPos(a, b, off, this.tab === "room");
         const lbl = linkDisplayLabel(links, l);
         const showLbl = lbl && this.shouldShowLinkLabel(links, l.id) && (!this.presentation || this.tab === "room");
