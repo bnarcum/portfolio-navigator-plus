@@ -25,9 +25,9 @@
   const LAYER_ROW_H = 104;
   const ROOM_LAYOUT_OX = 100;
   const ROOM_LAYOUT_OY = 132;
-  const ROOM_ZONE_GAP = 20;
-  const ROOM_ZONE_MIN_H = 84;
-  const ROOM_ZONE_PAD = 18;
+  const ROOM_ZONE_GAP = 10;
+  const ROOM_ZONE_MIN_H = 72;
+  const ROOM_ZONE_PAD = 14;
   const ROOM_ITEM_GAP = 28;
   const ROOM_ROW_GAP = 22;
   const ROOM_ZONE_TYPE = { display: "video", ceiling: "audio", table: "furniture", rack: "network" };

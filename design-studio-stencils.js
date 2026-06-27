@@ -10,10 +10,12 @@
   const SHAPE_TO_SYMBOL = {
     switch: "switch", router: "router", firewall: "shield", ap: "wifi",
     nexus: "fabric", server: "server", codec: "telepresence", display: "monitor",
-    camera: "camera", mic: "headset", touch: "touch", cloud: "cloud", user: "endpoint"
+    camera: "camera", mic: "headset", "ceiling-mic": "ceiling-mic", "table-mic": "table-mic",
+    touch: "touch", cloud: "cloud", user: "endpoint"
   };
 
   const STENCIL_SYMBOL = {
+    "ceiling-mic": "ceiling-mic", "table-mic": "table-mic",
     "cat-center": "gear", vmanage: "globe", "ise-psn": "key", "ise-pan": "key",
     "umbrella-va": "shield-network", "n9k-spine": "fabric", "n9k-leaf": "fabric",
     apic: "cube", "ucs-x": "server", "fpr-2130": "shield", "fpr-1120": "shield",
@@ -34,7 +36,8 @@
 
   const ROOM_SHAPE_ACCENT = {
     codec: "#0A60FF", display: "#02C8FF", camera: "#1E8CFF",
-    mic: "#2dce5c", touch: "#A855F7", switch: "#FF9000",
+    mic: "#2dce5c", "ceiling-mic": "#3dd68c", "table-mic": "#5ce0a0",
+    touch: "#A855F7", switch: "#FF9000",
     rack: "#6B7A90", table: "#6B7A90"
   };
 
@@ -155,8 +158,8 @@
     "board-pro": { label: "Board Pro 75", pid: "CS-BRD-75-K9", shape: "display", ports: "display-hdmi", w: 104, h: 60, poeW: 0 },
     "desk-pro": { label: "Desk Pro", pid: "CS-DESKPRO-K9", shape: "codec", ports: "codec-av", w: 76, h: 48, poeW: 30 },
     "quad-cam": { label: "Quad Camera", pid: "CS-QUADCAM-K9", shape: "camera", ports: "cam-hdmi", w: 56, h: 52 },
-    "ceiling-mic": { label: "Ceiling Mic Pro", pid: "CS-MIC-CLG-P", shape: "mic", ports: "mic-poe", w: 72, h: 40, poeW: 15 },
-    "table-mic": { label: "Table Mic Pro", pid: "CS-MIC-TBL-P", shape: "mic", ports: "mic-poe", w: 68, h: 36, poeW: 10 },
+    "ceiling-mic": { label: "Ceiling Mic Pro", pid: "CS-MIC-CLG-P", shape: "ceiling-mic", ports: "mic-poe", w: 56, h: 38, poeW: 15 },
+    "table-mic": { label: "Table Mic Pro", pid: "CS-MIC-TBL-P", shape: "table-mic", ports: "mic-poe", w: 52, h: 42, poeW: 10 },
     "touch-10": { label: "Touch 10", pid: "CS-TOUCH10-K9", shape: "touch", ports: "touch-lan", w: 64, h: 48, poeW: 12 },
     "room-navigator": { label: "Room Navigator", pid: "CS-NAV-T-K9", shape: "touch", ports: "touch-lan", w: 64, h: 48, poeW: 12 },
     "display-75": { label: "Display 75\"", pid: "DISPLAY-75-4K", shape: "display", ports: "display-hdmi", w: 100, h: 58, ccwEligible: false, decorative: true },
@@ -255,7 +258,8 @@
     const accent = resolveAccent(def);
     const gid = "dsg-" + String(stencilId || shape).replace(/[^a-z0-9]/gi, "").slice(0, 12);
     const sel = selected ? " ds-node-selected" : "";
-    const isRoomShape = ["codec", "display", "camera", "mic", "touch", "switch"].includes(shape);
+    const isRoomShape = ["codec", "display", "camera", "mic", "ceiling-mic", "table-mic", "touch", "switch"].includes(shape);
+    const isCeilingMic = shape === "ceiling-mic";
 
     return `<g class="ds-device${sel}" transform="scale(${sx},${sy})">
       <defs>
@@ -269,15 +273,19 @@
           <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
         </linearGradient>
       </defs>
-      <rect class="ds-node-chassis" x="1" y="1" width="${VW - 2}" height="${VH - 2}" rx="8"
+      <${isCeilingMic ? "ellipse" : "rect"} class="ds-node-chassis" ${isCeilingMic
+        ? `cx="50" cy="28" rx="46" ry="24"`
+        : `x="1" y="1" width="${VW - 2}" height="${VH - 2}" rx="8"`}
         fill="url(#${gid}-bg)" stroke="${accent}" stroke-width="${isRoomShape ? "1.5" : "1.25"}" opacity="0.98"/>
-      <rect x="1" y="1" width="${VW - 2}" height="${VH - 2}" rx="8" fill="url(#${gid}-shine)" pointer-events="none"/>
-      <rect x="0" y="9" width="5" height="${VH - 18}" rx="2" fill="${accent}" opacity="0.92"/>
+      ${isCeilingMic ? "" : `<rect x="1" y="1" width="${VW - 2}" height="${VH - 2}" rx="8" fill="url(#${gid}-shine)" pointer-events="none"/>
+      <rect x="0" y="9" width="5" height="${VH - 18}" rx="2" fill="${accent}" opacity="0.92"/>`}
       <rect x="10" y="${VH - 9}" width="${VW - 20}" height="2.5" rx="1" fill="${accent}" opacity="0.28"/>
-      <g class="ds-node-symbol" style="color:${accent}" transform="translate(${(VW - 40) / 2},4) scale(${isRoomShape ? "0.48" : "0.45"})">
+      <g class="ds-node-symbol" style="color:${accent}" transform="translate(${(VW - 40) / 2},${isCeilingMic ? "0" : "4"}) scale(${isCeilingMic ? "0.44" : isRoomShape ? "0.48" : "0.45"})">
         <use href="#icon-${sym}" width="80" height="80"/>
       </g>
-      ${selected ? `<rect x="0.5" y="0.5" width="${VW - 1}" height="${VH - 1}" rx="9" fill="none" stroke="${accent}" stroke-width="1.75" opacity="0.6"/>` : ""}
+      ${selected ? (isCeilingMic
+        ? `<ellipse cx="50" cy="28" rx="47" ry="25" fill="none" stroke="${accent}" stroke-width="1.75" opacity="0.6"/>`
+        : `<rect x="0.5" y="0.5" width="${VW - 1}" height="${VH - 1}" rx="9" fill="none" stroke="${accent}" stroke-width="1.75" opacity="0.6"/>`) : ""}
     </g>`;
   }
 
