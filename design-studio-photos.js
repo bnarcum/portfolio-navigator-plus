@@ -89,11 +89,9 @@
     return null;
   }
 
-  function photoBlendMode(url) {
-    if (!url) return "normal";
-    if (/family-heroes\//i.test(url)) return "normal";
-    return "darken";
-  }
+
+  const PHOTO_PLATE = "#f0f4f8";
+  const PHOTO_PLATE_EDGE = "rgba(15,23,42,0.12)";
 
   function renderDeviceSvg(def, w, h, selected, stencilId, photoUrl) {
     const shape = def?.shape || "switch";
@@ -108,21 +106,25 @@
     const sel = selected ? " ds-node-selected" : "";
     const isCeilingMic = shape === "ceiling-mic";
     const isRound = isCeilingMic;
-    const imgPad = isRound ? 8 : 4;
+    const platePad = isRound ? 6 : 3;
+    const imgPad = isRound ? 8 : 5;
     const imgX = imgPad;
-    const imgY = isRound ? 4 : 2;
+    const imgY = isRound ? 4 : 3;
     const imgW = VW - imgPad * 2;
-    const imgH = isRound ? 48 : VH - 4;
-    const blend = photoBlendMode(photoUrl);
+    const imgH = isRound ? 48 : VH - 6;
+
+    const plate = isRound
+      ? `<ellipse class="ds-photo-plate" cx="50" cy="28" rx="${46 - platePad}" ry="${24 - platePad}" fill="${PHOTO_PLATE}" stroke="${PHOTO_PLATE_EDGE}" stroke-width="0.75"/>`
+      : `<rect class="ds-photo-plate" x="${1 + platePad}" y="${1 + platePad}" width="${VW - 2 - platePad * 2}" height="${VH - 2 - platePad * 2}" rx="6" fill="${PHOTO_PLATE}" stroke="${PHOTO_PLATE_EDGE}" stroke-width="0.75"/>`;
 
     const chassis = isRound
-      ? `<ellipse class="ds-photo-frame" cx="50" cy="28" rx="46" ry="24" fill="rgba(4,16,31,0.25)" stroke="${accent}" stroke-width="1.25"/>`
-      : `<rect class="ds-photo-frame" x="1" y="1" width="${VW - 2}" height="${VH - 2}" rx="8" fill="rgba(4,16,31,0.2)" stroke="${accent}" stroke-width="1.15"/>
+      ? `<ellipse class="ds-photo-frame" cx="50" cy="28" rx="46" ry="24" fill="none" stroke="${accent}" stroke-width="1.25"/>`
+      : `<rect class="ds-photo-frame" x="1" y="1" width="${VW - 2}" height="${VH - 2}" rx="8" fill="none" stroke="${accent}" stroke-width="1.15"/>
          <rect x="0" y="9" width="4" height="${VH - 18}" rx="2" fill="${accent}" opacity="0.85"/>`;
 
     const clip = isRound
-      ? `<clipPath id="${gid}-clip"><ellipse cx="50" cy="28" rx="44" ry="22"/></clipPath>`
-      : `<clipPath id="${gid}-clip"><rect x="2" y="2" width="${VW - 4}" height="${VH - 4}" rx="7"/></clipPath>`;
+      ? `<clipPath id="${gid}-clip"><ellipse cx="50" cy="28" rx="42" ry="20"/></clipPath>`
+      : `<clipPath id="${gid}-clip"><rect x="${imgPad - 1}" y="${imgPad - 1}" width="${imgW + 2}" height="${imgH + 2}" rx="5"/></clipPath>`;
 
     const selRing = selected
       ? (isRound
@@ -132,11 +134,11 @@
 
     return `<g class="ds-device ds-device-photo${sel}" transform="${xform}">
       <defs>${clip}</defs>
+      ${plate}
       ${chassis}
       <image class="ds-photo-img" href="${photoUrl}" xlink:href="${photoUrl}"
         x="${imgX}" y="${imgY}" width="${imgW}" height="${imgH}"
-        clip-path="url(#${gid}-clip)" preserveAspectRatio="xMidYMid meet"
-        style="mix-blend-mode:${blend}"/>
+        clip-path="url(#${gid}-clip)" preserveAspectRatio="xMidYMid meet"/>
       ${selRing}
     </g>`;
   }
@@ -145,8 +147,7 @@
     const url = resolveUrl(stencilId, def);
     const sz = size || 22;
     if (url) {
-      const blend = photoBlendMode(url);
-      return `<img class="ds-st-photo" src="${url.replace(/"/g, "&quot;")}" width="${sz}" height="${sz}" alt="" loading="lazy" style="mix-blend-mode:${blend}"/>`;
+      return `<span class="ds-st-photo-wrap"><img class="ds-st-photo" src="${url.replace(/"/g, "&quot;")}" width="${sz}" height="${sz}" alt="" loading="lazy"/></span>`;
     }
     return window.__DS_STENCILS?.renderSymbolPreview?.(
       window.__DS_STENCILS.resolveSymbolId(def, stencilId),

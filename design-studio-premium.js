@@ -50,25 +50,25 @@
 
   function renderStaleBanner(studio) {
     const el = document.getElementById("ds-stale-banner");
-    if (!el) return;
+    const status = document.getElementById("ds-stale-status");
     const st = staleState(studio);
-    if (!st) { el.hidden = true; el.innerHTML = ""; return; }
+    if (el) { el.hidden = true; el.innerHTML = ""; }
+    if (!status) return;
+    if (!st) { status.hidden = true; status.textContent = ""; return; }
     const brief = document.getElementById("ds-intent-text")?.value?.trim() || "";
     const dismissKey = staleDismissKey(st, brief);
-    if (studio.staleBannerDismissed === dismissKey) { el.hidden = true; return; }
-    el.hidden = false;
-    el.innerHTML = `<span class="ds-stale-text">${esc(st.text)}</span>
-      <div class="ds-stale-actions">
-        <button type="button" class="ds-btn primary ds-stale-go">Sync now</button>
-        <button type="button" class="ds-btn ds-stale-dismiss" title="Dismiss for now">Dismiss</button>
-      </div>`;
-    el.querySelector(".ds-stale-go")?.addEventListener("click", () => {
+    if (studio.staleBannerDismissed === dismissKey) { status.hidden = true; return; }
+    status.hidden = false;
+    status.innerHTML = `<span>${esc(st.text)}</span>
+      <button type="button" class="ds-stale-link" data-action="sync">Sync</button>
+      <button type="button" class="ds-stale-link ds-stale-dismiss" data-action="dismiss">Dismiss</button>`;
+    status.querySelector("[data-action='sync']")?.addEventListener("click", () => {
       studio.setTab("intent");
       document.getElementById("ds-generate")?.focus();
     });
-    el.querySelector(".ds-stale-dismiss")?.addEventListener("click", () => {
+    status.querySelector("[data-action='dismiss']")?.addEventListener("click", () => {
       studio.staleBannerDismissed = dismissKey;
-      el.hidden = true;
+      status.hidden = true;
     });
   }
 

@@ -542,7 +542,10 @@
             </div>
             <div id="ds-panel-body"></div>
             <div id="ds-explore-dock" hidden></div>
-            <div id="ds-status"><span id="ds-status-left"></span><span id="ds-status-right"></span></div>
+            <div id="ds-status">
+              <div id="ds-stale-status" class="ds-stale-status" hidden></div>
+              <span id="ds-status-left"></span><span id="ds-status-right"></span>
+            </div>
           </aside>
         </div>
         <div id="ds-gallery-modal" hidden>
