@@ -244,6 +244,7 @@
     };
   }
 
+  function displayNodeLabel(label) {
     if (!label) return "";
     return String(label).replace(/^Room \d+\s+/, "");
   }
