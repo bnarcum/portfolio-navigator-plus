@@ -977,16 +977,31 @@
       else if (a === "trace-poe") startTrace("poe");
       else if (a === "prev-dev") cycleDevice(-1);
       else if (a === "next-dev") cycleDevice(1);
+      else if (a === "mission-start") {
+        e.preventDefault();
+        e.stopPropagation();
+        window.__DS_MISSIONS?.dismissBriefing?.(state.mission, state.mission?._briefingStart);
+        setStatus("Mission active — follow the glowing waypoints");
+      }
       else if (a === "mission-replay") {
         if (state.graph) {
           state.mission = window.__DS_MISSIONS?.startCampaign(state.graph, state);
           state.overlay?.classList.remove("ds-walk-victory");
           window.__DS_MISSIONS?.renderHud?.(state.mission);
           window.__DS_MISSIONS?.syncWaypoints?.(state, state.mission, state.graph);
-          window.__DS_MISSIONS?.renderBriefing?.(state.mission, () => {});
+          window.__DS_MISSIONS?.renderBriefing?.(state.mission, () => {
+            window.__DS_MISSIONS?.syncWaypoints?.(state, state.mission, state.graph);
+          });
         }
       }
     });
+  }
+
+  function startMissionFromBriefing() {
+    if (!state.mission || state.mission.briefingSeen) return false;
+    window.__DS_MISSIONS?.dismissBriefing?.(state.mission, state.mission._briefingStart);
+    setStatus("Mission active — follow the glowing waypoints");
+    return true;
   }
 
   function setStatus(msg) {
@@ -1054,6 +1069,7 @@
         if (e.key === "]" || e.key === "}") { e.preventDefault(); cycleDevice(1); return; }
         if (e.key === "Tab") { e.preventDefault(); cycleDevice(e.shiftKey ? -1 : 1); return; }
         if (e.key === "e" || e.key === "E") { e.preventDefault(); interactNearby(); return; }
+        if (e.key === "Enter" && startMissionFromBriefing()) { e.preventDefault(); return; }
       }
     };
     const onLook = (dx, dy) => {
@@ -1187,7 +1203,6 @@
     overlay.setAttribute("aria-hidden", "false");
     overlay.className = `ds-walk-overlay ds-walk-${mode}`;
     overlay.innerHTML = `${hudHtml(mode)}
-      <div id="ds-walk-briefing" class="ds-walk-briefing" hidden></div>
       <div class="ds-walk-stage">
         <div class="ds-walk-crosshair" aria-hidden="true"></div>
         <div class="ds-walk-prompt" id="ds-walk-prompt" hidden>Press E to inspect</div>
@@ -1198,7 +1213,8 @@
         <div class="ds-walk-canvas-wrap">
           <canvas id="ds-walk-canvas"></canvas>
         </div>
-      </div>`;
+      </div>
+      <div id="ds-walk-briefing" class="ds-walk-briefing" hidden></div>`;
     bindHud();
 
     const canvas = overlay.querySelector("#ds-walk-canvas");

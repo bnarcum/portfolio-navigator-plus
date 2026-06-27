@@ -237,10 +237,20 @@
     }
   }
 
+  function dismissBriefing(m, onStart) {
+    const el = document.getElementById("ds-walk-briefing");
+    if (el) el.hidden = true;
+    document.getElementById("ds-walk-overlay")?.classList.remove("ds-briefing-open");
+    if (m) m.briefingSeen = true;
+    onStart?.();
+  }
+
   function renderBriefing(m, onStart) {
-    let el = document.getElementById("ds-walk-briefing");
+    const el = document.getElementById("ds-walk-briefing");
     if (!el) return;
+    m._briefingStart = onStart;
     el.hidden = false;
+    document.getElementById("ds-walk-overlay")?.classList.add("ds-briefing-open");
     el.innerHTML = `
       <div class="ds-briefing-card">
         <div class="ds-briefing-badge">FIELD TECH</div>
@@ -248,13 +258,8 @@
         <p>${esc(m.subtitle)}</p>
         <ul>${m.objectives.map(o => `<li>${esc(o.label)} <em>+${o.xp} XP</em></li>`).join("")}</ul>
         <p class="ds-briefing-tip">Walk near devices and press <kbd>E</kbd> to inspect · Follow glowing waypoints · Use Trace buttons for cable missions</p>
-        <button type="button" class="ds-walk-btn primary" id="ds-mission-start">Start mission</button>
+        <button type="button" class="ds-walk-btn primary" data-action="mission-start" id="ds-mission-start">Start mission</button>
       </div>`;
-    document.getElementById("ds-mission-start")?.addEventListener("click", () => {
-      el.hidden = true;
-      m.briefingSeen = true;
-      onStart?.();
-    });
   }
 
   function toastObjective(label) {
@@ -330,7 +335,7 @@
   }
 
   window.__DS_MISSIONS = {
-    startCampaign, activeObj, onVisit, onTrace, targetChambers, renderHud, renderBriefing,
+    startCampaign, activeObj, onVisit, onTrace, targetChambers, renderHud, renderBriefing, dismissBriefing,
     syncWaypoints, animateWaypoints, inspectHtml, toastObjective, tipFor, isObjDone, advanceMission
   };
 })();
