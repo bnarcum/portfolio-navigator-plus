@@ -772,7 +772,7 @@
 @keyframes ds-victory-pulse{0%,100%{opacity:.6}50%{opacity:1}}
 
 /* Field Tech inspect side panel */
-.ds-walk-panel-backdrop{position:absolute;inset:0;z-index:6;background:rgba(0,0,0,.45);cursor:pointer}
+.ds-walk-panel-backdrop{position:absolute;inset:0;z-index:6;background:transparent;cursor:pointer}
 .ds-walk-panel-backdrop[hidden]{display:none!important;pointer-events:none!important}
 #ds-walk-overlay.ds-field-panel-open .ds-walk-stage::before{display:none}
 .ds-field-panel{position:absolute;top:0;right:0;bottom:0;z-index:20;width:min(380px,94vw);display:flex;flex-direction:column;
