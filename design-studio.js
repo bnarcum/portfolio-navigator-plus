@@ -272,12 +272,18 @@
 
   function linkRoute(ax, ay, bx, by, offset) {
     const dx = bx - ax, dy = by - ay;
+    const r = Math.min(14, Math.max(4, Math.min(Math.abs(dx), Math.abs(dy)) / 3));
+    if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return `M ${ax} ${ay} L ${bx} ${by}`;
     if (Math.abs(dx) >= Math.abs(dy)) {
       const mx = (ax + bx) / 2 + offset;
-      return `M ${ax} ${ay} L ${mx} ${ay} L ${mx} ${by} L ${bx} ${by}`;
+      if (Math.abs(ay - by) < r * 2) return `M ${ax} ${ay} L ${bx} ${by}`;
+      const sy = by > ay ? 1 : -1;
+      return `M ${ax} ${ay} H ${mx - r} Q ${mx} ${ay} ${mx} ${ay + r * sy} V ${by - r * sy} Q ${mx} ${by} ${mx + r} ${by} H ${bx}`;
     }
     const my = (ay + by) / 2 + offset;
-    return `M ${ax} ${ay} L ${ax} ${my} L ${bx} ${my} L ${bx} ${by}`;
+    if (Math.abs(ax - bx) < r * 2) return `M ${ax} ${ay} L ${bx} ${by}`;
+    const sx = bx > ax ? 1 : -1;
+    return `M ${ax} ${ay} V ${my - r} Q ${ax} ${my} ${ax + r * sx} ${my} H ${bx - r * sx} Q ${bx} ${my} ${bx} ${by - r * sx} V ${by}`;
   }
 
   function linkLabelPos(a, b, offset, roomMode) {

@@ -1,5 +1,5 @@
 /**
- * Design Studio — premium glass product tiles (matrix + family heroes)
+ * Design Studio — product photos: matrix webp only when asset matches stencil semantics
  */
 (function () {
   "use strict";
@@ -8,32 +8,55 @@
   const VH = 62;
   const SELECT_GLOW = "#02C8FF";
 
+  /**
+   * Stencil → matrix bridge key. Each value MUST be the correct Cisco product photo.
+   * Generic / third-party / logical nodes are omitted — they use vector stencils only.
+   */
   const STENCIL_MATRIX = {
-    "room-kit-eq": "room-kit-eq", "room-kit-pro": "room-kit-pro", "room-bar": "room-bar",
-    "board-pro": "board-pro-75", "desk-pro": "desk-pro-g2", "quad-cam": "quad-camera",
-    "room-navigator": "room-navigator", "touch-10": "desk-mini",
-    "display-75": "board-pro-75", "display-86": "board-pro-75",
-    "ceiling-mic": "ceiling-mic-pro", "table-mic": "table-mic-pro"
+    "room-kit-eq": "room-kit-eq",
+    "room-kit-pro": "room-kit-pro",
+    "room-bar": "room-bar",
+    "board-pro": "board-pro-75",
+    "desk-pro": "desk-pro-g2",
+    "quad-cam": "quad-camera",
+    "room-navigator": "room-navigator",
+    "touch-10": "touch-10",
+    "ceiling-mic": "ceiling-mic-pro",
+    "table-mic": "table-mic-pro"
   };
 
+  /** Network gear — family hero PNGs (product family accurate) */
   const STENCIL_FAMILY = {
-    "c9500-core": "catalyst-core", "c9500-core-2": "catalyst-core", "c9400-dist": "catalyst-core",
-    "c9300-access": "catalyst-access", "c9200-access": "catalyst-access", "c9200-collab": "catalyst-access",
-    "cw9179f": "catalyst-wireless", "mr57": "meraki-wireless",
-    "c8200-sdwan": "sdwan", "c8200-sdwan-2": "wan-routers",
-    "mx85": "meraki-mx", "ms250": "meraki-switches",
-    "n9k-spine": "nexus-one", "n9k-leaf": "nexus",
-    "fpr-2130": "sf-enterprise", "fpr-1120": "sf-branch",
-    "ucs-x": "ucs", "cat-center": "catalyst-center", "apic": "nexus",
-    "ise-psn": "catalyst-center", "ise-pan": "catalyst-center",
-    "vmanage": "sdwan", "users-vlan": "ip-phones"
+    "c9500-core": "catalyst-core",
+    "c9500-core-2": "catalyst-core",
+    "c9400-dist": "catalyst-core",
+    "c9300-access": "catalyst-access",
+    "c9200-access": "catalyst-access",
+    "c9200-collab": "catalyst-access",
+    "cw9179f": "catalyst-wireless",
+    "mr57": "meraki-wireless",
+    "c8200-sdwan": "sdwan",
+    "c8200-sdwan-2": "wan-routers",
+    "mx85": "meraki-mx",
+    "ms250": "meraki-switches",
+    "n9k-spine": "nexus-one",
+    "n9k-leaf": "nexus",
+    "fpr-2130": "sf-enterprise",
+    "fpr-1120": "sf-branch",
+    "ucs-x": "ucs",
+    "cat-center": "catalyst-center",
+    "vmanage": "sdwan"
   };
 
+  /** Never substitute a photo — vector stencil only */
   const PHOTO_SKIP_STENCILS = new Set([
+    "display-75", "display-86",
     "conf-table-12", "conf-table-8", "credenza-rack",
-    "internet", "mpls", "umbrella-va"
+    "internet", "mpls", "umbrella-va",
+    "users-vlan", "ise-psn", "ise-pan", "apic"
   ]);
-  const PHOTO_SKIP_SHAPES = new Set(["cloud", "user", "table", "rack"]);
+
+  const PHOTO_SKIP_SHAPES = new Set(["cloud", "user", "table", "rack", "display"]);
 
   function isRoomStencil(stencilId) {
     return !!(window.__DS_STENCILS?.ROOM_DEVICES?.[stencilId]);
@@ -54,13 +77,15 @@
 
   function resolveUrl(stencilId, def) {
     if (!stencilId || !def) return null;
+    if (PHOTO_SKIP_SHAPES.has(def.shape) || PHOTO_SKIP_STENCILS.has(stencilId)) return null;
+    if (def.decorative) return null;
+
     const matrixId = STENCIL_MATRIX[stencilId];
     if (matrixId) {
       const u = matrixUrl(matrixId);
       if (u) return u;
     }
-    if (def.decorative && !matrixId) return null;
-    if (PHOTO_SKIP_SHAPES.has(def.shape) || PHOTO_SKIP_STENCILS.has(stencilId)) return null;
+
     let familyId = STENCIL_FAMILY[stencilId];
     if (!familyId) {
       const famMap = window.__DS_STENCILS?.FAMILY_TO_STENCIL || {};
@@ -86,9 +111,8 @@
     const sel = selected ? " ds-node-selected" : "";
     const isCeilingMic = shape === "ceiling-mic";
     const isRound = isCeilingMic;
-    const isDisplay = shape === "display";
     const imgX = isRound ? 10 : 8;
-    const imgY = isRound ? 6 : isDisplay ? 5 : 6;
+    const imgY = isRound ? 6 : 6;
     const imgW = VW - imgX * 2;
     const imgH = isRound ? 44 : VH - 14;
 
@@ -159,7 +183,7 @@
       return `<span class="ds-st-photo-wrap"><img class="ds-st-photo" src="${url.replace(/"/g, "&quot;")}" width="${sz}" height="${sz}" alt="" loading="lazy"/></span>`;
     }
     return window.__DS_STENCILS?.renderSymbolPreview?.(
-      window.__DS_STENCILS.resolveSymbolId(def, stencilId), accent, sz
+      window.__DS_STENCILS.resolveSymbolId(def, stencilId), accent, sz, stencilId, def
     ) || "▣";
   }
 

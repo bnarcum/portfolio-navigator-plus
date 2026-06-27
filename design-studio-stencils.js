@@ -41,6 +41,24 @@
     rack: "#6B7A90", table: "#6B7A90"
   };
 
+  const DISPLAY_SVG = (gid, accent) => `
+    <defs>
+      <linearGradient id="${gid}-screen" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#1a3050"/>
+        <stop offset="45%" stop-color="#0c1a2e"/>
+        <stop offset="100%" stop-color="#061018"/>
+      </linearGradient>
+      <linearGradient id="${gid}-glass" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#ffffff" stop-opacity="0.12"/>
+        <stop offset="35%" stop-color="#ffffff" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <rect class="ds-node-chassis ds-display-bezel" x="8" y="4" width="84" height="46" rx="4" fill="#1a2538" stroke="${accent}" stroke-width="1.5"/>
+    <rect x="12" y="8" width="76" height="38" rx="2" fill="url(#${gid}-screen)" stroke="rgba(2,200,255,0.25)" stroke-width="0.75"/>
+    <rect x="12" y="8" width="76" height="38" rx="2" fill="url(#${gid}-glass)" pointer-events="none"/>
+    <rect x="38" y="50" width="24" height="4" rx="1" fill="#2a3a50"/>
+    <rect x="32" y="54" width="36" height="3" rx="1.5" fill="#1e2a3c" stroke="#3a4a60" stroke-width="0.5"/>`;
+
   const FURNITURE_SVG = {
     rack: `<rect class="ds-node-chassis" x="22" y="2" width="56" height="52" rx="4" fill="#0a1525" stroke="#506080" stroke-width="1.5"/>
       <rect x="26" y="6" width="48" height="10" rx="2" fill="#12243a" stroke="#304860"/>
@@ -273,10 +291,15 @@
     const accent = resolveAccent(def);
     const gid = "dsg-" + String(stencilId || shape).replace(/[^a-z0-9]/gi, "").slice(0, 12);
     const sel = selected ? " ds-node-selected" : "";
-    const isRoomShape = ["codec", "display", "camera", "mic", "ceiling-mic", "table-mic", "touch", "switch"].includes(shape);
+
+    if (shape === "display") {
+      const ring = selected ? `<rect x="7" y="3" width="86" height="48" rx="5" fill="none" stroke="${accent}" stroke-width="1.75" opacity="0.7"/>` : "";
+      return `<g class="ds-device ds-display${sel}" transform="${xform}">${DISPLAY_SVG(gid, accent)}${ring}</g>`;
+    }
+
+    const isRoomShape = ["codec", "camera", "mic", "ceiling-mic", "table-mic", "touch", "switch"].includes(shape);
     const isCeilingMic = shape === "ceiling-mic";
-    const isDisplay = shape === "display";
-    const iconScale = isCeilingMic ? 0.55 : isDisplay ? 0.58 : isRoomShape ? 0.5 : 0.45;
+    const iconScale = isCeilingMic ? 0.55 : isRoomShape ? 0.5 : 0.45;
     const iconDraw = 80 * iconScale;
     const iconX = (VW - iconDraw) / 2;
     const iconY = (VH - iconDraw) / 2;
@@ -298,7 +321,7 @@
         : `x="1" y="1" width="${VW - 2}" height="${VH - 2}" rx="8"`}
         fill="url(#${gid}-bg)" stroke="${accent}" stroke-width="${isRoomShape ? "1.5" : "1.25"}" opacity="0.98"/>
       ${isCeilingMic ? "" : `<rect x="1" y="1" width="${VW - 2}" height="${VH - 2}" rx="8" fill="url(#${gid}-shine)" pointer-events="none"/>
-      ${isDisplay ? "" : `<rect x="0" y="9" width="4" height="${VH - 18}" rx="2" fill="${accent}" opacity="0.75"/>`}`}
+      <rect x="0" y="9" width="4" height="${VH - 18}" rx="2" fill="${accent}" opacity="0.75"/>`}
       <rect x="10" y="${VH - 9}" width="${VW - 20}" height="2.5" rx="1" fill="${accent}" opacity="0.28"/>
       <g class="ds-node-symbol" style="color:${accent}" transform="translate(${iconX},${iconY}) scale(${iconScale})">
         <use href="#icon-${sym}" width="80" height="80"/>

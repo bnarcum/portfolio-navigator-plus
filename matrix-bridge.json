@@ -16,6 +16,8 @@
     "quad-camera": { "matrixId": "quad-camera", "hash": "12b412d18f" },
     "ptz-4k": { "matrixId": "ptz-4k-camera", "hash": "167ce81553" },
     "room-navigator": { "matrixId": "room-navigator-table", "hash": "4b0fa15cf0" },
+    "touch-10": { "matrixId": "room-navigator-table", "hash": "4b0fa15cf0", "note": "Cisco Touch 10 — table controller (matrix: Room Navigator Table)" },
+    "room-navigator-wall": { "matrixId": "room-navigator-wall", "hash": "2bfc3204c8" },
     "desk-mini": { "matrixId": "desk-mini", "hash": "6b3e2bab98" },
     "desk-pro": { "matrixId": "desk", "hash": "6717ba491e" },
     "desk-pro-g2": { "matrixId": "desk-pro-g2", "hash": "1dc86014d2" },

@@ -11,7 +11,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
 globalThis.window = globalThis;
 
-for (const f of ["design-studio-stencils.js", "design-studio-templates.js", "design-studio-rules.js", "design-studio-intent.js"]) {
+for (const f of ["design-studio-stencils.js", "design-studio-templates.js", "design-studio-rules.js", "design-studio-intent.js", "design-studio-photos.js"]) {
   // eslint-disable-next-line no-eval
   eval(fs.readFileSync(path.join(root, f), "utf8"));
 }
@@ -20,6 +20,7 @@ const STN = globalThis.__DS_STENCILS;
 const TPL = globalThis.__DS_TEMPLATES;
 const RULES = globalThis.__DS_RULES;
 const INT = globalThis.__DS_INTENT;
+const PHOTOS = globalThis.__DS_PHOTOS;
 
 const issues = [];
 
@@ -113,6 +114,34 @@ for (const [id, def] of Object.entries(allDevices)) {
 }
 if (STN.ROOM_DEVICES["amp-280"])
   issues.push("Fabricated amp-280 stencil must not exist");
+
+// Photo accuracy — no wrong product substituted for stencil
+if (PHOTOS?.STENCIL_MATRIX) {
+  const mustSkipPhoto = ["display-75", "display-86", "ise-psn", "ise-pan", "apic", "users-vlan", "internet", "mpls"];
+  mustSkipPhoto.forEach(id => {
+    const def = STN.ROOM_DEVICES[id] || STN.NETWORK_DEVICES[id];
+    if (def && PHOTOS.resolveUrl(id, def))
+      issues.push(`Photo: ${id} must not use a product photo (got ${PHOTOS.resolveUrl(id, def)})`);
+  });
+  const mustHavePhoto = {
+    "touch-10": { bridgeKey: "touch-10", hash: "4b0fa15cf0" },
+    "ceiling-mic": { bridgeKey: "ceiling-mic-pro" },
+    "quad-cam": { bridgeKey: "quad-camera" }
+  };
+  globalThis.MATRIX_BRIDGE = JSON.parse(fs.readFileSync(path.join(root, "matrix-bridge.json"), "utf8"));
+  Object.entries(mustHavePhoto).forEach(([stencil, spec]) => {
+    const mapped = PHOTOS.STENCIL_MATRIX[stencil];
+    if (mapped !== spec.bridgeKey)
+      issues.push(`Photo map: ${stencil} should map to bridge key ${spec.bridgeKey}, got ${mapped || "none"}`);
+    const def = STN.ROOM_DEVICES[stencil];
+    const url = PHOTOS.resolveUrl(stencil, def);
+    const hash = spec.hash || globalThis.MATRIX_BRIDGE.products?.[spec.bridgeKey]?.hash;
+    if (!url || (hash && !url.includes(hash)))
+      issues.push(`Photo: ${stencil} missing expected matrix image for ${spec.bridgeKey}`);
+  });
+  if (PHOTOS.STENCIL_MATRIX["display-75"] || PHOTOS.STENCIL_MATRIX["display-86"])
+    issues.push("Photo: display stencils must not map to Board Pro or any product photo");
+}
 
 // Golden intent briefs (deterministic engine, no AI)
 if (INT?.generateFromIntent) {

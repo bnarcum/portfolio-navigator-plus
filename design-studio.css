@@ -170,7 +170,9 @@
 #ds-svg .ds-room-node.selected .ds-node-chassis{filter:drop-shadow(0 0 12px rgba(2,200,255,.45)) drop-shadow(0 3px 8px rgba(0,0,0,.4))}
 #ds-svg .ds-node-sub{display:none}
 #ds-svg .ds-node-layer{fill:var(--accent);font-size:9px;opacity:.85;pointer-events:none}
-#ds-svg .ds-link-path{fill:none;pointer-events:stroke;opacity:.88;stroke-linecap:round;stroke-linejoin:round}
+#ds-svg .ds-link-path{fill:none;pointer-events:stroke;opacity:.88;stroke-linecap:round;stroke-linejoin:round;transition:opacity .15s,filter .15s}
+#ds-svg .ds-device.ds-display .ds-display-bezel{filter:drop-shadow(0 4px 14px rgba(0,0,0,.45))}
+#ds-svg .ds-device.ds-display.ds-node-selected .ds-display-bezel{filter:drop-shadow(0 0 12px rgba(2,200,255,.4)) drop-shadow(0 4px 14px rgba(0,0,0,.45))}
 #ds-svg .ds-link.highlighted .ds-link-path{opacity:1;filter:drop-shadow(0 0 6px rgba(2,200,255,.5))}
 #ds-svg .ds-link.dimmed .ds-link-path{opacity:.22}
 #ds-svg .ds-link.dimmed .ds-link-label-group{opacity:.28}
