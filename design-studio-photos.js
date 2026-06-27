@@ -12,7 +12,8 @@
     "room-kit-eq": "room-kit-eq", "room-kit-pro": "room-kit-pro", "room-bar": "room-bar",
     "board-pro": "board-pro-75", "desk-pro": "desk-pro-g2", "quad-cam": "quad-camera",
     "room-navigator": "room-navigator", "touch-10": "desk-mini",
-    "display-75": "board-pro-75", "display-86": "board-pro-75"
+    "display-75": "board-pro-75", "display-86": "board-pro-75",
+    "ceiling-mic": "ceiling-mic-pro", "table-mic": "table-mic-pro"
   };
 
   const STENCIL_FAMILY = {
@@ -29,7 +30,7 @@
   };
 
   const PHOTO_SKIP_STENCILS = new Set([
-    "ceiling-mic", "table-mic", "conf-table-12", "conf-table-8", "credenza-rack",
+    "conf-table-12", "conf-table-8", "credenza-rack",
     "internet", "mpls", "umbrella-va"
   ]);
   const PHOTO_SKIP_SHAPES = new Set(["cloud", "user", "table", "rack"]);

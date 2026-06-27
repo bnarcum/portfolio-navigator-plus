@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="assets/cpn-favicon.svg"/>
   <meta name="theme-color" content="#07182D"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
-  <link rel="stylesheet" href="design-studio.css?v=2.54.0"/>
+  <link rel="stylesheet" href="design-studio.css?v=2.54.1"/>
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     @font-face{
@@ -4186,7 +4186,11 @@ let MATRIX_BRIDGE = {
     "headset-320": { matrixId: "headset-320", hash: "25c4f2bbed" },
     "headset-532": { matrixId: "headset-520", hash: "5ada38fb4a" },
     "headset-720": { matrixId: "headset-730", hash: "8cb7938ed5" },
-    "headset-730": { matrixId: "headset-730", hash: "8cb7938ed5" }
+    "headset-730": { matrixId: "headset-730", hash: "8cb7938ed5" },
+    "ceiling-mic-pro": { matrixId: "ceiling-mic-pro", hash: "e0e483ccb3" },
+    "ceiling-mic": { matrixId: "ceiling-mic", hash: "3b82ce6285" },
+    "table-mic-pro": { matrixId: "table-mic-pro", hash: "cbe669d0f2" },
+    "table-mic": { matrixId: "table-mic", hash: "76da3a5033" }
   }
 };
 function matrixBridgeEntry(id){ return id ? (MATRIX_BRIDGE.products?.[id] || null) : null; }
@@ -9630,7 +9634,7 @@ document.addEventListener("keydown",ev=>{
    ══════════════════════════════════════════════════════════════════════════*/
 (function v2(){
 
-const APP_VERSION   = "2.54.0";
+const APP_VERSION   = "2.54.1";
 const DATA_UPDATED  = "2026-06-20";
 const STORAGE_KEYS  = {
   plans:    "cpn-plans-v2",
@@ -15495,14 +15499,14 @@ window.__cpnV2 = {
 </script>
 <script src="assets/family-heroes.js?v=2.51.2"></script>
 <script>window.__DS_ASSET_V="2.51.0";</script>
-<script src="design-studio-photos.js?v=2.54.0"></script>
-<script src="design-studio-stencils.js?v=2.54.0"></script>
-<script src="design-studio-templates.js?v=2.54.0"></script>
-<script src="design-studio-rules.js?v=2.54.0"></script>
-<script src="design-studio-intent.js?v=2.54.0"></script>
-<script src="design-studio-explore.js?v=2.54.0"></script>
-<script src="design-studio-premium.js?v=2.54.0"></script>
-<script src="design-studio-expert.js?v=2.54.0"></script>
-<script src="design-studio.js?v=2.54.0"></script>
+<script src="design-studio-photos.js?v=2.54.1"></script>
+<script src="design-studio-stencils.js?v=2.54.1"></script>
+<script src="design-studio-templates.js?v=2.54.1"></script>
+<script src="design-studio-rules.js?v=2.54.1"></script>
+<script src="design-studio-intent.js?v=2.54.1"></script>
+<script src="design-studio-explore.js?v=2.54.1"></script>
+<script src="design-studio-premium.js?v=2.54.1"></script>
+<script src="design-studio-expert.js?v=2.54.1"></script>
+<script src="design-studio.js?v=2.54.1"></script>
 </body>
 </html>
