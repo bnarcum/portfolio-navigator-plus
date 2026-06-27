@@ -32,12 +32,15 @@
   };
   const NET_LAYER_Z = { wan: -18, security: -12, core: -6, distribution: 0, dc: 2, access: 8, mgmt: 4, collab: 12 };
 
+  const EYE_HEIGHT = 1.62;
+
   const state = {
     studio: null, mode: null, overlay: null, animId: 0, clock: 0, lastFrame: 0,
     THREE: null, renderer: null, scene: null, camera: null, raycaster: null,
     keys: {}, pointerLocked: false, lookDrag: false, lookLast: { x: 0, y: 0 },
-    yaw: 0, pitch: 0, vel: { x: 0, z: 0 },
-    pos: { x: 0, y: 1.7, z: 0 }, fly: null,
+    yaw: 0, pitch: 0, vel: { x: 0, y: 0, z: 0 }, onGround: true,
+    pos: { x: 0, y: EYE_HEIGHT, z: 0 }, fly: null,
+    thirdPerson: true, avatar: null,
     chambers: [], devicePods: [], cables: [], colliders: [], bounds: null,
     trace: null, maze: null, graph: null, texCache: new Map(), disposables: [],
     focusId: null, navIndex: 0, mission: null, waypointGroup: null, nearChamber: null,
@@ -162,40 +165,55 @@
   }
 
   function makeWalkway(THREE, cor) {
+    const VOX = window.__DS_WALK_VOXEL;
     const ax = cor.from.pos.x, az = cor.from.pos.z;
     const bx = cor.to.pos.x, bz = cor.to.pos.z;
-    const dx = bx - ax, dz = bz - az;
-    const len = Math.hypot(dx, dz) || 0.1;
     const g = new THREE.Group();
-    const y = 0.035;
-
-    const walk = new THREE.Mesh(
-      new THREE.BoxGeometry(len, 0.07, 1.55),
-      new THREE.MeshStandardMaterial({
-        color: 0x142838, emissive: cor.color, emissiveIntensity: 0.42,
-        metalness: 0.45, roughness: 0.48
-      })
-    );
-    walk.position.set((ax + bx) / 2, y, (az + bz) / 2);
-    walk.rotation.y = Math.atan2(dx, dz);
-    g.add(walk);
-
-    const edgeMat = new THREE.MeshStandardMaterial({
-      color: cor.color, emissive: cor.color, emissiveIntensity: 0.75, metalness: 0.25, roughness: 0.35
-    });
-    [-0.72, 0.72].forEach(off => {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(len * 0.98, 0.12, 0.06), edgeMat);
-      rail.position.copy(walk.position);
-      rail.position.y = y + 0.05;
-      rail.rotation.copy(walk.rotation);
-      const perp = Math.atan2(dx, dz) + Math.PI / 2;
-      rail.position.x += Math.sin(perp) * off;
-      rail.position.z += Math.cos(perp) * off;
-      g.add(rail);
-    });
-
+    if (VOX) {
+      const wool = VOX.woolMat(THREE, cor.media);
+      const pts = VOX.sampleSegment(ax, az, bx, bz, 1.1).filter((_, i) => i % 3 === 1);
+      pts.forEach(p => {
+        const block = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.35, 0.92), wool);
+        block.position.set(p.x, 1.02, p.z);
+        g.add(block);
+      });
+    }
     g.userData = { corridor: cor, walkway: true };
     return g;
+  }
+
+  function addVoxelEnvironment(THREE, scene, bright = true) {
+    scene.add(new THREE.AmbientLight(0xffffff, bright ? 0.72 : 0.45));
+    const sun = new THREE.DirectionalLight(0xfff4d0, bright ? 0.95 : 0.65);
+    sun.position.set(18, 42, 12);
+    scene.add(sun);
+    const fill = new THREE.DirectionalLight(0x8ec8f8, 0.35);
+    fill.position.set(-14, 20, -10);
+    scene.add(fill);
+  }
+
+  function setupVoxelWorld(THREE, scene, bounds, graph) {
+    const VOX = window.__DS_WALK_VOXEL;
+    if (!VOX || !bounds) return;
+    const sky = VOX.setBlockSky(THREE, scene);
+    state.disposables.push(sky);
+    VOX.addVoxelWorld(THREE, scene, bounds, graph, state.disposables);
+  }
+
+  function setupAvatar(THREE, scene) {
+    const VOX = window.__DS_WALK_VOXEL;
+    if (!VOX) return;
+    if (state.avatar) scene.remove(state.avatar);
+    state.avatar = VOX.makeAvatar(THREE);
+    scene.add(state.avatar);
+    state.avatar.visible = state.thirdPerson;
+  }
+
+  function toggleCameraMode() {
+    state.thirdPerson = !state.thirdPerson;
+    if (state.avatar) state.avatar.visible = state.thirdPerson;
+    if (state.viewmodel) state.viewmodel.visible = !state.thirdPerson;
+    setStatus(state.thirdPerson ? "Third-person view (V to toggle)" : "First-person view (V to toggle)");
   }
 
   function sizeWalkCanvas(canvas) {
@@ -662,20 +680,14 @@
   }
 
   function makeViewmodel(THREE, camera) {
+    const VOX = window.__DS_WALK_VOXEL;
+    if (VOX?.makeBlockViewmodel) {
+      const vm = VOX.makeBlockViewmodel(THREE, camera);
+      vm.visible = !state.thirdPerson;
+      return vm;
+    }
     const g = new THREE.Group();
     g.userData.kind = "viewmodel";
-    const glove = new THREE.MeshStandardMaterial({ color: 0x3a4858, metalness: 0.35, roughness: 0.55 });
-    const tablet = new THREE.MeshStandardMaterial({ color: 0x0c2038, emissive: 0x02c8ff, emissiveIntensity: 0.25, metalness: 0.7, roughness: 0.3 });
-    const left = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.07, 0.22), glove);
-    left.position.set(-0.2, -0.16, -0.32);
-    left.rotation.y = 0.12;
-    const right = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.07, 0.2), glove);
-    right.position.set(0.24, -0.18, -0.3);
-    right.rotation.y = -0.08;
-    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.18, 0.02), tablet);
-    pad.position.set(0.12, -0.1, -0.38);
-    pad.rotation.x = -0.35;
-    g.add(left, right, pad);
     camera.add(g);
     return g;
   }
@@ -703,33 +715,28 @@
     state.cables = [];
     state.colliders = [];
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor(0x040810, 1);
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    renderer.setClearColor(0x8ec8f8, 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace || renderer.outputEncoding;
-    if (THREE.ACESFilmicToneMapping) {
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.18;
-    }
     state.renderer = renderer;
 
     const scene = new THREE.Scene();
     state.scene = scene;
-    addEnvironment(THREE, scene, false);
+    addVoxelEnvironment(THREE, scene, true);
     state.bounds = graph.layoutBounds || {
       minX: Math.min(...graph.chambers.map(c => c.pos.x)) - 8,
       maxX: Math.max(...graph.chambers.map(c => c.pos.x)) + 8,
       minZ: Math.min(...graph.chambers.map(c => c.pos.z)) - 8,
       maxZ: Math.max(...graph.chambers.map(c => c.pos.z)) + 8
     };
-    addEpicVenue(THREE, scene, state.bounds, graph.kind);
-    addDustParticles(THREE, scene, state.bounds);
-    addWorldScenery(THREE, scene, graph);
+    setupVoxelWorld(THREE, scene, state.bounds, graph);
 
     const camera = new THREE.PerspectiveCamera(76, 1, 0.1, 220);
     camera.rotation.order = "YXZ";
     state.camera = camera;
     scene.add(camera);
+    setupAvatar(THREE, scene);
     state.viewmodel = makeViewmodel(THREE, camera);
     state.raycaster = new THREE.Raycaster();
 
@@ -793,23 +800,20 @@
     state.cables = [];
     state.colliders = [];
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor(0x020608, 1);
-    if (THREE.ACESFilmicToneMapping) {
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.05;
-    }
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    renderer.setClearColor(0x4a6888, 1);
     state.renderer = renderer;
 
     const scene = new THREE.Scene();
     state.scene = scene;
-    addEnvironment(THREE, scene, true);
+    addVoxelEnvironment(THREE, scene, false);
 
     const camera = new THREE.PerspectiveCamera(72, 1, 0.1, 120);
     camera.rotation.order = "YXZ";
     state.camera = camera;
     scene.add(camera);
+    setupAvatar(THREE, scene);
     state.viewmodel = makeViewmodel(THREE, camera);
     state.raycaster = new THREE.Raycaster();
 
@@ -818,10 +822,11 @@
       minX: Math.min(...xs) - 8, maxX: Math.max(...xs) + 8,
       minZ: Math.min(...zs) - 8, maxZ: Math.max(...zs) + 8
     };
+    setupVoxelWorld(THREE, scene, state.bounds, graph);
     const b = state.bounds;
     const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(Math.max(b.maxX - b.minX, 24), Math.max(b.maxZ - b.minZ, 24)),
-      new THREE.MeshStandardMaterial({ color: 0x0a1420, metalness: 0.35, roughness: 0.75 })
+      new THREE.PlaneGeometry(0, 0),
+      new THREE.MeshLambertMaterial({ color: 0x000000, visible: false })
     );
     floor.rotation.x = -Math.PI / 2;
     floor.position.set((b.minX + b.maxX) / 2, 0, (b.minZ + b.maxZ) / 2);
@@ -869,7 +874,7 @@
 
   function chamberStandPos(ch) {
     const p = chamberWorldPos(ch);
-    const stand = { x: p.x, y: state.mode === "retro" ? 1.65 : 1.7, z: p.z + 2.4 };
+    const stand = { x: p.x, y: EYE_HEIGHT, z: p.z + 2.4 };
     if (state.mode === "retro") {
       const snap = snapToWalkable(stand.x, stand.z);
       stand.x = snap.x;
@@ -904,7 +909,7 @@
           chamber: ch,
           dest
         };
-        state.vel = { x: 0, z: 0 };
+        state.vel = { x: 0, y: 0, z: 0 };
         setStatus(`Following link path to ${ch.label}`);
         return;
       }
@@ -912,7 +917,7 @@
 
     if (instant) {
       state.pos = { ...dest };
-      state.vel = { x: 0, z: 0 };
+      state.vel = { x: 0, y: 0, z: 0 };
       faceChamber(ch);
       state.fly = null;
     } else {
@@ -925,7 +930,7 @@
         dur: 0.65,
         chamber: ch
       };
-      state.vel = { x: 0, z: 0 };
+      state.vel = { x: 0, y: 0, z: 0 };
     }
     setStatus(`At ${ch.label}${ch.pid ? " · " + ch.pid : ""}`);
     const ping = window.__DS_MISSIONS?.onVisit?.(state.mission, state.graph, ch.id, ch);
@@ -1071,7 +1076,7 @@
       const e = flyEase(f.t);
       state.pos.x = fromPt.x + (toPt.x - fromPt.x) * e;
       state.pos.z = fromPt.z + (toPt.z - fromPt.z) * e;
-      state.pos.y = state.mode === "retro" ? 1.65 : 1.7;
+      state.pos.y = EYE_HEIGHT;
       state.yaw = Math.atan2(toPt.x - state.pos.x, toPt.z - state.pos.z);
       if (f.t >= 1) {
         f.i = idx + 1;
@@ -1112,8 +1117,20 @@
   function updatePlayer(dt) {
     if (updateFly(dt)) { applyCamera(); return; }
 
+    if (!state.fly && !state.trace) {
+      state.vel.y = (state.vel.y ?? 0) - 28 * dt;
+      state.pos.y += state.vel.y * dt;
+      if (state.pos.y <= EYE_HEIGHT) {
+        state.pos.y = EYE_HEIGHT;
+        state.vel.y = 0;
+        state.onGround = true;
+      } else {
+        state.onGround = false;
+      }
+    }
+
     const THREE = state.THREE;
-    const maxSpd = state.keys["Shift"] ? 10 : 7.5;
+    const maxSpd = state.keys["Shift"] ? 11 : 8;
     const accel = 34;
     const friction = 10;
     const fwd = new THREE.Vector3(Math.sin(state.yaw), 0, Math.cos(state.yaw));
@@ -1154,9 +1171,9 @@
       const ax = wps[0].x, az = wps[0].z, bx = wps[1].x, bz = wps[1].z;
       state.pos.x = ax + (bx - ax) * t;
       state.pos.z = az + (bz - az) * t;
-      state.pos.y = state.mode === "retro" ? 1.65 : 1.7;
+      state.pos.y = EYE_HEIGHT;
       state.yaw = Math.atan2(bx - ax, bz - az);
-      state.vel = { x: 0, z: 0 };
+      state.vel = { x: 0, y: 0, z: 0 };
       if (t >= 1) { setStatus(`Arrived: ${state.trace.label}`); state.trace = null; }
     }
     const footSpd = Math.hypot(state.vel.x, state.vel.z);
@@ -1286,15 +1303,31 @@
     const spd = Math.hypot(state.vel.x, state.vel.z);
     if (spd > 0.25) state.bobPhase += 0.016 * 9;
     const bob = spd > 0.25 ? Math.sin(state.bobPhase) * 0.038 : 0;
-    cam.position.set(state.pos.x, state.pos.y + bob, state.pos.z);
-    cam.lookAt(
-      state.pos.x + Math.sin(state.yaw) * Math.cos(state.pitch),
-      state.pos.y + bob + Math.sin(state.pitch),
-      state.pos.z + Math.cos(state.yaw) * Math.cos(state.pitch)
-    );
-    if (state.viewmodel) {
-      const sway = spd > 0.25 ? Math.sin(state.bobPhase * 1.2) * 0.02 : 0;
-      state.viewmodel.position.set(sway, 0, 0);
+
+    if (state.thirdPerson && state.avatar) {
+      const dist = 5.4;
+      const camY = state.pos.y + 2.35 + bob * 0.4;
+      const cx = state.pos.x - Math.sin(state.yaw) * dist;
+      const cz = state.pos.z - Math.cos(state.yaw) * dist;
+      cam.position.set(cx, camY, cz);
+      cam.lookAt(state.pos.x, state.pos.y + 0.95, state.pos.z);
+      state.avatar.position.set(state.pos.x, state.pos.y - EYE_HEIGHT, state.pos.z);
+      state.avatar.rotation.y = state.yaw;
+      state.avatar.visible = true;
+      if (state.viewmodel) state.viewmodel.visible = false;
+    } else {
+      cam.position.set(state.pos.x, state.pos.y + bob, state.pos.z);
+      cam.lookAt(
+        state.pos.x + Math.sin(state.yaw) * Math.cos(state.pitch),
+        state.pos.y + bob + Math.sin(state.pitch),
+        state.pos.z + Math.cos(state.yaw) * Math.cos(state.pitch)
+      );
+      if (state.avatar) state.avatar.visible = false;
+      if (state.viewmodel) {
+        state.viewmodel.visible = true;
+        const sway = spd > 0.25 ? Math.sin(state.bobPhase * 1.2) * 0.02 : 0;
+        state.viewmodel.position.set(sway, 0, 0);
+      }
     }
     const compass = document.getElementById("ds-walk-compass");
     if (compass) compass.style.transform = `rotate(${-state.yaw}rad)`;
@@ -1331,9 +1364,9 @@
     if (!mm) return;
     const ctx = mm.getContext("2d");
     const W = mm.width = 200, H = mm.height = 140;
-    ctx.fillStyle = "rgba(4,16,31,0.94)";
+    ctx.fillStyle = "rgba(42,92,38,0.94)";
     ctx.fillRect(0, 0, W, H);
-    ctx.strokeStyle = "rgba(2,200,255,0.35)";
+    ctx.strokeStyle = "rgba(20,40,18,0.9)";
     ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
     ctx.font = "8px system-ui,sans-serif";
     ctx.fillStyle = "rgba(158,192,220,0.85)";
@@ -1456,12 +1489,12 @@
   }
 
   function hudHtml(mode, tab) {
-    const title = mode === "retro" ? "CABLE PATHS" : "TOPOLOGY TOUR";
+    const title = mode === "retro" ? "CABLE QUEST" : "NETWORK CRAFT";
     const showPaths = tab !== "network";
     return `<div class="ds-walk-hud">
       <div class="ds-walk-hud-top">
         <strong class="ds-walk-title">${title}</strong>
-        <span class="ds-walk-hint">Tap devices below · follow link buttons · drag to look · minimap to jump</span>
+        <span class="ds-walk-hint">WASD move · Space jump · Shift sprint · V camera · drag look · tap devices</span>
         <button type="button" class="ds-walk-btn ds-walk-audio-btn" data-action="audio-toggle" title="Toggle music">♫</button>
         <button type="button" class="ds-walk-close" title="Exit walkthrough">✕</button>
       </div>
@@ -1626,6 +1659,15 @@
         if (e.key === "]" || e.key === "}") { e.preventDefault(); cycleDevice(1); return; }
         if (e.key === "Tab") { e.preventDefault(); cycleDevice(e.shiftKey ? -1 : 1); return; }
         if (e.key === "e" || e.key === "E") { e.preventDefault(); interactNearby(); return; }
+        if (e.code === "Space" && !state.fly && !state.trace) {
+          e.preventDefault();
+          if (state.onGround) {
+            state.vel.y = 9.2;
+            state.onGround = false;
+          }
+          return;
+        }
+        if (e.key === "v" || e.key === "V") { e.preventDefault(); toggleCameraMode(); return; }
         if (e.key === "Enter" && startMissionFromBriefing()) { e.preventDefault(); return; }
       }
     };
@@ -1712,7 +1754,9 @@
 
   function disposeScene() {
     if (state.viewmodel && state.camera) state.camera.remove(state.viewmodel);
+    if (state.avatar && state.scene) state.scene.remove(state.avatar);
     state.viewmodel = null;
+    state.avatar = null;
     state.disposables.forEach(d => d.dispose?.());
     state.disposables = [];
     state.texCache.clear();
@@ -1721,7 +1765,7 @@
     state.colliders = [];
     state.bounds = null;
     state.fly = null;
-    state.vel = { x: 0, z: 0 };
+    state.vel = { x: 0, y: 0, z: 0 };
     state.lastFrame = 0;
     state.dustParticles = null;
     state.renderer?.dispose?.();
@@ -1764,14 +1808,11 @@
     overlay.hidden = false;
     overlay.removeAttribute("hidden");
     overlay.setAttribute("aria-hidden", "false");
-    overlay.className = `ds-walk-overlay ds-walk-epic ds-walk-${mode}`;
+    overlay.className = `ds-walk-overlay ds-walk-voxel ds-walk-${mode}`;
     overlay.innerHTML = `${hudHtml(mode, studio.tab)}
       <div class="ds-walk-stage">
-        <div class="ds-walk-vignette" aria-hidden="true"></div>
         <div class="ds-walk-panel-backdrop" id="ds-walk-panel-backdrop" hidden data-action="fp-close" title="Click to keep walking" aria-label="Close panel"></div>
-        <div class="ds-walk-letterbox ds-walk-letterbox-top" aria-hidden="true"></div>
-        <div class="ds-walk-letterbox ds-walk-letterbox-bottom" aria-hidden="true"></div>
-        <div class="ds-walk-crosshair" aria-hidden="true"></div>
+        <div class="ds-walk-crosshair ds-walk-crosshair-mc" aria-hidden="true"></div>
         <div class="ds-walk-prompt" id="ds-walk-prompt" hidden>Press E to inspect</div>
         <div class="ds-walk-inspect" id="ds-walk-inspect" hidden></div>
         <div class="ds-walk-toast" id="ds-walk-toast"></div>
