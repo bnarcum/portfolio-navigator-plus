@@ -232,11 +232,18 @@
     return base;
   }
 
-  function intentNeedsNetwork(t) {
-    return /campus|sd-wan|sdwan|hospital|healthcare|k-12|k12|data center|datacenter|branch|retail|zero trust|sase|firewall|core|distrib|nexus|spine|hyperflex|aci|meraki|vmanage|\d+\s*(branch|site|store)/i.test(t);
+  function intentDeps() {
+    return {
+      templates: TPL(),
+      stencils: STN(),
+      rules: RULES(),
+      uid,
+      autoLayoutRoom,
+      ROOM_LAYOUT_OX,
+      ROOM_LAYOUT_OY
+    };
   }
 
-  function displayNodeLabel(label) {
     if (!label) return "";
     return String(label).replace(/^Room \d+\s+/, "");
   }
@@ -401,64 +408,6 @@
     TPL()?.applyRoomTemplate?.(design, tplKey, roomId, roomName, ox, oy, nodesArr, linksArr, STN());
   }
 
-  function generateFromIntent(text, design) {
-    const t = text.toLowerCase();
-    const nodes = [], links = [];
-    design.nodes = nodes; design.links = links; design.rooms = [];
-
-    const pickNet = () => {
-      if (/snra|secure network reference/i.test(t)) return "snraCampus";
-      if (/unified branch/i.test(t)) return "unifiedBranchMed";
-      if (/university|higher.?ed|college campus/i.test(t)) return "universityCampus";
-      if (/manufacturing|factory|plant|ot\b|industrial/i.test(t)) return "manufacturingPlant";
-      if (/sd-?access|sda\b|fabric lan/i.test(t)) return "sdAccessFabric";
-      if (/ai\/?ml|gpu|inference|training cluster/i.test(t)) return "dcAiMlFabric";
-      if (/data center|datacenter|aci|spine|leaf|nexus/i.test(t)) return "dcSpineLeaf";
-      if (/aci pod/i.test(t)) return "dcAciPod";
-      if (/hyperflex|hx/i.test(t)) return "hyperflexEdge";
-      if (/sd-wan|sdwan|vmanage|multi-site|branch/i.test(t) && /hq|headquarter|8 branch|multi/i.test(t)) return "sdwanFull";
-      if (/retail|meraki|store/i.test(t)) return "retailMeraki";
-      if (/k-12|k12|school|district/i.test(t)) return "k12District";
-      if (/hospital|healthcare|clinical|medical/i.test(t)) return "healthcareCampus";
-      if (/zero trust|sase|umbrella/i.test(t)) return "zeroTrustEdge";
-      if (/branch|remote|store/i.test(t)) return "branchStandard";
-      if (/collapsed|small campus|500 user/i.test(t)) return "campusCollapsed";
-      return "campus3tierRedundant";
-    };
-
-    const netKey = pickNet();
-    const roomCount = parseInt(t.match(/(\d+)\s*(room|conference|huddle|boardroom|meeting)/)?.[1] || "0", 10);
-    const hasCollab = /room|webex|collab|hybrid|meeting|video|board|kit/i.test(t);
-    const needsNet = intentNeedsNetwork(t) || roomCount > 1;
-    if (needsNet) TPL()?.applyNetworkTemplate?.(design, netKey, 80, 80, STN());
-
-    const roomTpl = /dual display|video centric/i.test(t) ? "ctMediumDualDisplay"
-      : /small collab|small collaboration/i.test(t) ? "ctSmallCollab"
-      : /boardroom|executive board|large room|20 seat/i.test(t) ? "boardroom"
-      : /training|classroom/i.test(t) ? "training"
-      : /executive office|office/i.test(t) ? "executive"
-      : /teams room|microsoft teams|mtr/i.test(t) ? "teamsRoom"
-      : /zoom room|zoom/i.test(t) ? "zoomRoom"
-      : /divisible|all-hands| divisible/i.test(t) ? "divisible"
-      : /huddle|small room/i.test(t) ? "huddle" : "conference";
-
-    if (hasCollab || roomCount > 0) {
-      const n = roomCount || (hasCollab ? 1 : 0);
-      for (let i = 0; i < Math.min(n, 8); i++) {
-        const roomId = uid();
-        const rtpl = TPL()?.ROOM_TEMPLATES?.[roomTpl];
-        const roomName = roomCount > 1 ? `${rtpl?.name || "Room"} ${i + 1}` : (rtpl?.name || "Room 1");
-        design.rooms.push({ id: roomId, name: roomName, template: roomTpl, width: rtpl?.w || 480, height: rtpl?.h || 360 });
-        applyRoomTemplateToDesign(design, roomTpl, roomId, roomName, ROOM_LAYOUT_OX, ROOM_LAYOUT_OY, design.nodes, design.links);
-        autoLayoutRoom(design, roomId);
-      }
-      if (design.rooms.length) design.activeRoomId = design.rooms[0].id;
-    }
-
-    design.requirements.notes = text.slice(0, 2000);
-    return design;
-  }
-
   function autoLayoutNetwork(design) {
     const nodes = design.nodes.filter(n => n.canvas !== "room");
     const byLayer = {};
@@ -538,7 +487,9 @@
             <div id="ds-intent" hidden>
               ${buildOneCiscoHeroHtml()}
               <label class="ds-intent-label" for="ds-intent-text">Opportunity brief</label>
-              <textarea id="ds-intent-text" placeholder="e.g. Training classroom with Board Pro 75, ceiling mics, PoE switch — or campus + SD-WAN + 8 conference rooms with Room Kit EQ…"></textarea>
+              <div id="ds-intent-chips"></div>
+              <textarea id="ds-intent-text" placeholder="e.g. SNRA campus + 12 conference rooms and 6 huddles — or AI-ready DC spine-leaf with GPU compute…"></textarea>
+              <div id="ds-intent-rationale" hidden></div>
               <div class="ds-intent-section">
                 <div class="ds-intent-section-head"><strong>Quick start</strong><span>Click to fill the brief</span></div>
                 <div class="ds-templates" id="ds-templates"></div>
@@ -602,6 +553,7 @@
       this.populateTemplates();
       this.populateArchPresets();
       this.buildGallery();
+      this.previewIntent();
     }
 
     buildToolbar() {
@@ -642,6 +594,11 @@
         this.renderPanel();
       };
       $("ds-generate").onclick = () => this.runGenerate();
+      let intentPreviewTimer;
+      $("ds-intent-text")?.addEventListener("input", () => {
+        clearTimeout(intentPreviewTimer);
+        intentPreviewTimer = setTimeout(() => this.previewIntent(), 180);
+      });
       $("ds-clear").onclick = () => this.startOver();
       $("ds-start-over").onclick = () => this.startOver();
       $("ds-import-stack").onclick = () => this.importStack();
@@ -730,6 +687,7 @@
             ta.focus();
           }
           this.toast(`Brief loaded — ${pillar.shortLabel || pillar.label}`);
+          this.previewIntent();
         };
       });
     }
@@ -770,7 +728,7 @@
           ).join("")}</div>
         </div>`).join("");
       box.querySelectorAll(".ds-tpl").forEach(b => {
-        b.onclick = () => { document.getElementById("ds-intent-text").value = b.dataset.tpl; };
+        b.onclick = () => { document.getElementById("ds-intent-text").value = b.dataset.tpl; this.previewIntent(); };
       });
     }
 
@@ -943,15 +901,33 @@
       if (!this.activeRoomId && this.design.rooms.length) this.activeRoomId = this.design.rooms[0].id;
     }
 
+    previewIntent() {
+      const INT = window.__DS_INTENT;
+      const chips = document.getElementById("ds-intent-chips");
+      if (!INT || !chips) return;
+      const text = document.getElementById("ds-intent-text")?.value?.trim() || "";
+      const parsed = INT.parseIntent(text);
+      chips.innerHTML = INT.renderChipsHtml(parsed.signals);
+    }
+
     runGenerate() {
+      const INT = window.__DS_INTENT;
       const text = document.getElementById("ds-intent-text").value.trim();
       if (!text) { this.toast("Enter a description"); return; }
-      generateFromIntent(text, this.design);
+      if (!INT?.generateFromIntent) { this.toast("Intent engine not loaded"); return; }
+      const { plan, score, fixes } = INT.generateFromIntent(text, this.design, intentDeps());
       if (this.design.nodes.some(n => n.canvas !== "room")) autoLayoutNetwork(this.design);
       this.design.rooms.forEach(r => autoLayoutRoom(this.design, r.id));
       this.activeRoomId = this.design.activeRoomId || this.design.rooms[0]?.id || null;
       this.pushHistory();
-      this.toast(`Draft generated · Score ${computeScore(this.design)}/100`);
+      const rat = document.getElementById("ds-intent-rationale");
+      if (rat) {
+        rat.hidden = false;
+        rat.innerHTML = INT.renderRationaleHtml(plan, score, fixes);
+      }
+      this.previewIntent();
+      const citeCount = plan.citations?.length || 0;
+      this.toast(`Draft generated · Score ${score}/100 · ${citeCount} cited reference${citeCount === 1 ? "" : "s"}`);
       const roomOnly = this.design.rooms.length > 0 && !this.design.nodes.some(n => n.canvas !== "room");
       this.setTab(roomOnly ? "room" : "network");
       this.fitView();
@@ -1010,6 +986,10 @@ Account: ${this.design.account}`;
       this.linkFromPort = null;
       const ta = document.getElementById("ds-intent-text");
       if (ta) ta.value = "";
+      const rat = document.getElementById("ds-intent-rationale");
+      if (rat) { rat.hidden = true; rat.innerHTML = ""; }
+      const chips = document.getElementById("ds-intent-chips");
+      if (chips) chips.innerHTML = window.__DS_INTENT?.renderChipsHtml([]) || "";
       this.pushHistory();
       this.setTab("intent");
       this.render();

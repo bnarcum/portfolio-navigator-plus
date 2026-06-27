@@ -51,6 +51,8 @@
       label: "Campus Collapsed Core",
       category: "Campus",
       tags: ["smb", "500-users"],
+      cvd: "Campus LAN and Wireless LAN Design Guide",
+      cvdUrl: "https://www.cisco.com/c/en/us/td/docs/solutions/CVD/Campus/cisco-campus-lan-wlan-design-guide.html",
       nodes: [
         { stencilId: "c9500-core", label: "Collapsed Core", x: 300, y: 220 },
         { stencilId: "c9200-access", label: "Access-1", x: 520, y: 180 },
@@ -105,6 +107,8 @@
       label: "Branch Office Standard",
       category: "Branch",
       tags: ["branch", "retail"],
+      cvd: "Cisco Catalyst SD-WAN Design Guide",
+      cvdUrl: "https://www.cisco.com/c/en/us/solutions/design-zone/sd-wan.html",
       nodes: [
         { stencilId: "c8200-sdwan", label: "Branch Edge", x: 200, y: 220 },
         { stencilId: "fpr-1120", label: "Branch FW", x: 380, y: 220 },
@@ -125,6 +129,8 @@
       label: "Retail Store (Meraki)",
       category: "Branch",
       tags: ["retail", "meraki"],
+      cvd: "Meraki for Retail",
+      cvdUrl: "https://meraki.cisco.com/solutions/retail/",
       nodes: [
         { stencilId: "mx85", label: "Store MX85", x: 240, y: 220 },
         { stencilId: "ms250", label: "Store Switch", x: 420, y: 220 },
@@ -196,6 +202,8 @@
       label: "K-12 District Hub",
       category: "Vertical",
       tags: ["k12", "education"],
+      cvd: "Cisco Validated Profile — Education",
+      cvdUrl: "https://www.cisco.com/c/en/us/solutions/industries/education/validated-designs.html",
       nodes: [
         { stencilId: "c9500-core", label: "District Core", x: 320, y: 220 },
         { stencilId: "c9400-dist", label: "HS Dist", x: 520, y: 180 },
@@ -586,6 +594,8 @@
     executive: {
       name: "Executive Office",
       category: "Small",
+      ct: "Small Collaboration Room Design Guide",
+      ctUrl: "https://www.cisco.com/c/dam/en/us/solutions/collateral/hybrid-work/webex-nyc-design-guide-small-collaboration-room.pdf",
       w: 420, h: 360,
       zones: { desk: { x: 80, y: 140, w: 260, h: 140 }, wall: { x: 80, y: 32, w: 260, h: 88 } },
       items: [
@@ -601,6 +611,8 @@
     teamsRoom: {
       name: "Microsoft Teams Room",
       category: "Medium",
+      ct: "Microsoft Teams on Cisco Devices",
+      ctUrl: "https://www.cisco.com/c/en/us/solutions/collaboration/microsoft-teams/index.html",
       w: 580, h: 460,
       zones: {
         display: { x: 140, y: 32, w: 300, h: 120 },
@@ -625,6 +637,8 @@
     zoomRoom: {
       name: "Zoom Room",
       category: "Medium",
+      ct: "Zoom on Cisco Devices",
+      ctUrl: "https://www.cisco.com/c/en/us/solutions/collaboration/zoom/index.html",
       w: 580, h: 460,
       zones: {
         display: { x: 140, y: 32, w: 300, h: 128 },

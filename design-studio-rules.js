@@ -294,6 +294,11 @@
     let md = `# Solution Overview — ${design.account || "Design"}\n\n**Design score:** ${score}/100\n\n`;
     md += `## Scope\n- Network devices: ${network.length}\n- Collaboration rooms: ${(design.rooms || []).length || rooms(design).length}\n- Links: ${design.links.length}\n`;
     if (poe.budget) md += `- PoE: ${poe.load}W / ${poe.budget}W (${poe.headroom}W headroom)\n`;
+    const cites = design.intentPlan?.citations || [];
+    if (cites.length) {
+      md += `\n## Validated references (cisco.com / webex.com)\n`;
+      cites.forEach(c => { md += `- [${c.label}](${c.url})\n`; });
+    }
     return md;
   }
 

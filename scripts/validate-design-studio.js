@@ -11,7 +11,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
 globalThis.window = globalThis;
 
-for (const f of ["design-studio-stencils.js", "design-studio-templates.js", "design-studio-rules.js"]) {
+for (const f of ["design-studio-stencils.js", "design-studio-templates.js", "design-studio-rules.js", "design-studio-intent.js"]) {
   // eslint-disable-next-line no-eval
   eval(fs.readFileSync(path.join(root, f), "utf8"));
 }
@@ -19,8 +19,27 @@ for (const f of ["design-studio-stencils.js", "design-studio-templates.js", "des
 const STN = globalThis.__DS_STENCILS;
 const TPL = globalThis.__DS_TEMPLATES;
 const RULES = globalThis.__DS_RULES;
+const INT = globalThis.__DS_INTENT;
 
 const issues = [];
+
+function isCiscoDomain(url) {
+  try {
+    const h = new URL(url).hostname.toLowerCase();
+    return h === "cisco.com" || h.endsWith(".cisco.com") || h === "webex.com" || h.endsWith(".webex.com");
+  } catch { return false; }
+}
+
+for (const [key, tpl] of Object.entries(TPL.NETWORK_TEMPLATES)) {
+  if (!tpl.cvdUrl || !isCiscoDomain(tpl.cvdUrl))
+    issues.push(`NETWORK ${key}: missing cisco.com cvdUrl citation`);
+}
+
+for (const [key, tpl] of Object.entries(TPL.ROOM_TEMPLATES)) {
+  const url = tpl.ctUrl || tpl.cvdUrl;
+  if (!url || !isCiscoDomain(url))
+    issues.push(`ROOM ${key}: missing cisco.com/webex.com ctUrl citation`);
+}
 
 function checkPorts(stencilId, mode, fromPort, toPort, label, ctx) {
   if (fromPort && !STN.portExists(stencilId, mode, fromPort))
@@ -94,6 +113,47 @@ for (const [id, def] of Object.entries(allDevices)) {
 }
 if (STN.ROOM_DEVICES["amp-280"])
   issues.push("Fabricated amp-280 stencil must not exist");
+
+// Golden intent briefs (deterministic engine, no AI)
+if (INT?.generateFromIntent) {
+  const intentUid = () => "ds-t-" + Math.random().toString(36).slice(2, 8);
+  const intentDeps = {
+    templates: TPL,
+    stencils: STN,
+    rules: RULES,
+    uid: intentUid,
+    autoLayoutRoom: () => {},
+    ROOM_LAYOUT_OX: 96,
+    ROOM_LAYOUT_OY: 72
+  };
+
+  const golden = [
+    { brief: "SNRA secure campus with Catalyst Center and 12 conference rooms", net: "snraCampus", rooms: [{ key: "conference", count: 12 }] },
+    { brief: "AI-ready data center spine-leaf GPU training cluster Nexus", net: "dcAiMlFabric", rooms: [] },
+    { brief: "SD-WAN HQ with 8 branches vManage multi-site", net: "sdwanFull", rooms: [] },
+    { brief: "Healthcare hospital clinical campus ISE", net: "healthcareCampus", rooms: [] },
+    { brief: "Retail Meraki 40 stores", net: "retailMeraki", rooms: [] },
+    { brief: "6 huddle rooms and 4 boardrooms Webex", net: null, rooms: [{ key: "huddle", count: 6 }, { key: "boardroom", count: 4 }] },
+    { brief: "Zero trust SASE Umbrella SD-WAN", net: "zeroTrustEdge", rooms: [] }
+  ];
+
+  golden.forEach(g => {
+    const design = { nodes: [], links: [], rooms: [], requirements: {}, account: "test" };
+    const { plan } = INT.generateFromIntent(g.brief, design, intentDeps);
+    if (g.net && plan.netKey !== g.net)
+      issues.push(`INTENT net: "${g.brief.slice(0, 36)}…" expected ${g.net}, got ${plan.netKey}`);
+    if (!g.net && plan.netKey && !/room|webex|huddle|boardroom/i.test(g.brief))
+      issues.push(`INTENT net: unexpected network for brief`);
+    g.rooms.forEach(er => {
+      const got = plan.roomPlan.find(r => r.key === er.key);
+      if (!got || got.count !== er.count)
+        issues.push(`INTENT rooms: "${g.brief.slice(0, 36)}…" expected ${er.count}×${er.key}, got ${got?.count || 0}`);
+    });
+    (plan.citations || []).forEach(c => {
+      if (!isCiscoDomain(c.url)) issues.push(`INTENT citation not on cisco.com: ${c.url}`);
+    });
+  });
+}
 
 if (issues.length) {
   console.error("Design Studio validation FAILED (" + issues.length + " issues):\n");
