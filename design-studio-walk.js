@@ -317,43 +317,22 @@
     const g = new THREE.Group();
     g.userData = { chamber: ch, kind: "pod" };
     const lift = podLift(ch.zone, kind);
-    const pw = kind === "room" ? 1.85 : 1.45;
-    const ph = kind === "room" ? 1.12 : 0.88;
-
-    const metal = new THREE.MeshStandardMaterial({ color: 0x2a3440, metalness: 0.82, roughness: 0.28 });
-    const base = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.5 * scale, 0.62 * scale, 0.05 * scale, 32),
-      metal
-    );
-    base.position.y = 0.025 * scale;
-    g.add(base);
-
-    const stem = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.08 * scale, 0.12 * scale, lift * 0.35 * scale, 12),
-      metal
-    );
-    stem.position.y = lift * 0.18 * scale;
-    g.add(stem);
-
-    const bezel = new THREE.Mesh(
-      new THREE.BoxGeometry(pw * scale + 0.1, ph * scale + 0.1, 0.07 * scale),
-      new THREE.MeshStandardMaterial({ color: 0x0a1018, metalness: 0.9, roughness: 0.15 })
-    );
-    bezel.position.set(0, lift, 0.035 * scale);
-    g.add(bezel);
+    const mode = kind === "room" ? "room" : "network";
+    const def = window.__DS_STENCILS?.getDef?.(ch.stencilId, mode);
 
     let photoTex = await loadTexture(THREE, ch.photoUrl);
     if (!photoTex) photoTex = makeFallbackIconTexture(THREE, ch.label, theme);
-    const photo = new THREE.Mesh(
-      new THREE.PlaneGeometry(pw * scale, ph * scale),
-      new THREE.MeshStandardMaterial({
-        map: photoTex, metalness: 0.05, roughness: 0.38,
-        emissive: 0xffffff, emissiveMap: photoTex, emissiveIntensity: 0.12
-      })
-    );
-    photo.position.set(0, lift, 0.075 * scale);
-    g.add(photo);
 
+    window.__DS_WALK_MODELS?.init?.(THREE);
+    const deviceGroup = await window.__DS_WALK_MODELS?.build?.(THREE, {
+      ch, def, kind, photoTex, scale, theme, lift
+    });
+    if (deviceGroup) {
+      g.add(deviceGroup);
+      if (deviceGroup.userData?.photoMesh) g.userData.photoMesh = deviceGroup.userData.photoMesh;
+    }
+
+    const modelTop = lift + (kind === "room" ? 1.2 : 0.95) * scale;
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(0.55 * scale, 0.62 * scale, 32),
       new THREE.MeshBasicMaterial({ color: theme.accent, transparent: true, opacity: 0.25, side: THREE.DoubleSide })
@@ -363,17 +342,17 @@
     g.add(ring);
 
     const glow = new THREE.PointLight(theme.light, 0.35 * scale, 5 * scale);
-    glow.position.set(0, lift + 0.3 * scale, 0.15 * scale);
+    glow.position.set(0, modelTop * 0.65, 0.15 * scale);
     g.add(glow);
 
     const label = makeLabelSprite(THREE, ch.label, ch.pid, theme);
-    label.position.set(0, lift + ph * scale * 0.55 + 0.25, 0);
+    label.position.set(0, modelTop + 0.25, 0);
     label.visible = false;
     g.add(label);
 
     const zoneBadge = makeLabelSprite(THREE, (ch.zone || "device").toUpperCase(), "", theme);
     zoneBadge.scale.set(1.2 * scale, 0.24 * scale, 1);
-    zoneBadge.position.set(0, lift - ph * scale * 0.55 - 0.15, 0.05);
+    zoneBadge.position.set(0, lift + 0.15, 0.05);
     zoneBadge.visible = false;
     g.add(zoneBadge);
 
@@ -381,7 +360,7 @@
     g.userData.zoneBadge = zoneBadge;
     g.userData.glowLight = glow;
     g.userData.ring = ring;
-    g.userData.photoMesh = photo;
+    g.userData.deviceGroup = deviceGroup;
 
     const shadow = new THREE.Mesh(
       new THREE.CircleGeometry(0.7 * scale, 32),
