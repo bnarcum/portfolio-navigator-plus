@@ -453,7 +453,10 @@
 @keyframes ds-pulse{0%,100%{box-shadow:none}50%{box-shadow:0 0 0 3px rgba(0,212,255,.6)}}
 .ds-bom-row{cursor:pointer}
 .ds-bom-row:hover{background:rgba(0,212,255,.08)}
-.ds-node.ds-bom-highlight{filter:drop-shadow(0 0 8px #00d4ff)}
+.ds-node.ds-device-photo .ds-photo-img{pointer-events:none}
+.ds-device-photo .ds-photo-bg{filter:drop-shadow(0 2px 6px rgba(0,0,0,.35))}
+.ds-st-photo{display:block;object-fit:contain;background:#f8fafc;border-radius:4px;border:1px solid rgba(2,200,255,.25)}
+.ds-stencil .ds-st-photo{width:22px;height:22px}
 .ds-room-guide-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
 
 body.design-studio-open #app-chrome,

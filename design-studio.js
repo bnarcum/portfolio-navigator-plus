@@ -1299,7 +1299,7 @@ Account: ${this.design.account}`;
         const def = STN()?.getDef?.(s.id, this.tab === "room" ? "room" : "network");
         const symbolId = s.symbolId || STN()?.resolveSymbolId?.(def, s.id) || "switch";
         const accent = s.accent || STN()?.resolveAccent?.(def) || "#02C8FF";
-        const icon = STN()?.renderSymbolPreview?.(symbolId, accent, 22) || "▣";
+        const icon = STN()?.renderSymbolPreview?.(symbolId, accent, 22, s.id, def) || "▣";
         return `<div class="ds-stencil" draggable="true" data-stencil="${s.id}" title="${escapeHtml(s.label)} · ${escapeHtml(s.pid || "")}">
           <span class="ds-st-icon">${icon}</span>${escapeHtml(s.label.slice(0, 14))}</div>`;
       }).join("") || `<div class="ds-empty">No stencils match</div>`;

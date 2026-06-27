@@ -235,7 +235,11 @@
     return true;
   }
 
-  function renderSymbolPreview(symbolId, accent, size) {
+  function renderSymbolPreview(symbolId, accent, size, stencilId, def) {
+    if (window.__DS_PHOTOS?.renderPreview && stencilId) {
+      const preview = window.__DS_PHOTOS.renderPreview(stencilId, def || getDef(stencilId, "network"), accent, size);
+      if (preview && preview.includes("ds-st-photo")) return preview;
+    }
     const sym = symbolId || "switch";
     const color = accent || "#02C8FF";
     const sz = size || 22;
@@ -244,6 +248,10 @@
   }
 
   function renderDeviceSvg(def, w, h, selected, stencilId) {
+    const photoUrl = window.__DS_PHOTOS?.resolveUrl?.(stencilId, def);
+    if (photoUrl && window.__DS_PHOTOS?.renderDeviceSvg) {
+      return window.__DS_PHOTOS.renderDeviceSvg(def, w, h, selected, stencilId, photoUrl);
+    }
     const shape = def?.shape || "switch";
     const sx = w / VW;
     const sy = h / VH;
