@@ -6,14 +6,25 @@
 
   const THREE_URL = new URL("vendor/three.module.min.js", document.baseURI).href;
 
-  function waitForCanvasSize(canvas, maxTries = 24) {
+  function sizeWalkCanvas(canvas) {
+    const wrap = canvas.closest(".ds-walk-canvas-wrap") || canvas.parentElement;
+    const rect = wrap?.getBoundingClientRect();
+    const w = Math.max(Math.floor(rect?.width || wrap?.clientWidth || 800), 320);
+    const h = Math.max(Math.floor(rect?.height || wrap?.clientHeight || 480), 260);
+    canvas.width = w;
+    canvas.height = h;
+    return { w, h };
+  }
+
+  function waitForCanvasSize(canvas, maxTries = 30) {
     return new Promise(resolve => {
       let tries = 0;
       const tick = () => {
-        const w = canvas.clientWidth;
-        const h = canvas.clientHeight;
-        if (w > 48 && h > 48) return resolve({ w, h });
-        if (++tries >= maxTries) return resolve({ w: Math.max(w, 800), h: Math.max(h, 480) });
+        const wrap = canvas.closest(".ds-walk-canvas-wrap") || canvas.parentElement;
+        const w = wrap?.clientWidth || 0;
+        const h = wrap?.clientHeight || 0;
+        if (w > 48 && h > 48) return resolve(sizeWalkCanvas(canvas));
+        if (++tries >= maxTries) return resolve(sizeWalkCanvas(canvas));
         requestAnimationFrame(tick);
       };
       tick();
@@ -26,18 +37,20 @@
       state.THREE = window.__cpnWalkTHREE;
       return state.THREE;
     }
+    for (let i = 0; i < 40; i++) {
+      if (window.__cpnWalkTHREE) {
+        state.THREE = window.__cpnWalkTHREE;
+        return state.THREE;
+      }
+      await new Promise(r => setTimeout(r, 50));
+    }
+    const url = new URL("vendor/three.module.min.js", document.baseURI).href;
     try {
-      state.THREE = await import(/* @vite-ignore */ THREE_URL);
+      state.THREE = await import(/* @vite-ignore */ url);
       window.__cpnWalkTHREE = state.THREE;
       return state.THREE;
-    } catch (e1) {
-      try {
-        state.THREE = await import("three");
-        window.__cpnWalkTHREE = state.THREE;
-        return state.THREE;
-      } catch (e2) {
-        throw new Error("three-load");
-      }
+    } catch {
+      throw new Error("three-load");
     }
   }
   const MEDIA_COLORS = {
@@ -410,8 +423,7 @@
     if (!graph?.chambers.length) throw new Error("no-graph");
     const maze = buildMazeFromGraph(graph);
     const ctx = canvas.getContext("2d");
-    const W = canvas.width = canvas.clientWidth;
-    const H = canvas.height = canvas.clientHeight;
+    const { w: W, h: H } = sizeWalkCanvas(canvas);
 
     const player = {
       x: maze.spawn.c * 2 + 0.5,
@@ -558,10 +570,13 @@
     state.mode = mode;
 
     let overlay = document.getElementById("ds-walk-overlay");
+    const wrap = document.getElementById("ds-canvas-wrap");
     if (!overlay) {
       overlay = document.createElement("div");
       overlay.id = "ds-walk-overlay";
-      document.getElementById("ds-canvas-wrap")?.appendChild(overlay);
+      wrap?.appendChild(overlay);
+    } else if (wrap && overlay.parentElement === wrap) {
+      wrap.appendChild(overlay);
     }
     state.overlay = overlay;
     overlay.hidden = false;

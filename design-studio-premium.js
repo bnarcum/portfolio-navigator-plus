@@ -152,10 +152,10 @@
         const v = b.dataset.view;
         if (v === "walk") {
           studio.roomView = "walk";
-          window.__DS_WALK?.open?.(studio, "corridor");
+          studio.openWalk?.("corridor");
         } else if (v === "retro") {
           studio.roomView = "retro";
-          window.__DS_WALK?.open?.(studio, "retro");
+          studio.openWalk?.("retro");
         } else {
           window.__DS_WALK?.close?.();
           studio.roomView = v;

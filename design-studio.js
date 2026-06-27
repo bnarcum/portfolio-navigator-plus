@@ -793,8 +793,11 @@
       $("ds-delete-sel").onclick = () => this.deleteSelected();
       $("ds-dup").onclick = () => this.duplicateSelected();
       $("ds-fit").onclick = () => this.fitView();
-      $("ds-walk-corridor")?.addEventListener("click", () => window.__DS_WALK?.open?.(this, "corridor"));
-      $("ds-walk-retro")?.addEventListener("click", () => window.__DS_WALK?.open?.(this, "retro"));
+      const tb = document.getElementById("ds-toolbar");
+      tb?.addEventListener("click", e => {
+        if (e.target.closest("#ds-walk-corridor")) { e.preventDefault(); this.openWalk("corridor"); }
+        if (e.target.closest("#ds-walk-retro")) { e.preventDefault(); this.openWalk("retro"); }
+      });
       $("ds-auto-layout").onclick = () => {
         if (this.tab === "room" && this.activeRoomId) autoLayoutRoom(this.design, this.activeRoomId);
         else autoLayoutNetwork(this.design);
@@ -1040,7 +1043,7 @@
       this.updateRoomPicker();
       this.renderRoomGuide();
       this.renderCanvas();
-      requestAnimationFrame(() => this.fitView());
+      this.scheduleFitView();
       this.renderInspector();
     }
 
@@ -1135,6 +1138,7 @@
         this.renderPalette();
         this.renderCanvas();
         this.scheduleFitView();
+        setTimeout(() => this.scheduleFitView(), 150);
       }
       this.renderPanel();
       this.refreshExplore();
@@ -1179,6 +1183,7 @@
         btn.addEventListener("click", () => this.switchToRoom(btn.dataset.roomId));
       });
       window.__DS_PREMIUM?.renderRoomViewToggle?.(this);
+      if (this.tab === "room" || this.tab === "network") this.scheduleFitView();
     }
 
     updateRoomPicker() {
@@ -1826,6 +1831,7 @@ Account: ${this.design.account}`;
       });
 
       this.applyTransform();
+      requestAnimationFrame(() => this.scheduleFitView());
     }
 
     renderMinimap() {
@@ -1984,7 +1990,20 @@ Account: ${this.design.account}`;
     }
 
     applyTransform() {
-      document.getElementById("ds-viewport")?.setAttribute("transform", `translate(${this.pan.x},${this.pan.y}) scale(${this.pan.zoom})`);
+      const vp = document.getElementById("ds-viewport");
+      vp?.setAttribute("transform", `translate(${this.pan.x},${this.pan.y}) scale(${this.pan.zoom})`);
+      void vp?.getBBox?.();
+    }
+
+    openWalk(mode) {
+      if (!window.__DS_WALK?.open) {
+        this.toast("Walk module not loaded — hard-refresh the page");
+        return;
+      }
+      window.__DS_WALK.open(this, mode).catch(err => {
+        console.error("[DS Walk]", err);
+        this.toast("Walkthrough failed — try Retro or hard-refresh");
+      });
     }
 
     clientToSvg(cx, cy) {
@@ -2056,8 +2075,13 @@ Account: ${this.design.account}`;
 
     fitView() {
       const nodes = this.visibleNodes();
-      const rect = document.getElementById("ds-svg")?.getBoundingClientRect();
-      if (!nodes.length || !rect?.width) { this.pan = { x: 40, y: 40, zoom: 1 }; this.applyTransform(); return; }
+      const svg = document.getElementById("ds-svg");
+      const rect = svg?.getBoundingClientRect();
+      if (!nodes.length || !rect?.width || !rect?.height) {
+        this.pan = { x: 40, y: 40, zoom: 1 };
+        this.applyTransform();
+        return;
+      }
       const labelPad = this.tab === "room" ? ROOM_LABEL_BELOW : 0;
       let xs = nodes.flatMap(n => [n.x, n.x + (n.w || 76)]);
       let ys = nodes.flatMap(n => [n.y, n.y + (n.h || 46) + labelPad]);
