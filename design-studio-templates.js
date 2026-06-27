@@ -495,8 +495,8 @@
       category: "Small",
       ct: "Traditional Huddle Room Design Guide",
       ctUrl: "https://www.cisco.com/c/dam/en/us/solutions/collateral/hybrid-work/webex-nyc-design-guide-traditional-huddle-room.pdf",
-      w: 640, h: 520,
-      zones: { display: { x: 100, y: 20, w: 440, h: 180 }, table: { x: 80, y: 220, w: 480, h: 160 }, rack: { x: 80, y: 400, w: 480, h: 108 } },
+      w: 640, h: 480,
+      zones: { display: { x: 100, y: 8, w: 440, h: 152 }, table: { x: 100, y: 176, w: 440, h: 132 }, rack: { x: 100, y: 324, w: 440, h: 96 } },
       items: [
         { stencilId: "room-bar", zone: "display", relX: 0.5, relY: 0.28, label: "Room Bar" },
         { stencilId: "display-75", zone: "display", relX: 0.5, relY: 0.72, label: "Display" },

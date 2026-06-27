@@ -5,7 +5,7 @@
 (function DesignStudioModule() {
   "use strict";
 
-  const STORAGE_KEY = "cpn-design-studio-v3";
+  const STORAGE_KEY = "cpn-design-studio-v4";
   const MAX_HISTORY = 50;
   const uid = () => "ds-" + Math.random().toString(36).slice(2, 10);
 
@@ -23,8 +23,8 @@
   const LAYER_COL_W = 132;
   const LAYER_START_Y = 100;
   const LAYER_ROW_H = 104;
-  const ROOM_LAYOUT_OX = 96;
-  const ROOM_LAYOUT_OY = 72;
+  const ROOM_LAYOUT_OX = 120;
+  const ROOM_LAYOUT_OY = 108;
   const ROOM_ZONE_GAP = 56;
   const ROOM_ZONE_MIN_H = 112;
   const ROOM_ZONE_PAD = 28;
@@ -121,9 +121,18 @@
 
   function loadDesign() {
     try {
-      for (const k of [STORAGE_KEY, "cpn-design-studio-v2", "cpn-design-studio-v1"]) {
-        const raw = localStorage.getItem(k);
-        if (raw) { const d = JSON.parse(raw); return { ...emptyDesign(), ...d, version: 3 }; }
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) { const d = JSON.parse(raw); return { ...emptyDesign(), ...d, version: 4 }; }
+      const legacy = localStorage.getItem("cpn-design-studio-v3");
+      if (legacy) {
+        const d = JSON.parse(legacy);
+        const fresh = emptyDesign(d.account || document.querySelector("#acct-name")?.value?.trim() || "Untitled Design");
+        fresh.requirements.notes = d.requirements?.notes || "";
+        return fresh;
+      }
+      for (const k of ["cpn-design-studio-v2", "cpn-design-studio-v1"]) {
+        const old = localStorage.getItem(k);
+        if (old) { const d = JSON.parse(old); return { ...emptyDesign(), ...d, version: 4 }; }
       }
     } catch (e) { /* ignore */ }
     return emptyDesign(document.querySelector("#acct-name")?.value?.trim() || "Untitled Design");
@@ -432,6 +441,7 @@
       root.innerHTML = `
         <header id="ds-header">
           <span class="ds-logo">⬡ Design Studio</span>
+          <span id="ds-version" class="ds-version" title="Design Studio build"></span>
           <div id="ds-score-badge" title="Design completeness score">—</div>
           <div id="ds-tabs">
             <button type="button" data-tab="intent" class="active">Intent</button>
@@ -458,6 +468,7 @@
               ${buildOneCiscoHeroHtml()}
               <label class="ds-intent-label" for="ds-intent-text">Opportunity brief</label>
               <div id="ds-intent-chips"></div>
+              <div id="ds-stale-hint" class="ds-stale-hint" hidden></div>
               <textarea id="ds-intent-text" placeholder="e.g. SNRA campus + 12 conference rooms and 6 huddles — or AI-ready DC spine-leaf with GPU compute…"></textarea>
               <div id="ds-intent-rationale" hidden></div>
               <div class="ds-intent-section">
@@ -524,6 +535,8 @@
       this.populateArchPresets();
       this.buildGallery();
       this.previewIntent();
+      const ver = document.getElementById("ds-version");
+      if (ver) ver.textContent = "v" + (window.__cpnV2?.APP_VERSION || window.__DS_ASSET_V || "?");
     }
 
     buildToolbar() {
@@ -903,13 +916,25 @@
       const text = document.getElementById("ds-intent-text")?.value?.trim() || "";
       const parsed = INT.parseIntent(text);
       chips.innerHTML = INT.renderChipsHtml(parsed.signals);
+      const hint = document.getElementById("ds-stale-hint");
+      if (hint) {
+        const planned = parsed.roomMix.reduce((s, r) => s + r.count, 0);
+        const existing = this.design.rooms.length;
+        const needsRegen = planned > 0 && (existing === 0 || existing !== planned || !this.design.intentPlan);
+        if (needsRegen && text) {
+          hint.hidden = false;
+          hint.innerHTML = planned > 1
+            ? `<strong>Ready to build ${planned} rooms</strong> — click <em>Generate Draft</em> to replace the canvas with your cited portfolio (network + ${planned} collaboration spaces).`
+            : `<strong>Brief parsed</strong> — click <em>Generate Draft</em> to apply it to the canvas.`;
+        } else hint.hidden = true;
+      }
     }
 
     runGenerate() {
       const INT = window.__DS_INTENT;
       const text = document.getElementById("ds-intent-text").value.trim();
       if (!text) { this.toast("Enter a description"); return; }
-      if (!INT?.generateFromIntent) { this.toast("Intent engine not loaded"); return; }
+      if (!INT?.generateFromIntent) { this.toast("Intent engine not loaded — hard-refresh (⌘⇧R) to load v2.47+"); return; }
       const { plan, score, fixes } = INT.generateFromIntent(text, this.design, intentDeps());
       if (this.design.nodes.some(n => n.canvas !== "room")) autoLayoutNetwork(this.design);
       this.design.rooms.forEach(r => autoLayoutRoom(this.design, r.id));
@@ -922,8 +947,9 @@
       }
       this.previewIntent();
       const roomTotal = plan.roomPlan.reduce((s, r) => s + r.count, 0);
-      const citeCount = plan.citations?.length || 0;
-      this.toast(`Draft generated · ${roomTotal ? roomTotal + " rooms · " : ""}Score ${score}/100`);
+      this.toast(roomTotal
+        ? `Built ${roomTotal} rooms + ${plan.netKey ? "network" : "collab only"} · Score ${score}/100`
+        : `Draft generated · Score ${score}/100`);
       const hasNet = this.design.nodes.some(n => n.canvas !== "room");
       if (roomTotal > 0) {
         this.activeRoomId = this.design.activeRoomId;
@@ -1198,8 +1224,6 @@ Account: ${this.design.account}`;
         if (!roomNodes.length) return;
         const ox = room.layoutOrigin?.x ?? ROOM_LAYOUT_OX;
         const oy = room.layoutOrigin?.y ?? ROOM_LAYOUT_OY;
-        const titleX = ox + (tpl.zones.display?.x ?? tpl.zones.table?.x ?? 24) - 8;
-        html += `<text class="ds-room-title" data-room="${room.id}" x="${titleX}" y="${oy - 12}">${escapeHtml(room.name)}</text>`;
         const zones = room.computedZones || tpl.zones;
         Object.entries(zones).forEach(([name, z]) => {
           const label = String(name).replace(/^\w/, c => c.toUpperCase());
@@ -1227,11 +1251,7 @@ Account: ${this.design.account}`;
         if (z) el.setAttribute("transform", `translate(${ox + z.x},${oy + z.y})`);
       });
       const title = document.querySelector(`#ds-room-zones .ds-room-title[data-room="${roomId}"]`);
-      if (title && room) {
-        const titleX = ox + (tpl.zones.display?.x ?? tpl.zones.table?.x ?? 24) - 8;
-        title.setAttribute("x", titleX);
-        title.setAttribute("y", oy - 12);
-      }
+      if (title) title.remove();
     }
 
     ensureSymbolDefs() {

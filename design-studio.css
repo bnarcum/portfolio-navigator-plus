@@ -19,6 +19,7 @@
 #ds-header{display:flex;align-items:center;gap:8px;padding:8px 12px;flex-wrap:wrap;
   background:var(--glass-bg);border-bottom:1px solid var(--border);flex-shrink:0}
 #ds-header .ds-logo{font-weight:700;color:var(--orange);font-size:14px;white-space:nowrap}
+.ds-version{font-size:9px;font-weight:700;color:var(--subtle);letter-spacing:.04em;padding:2px 6px;border-radius:4px;border:1px solid var(--border)}
 #ds-score-badge{font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;border:1px solid var(--border)}
 #ds-score-badge.ds-score.good{background:rgba(0,200,100,.15);color:#00cc66;border-color:#00cc66}
 #ds-score-badge.ds-score.ok{background:rgba(255,144,0,.12);color:var(--orange);border-color:var(--orange)}
@@ -70,6 +71,9 @@
 .ds-port-chip{font-size:8px;padding:2px 6px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);color:var(--muted)}
 
 #ds-canvas-wrap{flex:1;position:relative;overflow:hidden;background:#04101f}
+#ds-canvas-wrap.room-mode #ds-toolbar{top:0;left:0;right:0;border-radius:0;border-left:0;border-right:0}
+#ds-canvas-wrap.room-mode #ds-room-guide{top:46px}
+#ds-canvas-wrap.room-mode #ds-svg{margin-top:0}
 #ds-room-guide{position:absolute;top:8px;left:12px;right:12px;z-index:12;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;
   padding:8px 12px;border-radius:8px;border:1px solid rgba(2,200,255,.22);background:rgba(7,24,45,.88);pointer-events:auto}
 #ds-room-guide[hidden]{display:none!important}
@@ -225,6 +229,9 @@
 .ds-intent-hero h3{margin:0 0 6px;font-size:16px;font-weight:600;color:var(--accent)}
 .ds-intent-hero p{margin:0;font-size:12px;line-height:1.5;color:var(--muted);max-width:56em}
 .ds-intent-label{display:block;font-size:11px;font-weight:600;color:var(--text);margin:0 0 6px;text-transform:uppercase;letter-spacing:.04em}
+.ds-stale-hint{margin:0 0 10px;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,144,0,.35);
+  background:rgba(255,144,0,.08);font-size:11px;line-height:1.45;color:var(--text)}
+.ds-stale-hint strong{color:var(--orange)}
 .ds-intent-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px;min-height:24px}
 .ds-intent-chips--empty .ds-intent-chip-hint{font-size:10px;color:var(--subtle);font-style:italic}
 .ds-intent-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:999px;
