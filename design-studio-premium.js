@@ -44,17 +44,31 @@
       : "Brief changed — Generate Draft on Intent to refresh the canvas." };
   }
 
+  function staleDismissKey(st, text) {
+    return `${st.planned}:${st.existing}:${text.length}`;
+  }
+
   function renderStaleBanner(studio) {
     const el = document.getElementById("ds-stale-banner");
     if (!el) return;
     const st = staleState(studio);
     if (!st) { el.hidden = true; el.innerHTML = ""; return; }
+    const brief = document.getElementById("ds-intent-text")?.value?.trim() || "";
+    const dismissKey = staleDismissKey(st, brief);
+    if (studio.staleBannerDismissed === dismissKey) { el.hidden = true; return; }
     el.hidden = false;
-    el.innerHTML = `<span>${esc(st.text)}</span>
-      <button type="button" class="ds-btn primary ds-stale-go" data-action="go-intent-generate">Go to Intent → Generate</button>`;
+    el.innerHTML = `<span class="ds-stale-text">${esc(st.text)}</span>
+      <div class="ds-stale-actions">
+        <button type="button" class="ds-btn primary ds-stale-go">Sync now</button>
+        <button type="button" class="ds-btn ds-stale-dismiss" title="Dismiss for now">Dismiss</button>
+      </div>`;
     el.querySelector(".ds-stale-go")?.addEventListener("click", () => {
       studio.setTab("intent");
       document.getElementById("ds-generate")?.focus();
+    });
+    el.querySelector(".ds-stale-dismiss")?.addEventListener("click", () => {
+      studio.staleBannerDismissed = dismissKey;
+      el.hidden = true;
     });
   }
 
@@ -159,29 +173,62 @@
     { id: "commercial", title: "Commercial readiness", tab: "network", panel: "bom", blurb: "BOM, validation score, PoE budget, and CCW export." }
   ];
 
+  function storyBarHost() {
+    let host = document.getElementById("ds-story-host");
+    if (!host) {
+      host = document.createElement("div");
+      host.id = "ds-story-host";
+      document.getElementById("ds-header")?.insertAdjacentElement("afterend", host);
+    }
+    return host;
+  }
+
   function renderStoryBar(studio) {
-    let bar = document.getElementById("ds-story-bar");
+    const host = storyBarHost();
     if (!studio.storyMode) {
-      if (bar) bar.remove();
+      host.innerHTML = "";
+      host.hidden = true;
       return;
     }
-    if (!bar) {
-      bar = document.createElement("div");
-      bar.id = "ds-story-bar";
-      document.getElementById("ds-header")?.appendChild(bar);
-    }
+    host.hidden = false;
     const ch = STORY_CHAPTERS[studio.storyChapter] || STORY_CHAPTERS[0];
-    bar.innerHTML = `
-      <span class="ds-story-label">Story</span>
-      <button type="button" class="ds-story-nav" data-dir="-1" title="Previous chapter">‹</button>
-      <span class="ds-story-title">${esc(ch.title)} <em>${studio.storyChapter + 1}/${STORY_CHAPTERS.length}</em></span>
-      <button type="button" class="ds-story-nav" data-dir="1" title="Next chapter">›</button>
+    const isFirst = studio.storyChapter === 0;
+    const isLast = studio.storyChapter === STORY_CHAPTERS.length - 1;
+    const steps = STORY_CHAPTERS.map((c, i) => {
+      const done = i < studio.storyChapter;
+      const active = i === studio.storyChapter;
+      const cls = done ? " done" : active ? " active" : "";
+      return `<button type="button" class="ds-story-step${cls}" data-chapter="${i}" title="${esc(c.title)}">
+        <span class="ds-story-step-num">${i + 1}</span>
+        <span class="ds-story-step-label">${esc(c.title.split(" ")[0])}</span>
+      </button>${i < STORY_CHAPTERS.length - 1 ? '<span class="ds-story-step-arrow">→</span>' : ""}`;
+    }).join("");
+    host.innerHTML = `<div id="ds-story-bar" role="navigation" aria-label="Story mode">
+      <div class="ds-story-top">
+        <span class="ds-story-label">Story mode</span>
+        <span class="ds-story-title">${esc(ch.title)}</span>
+        <span class="ds-story-count">${studio.storyChapter + 1} of ${STORY_CHAPTERS.length}</span>
+        <button type="button" class="ds-story-exit">Exit</button>
+      </div>
       <p class="ds-story-blurb">${esc(ch.blurb)}</p>
-      <button type="button" class="ds-story-exit">Exit story</button>`;
-    bar.querySelectorAll(".ds-story-nav").forEach(b => {
-      b.onclick = () => goStoryChapter(studio, studio.storyChapter + parseInt(b.dataset.dir, 10));
+      <div class="ds-story-steps">${steps}</div>
+      <div class="ds-story-nav-row">
+        <button type="button" class="ds-btn ds-story-back"${isFirst ? " disabled" : ""}>← Back</button>
+        <span class="ds-story-hint">Tip: ← → arrow keys also work</span>
+        <button type="button" class="ds-btn primary ds-story-next">${isLast ? "Finish" : "Next step →"}</button>
+      </div>
+    </div>`;
+    host.querySelector(".ds-story-exit")?.addEventListener("click", () => exitStory(studio));
+    host.querySelector(".ds-story-back")?.addEventListener("click", () => {
+      if (!isFirst) goStoryChapter(studio, studio.storyChapter - 1);
     });
-    bar.querySelector(".ds-story-exit")?.addEventListener("click", () => exitStory(studio));
+    host.querySelector(".ds-story-next")?.addEventListener("click", () => {
+      if (isLast) exitStory(studio);
+      else goStoryChapter(studio, studio.storyChapter + 1);
+    });
+    host.querySelectorAll(".ds-story-step").forEach(btn => {
+      btn.addEventListener("click", () => goStoryChapter(studio, parseInt(btn.dataset.chapter, 10)));
+    });
   }
 
   function goStoryChapter(studio, idx) {
@@ -210,6 +257,7 @@
     studio.el?.classList.add("ds-present-mode");
     document.getElementById("ds-present")?.classList.add("active");
     goStoryChapter(studio, 0);
+    studio.toast?.("Use Next step → or arrow keys to walk the story");
   }
 
   function exitStory(studio) {
@@ -217,7 +265,8 @@
     studio.presentation = false;
     studio.el?.classList.remove("ds-present-mode");
     document.getElementById("ds-present")?.classList.remove("active");
-    document.getElementById("ds-story-bar")?.remove();
+    const host = document.getElementById("ds-story-host");
+    if (host) { host.innerHTML = ""; host.hidden = true; }
     studio.fitView();
   }
 
@@ -265,11 +314,6 @@
     });
     overlay.querySelector("[data-tour='next']")?.addEventListener("click", () => runTour(studio, step + 1));
     if (target) target.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }
-
-  function maybeTour(studio) {
-    try { if (localStorage.getItem(TOUR_KEY)) return; } catch (e) { /* ignore */ }
-    setTimeout(() => runTour(studio, 0), 800);
   }
 
   function validationPanelExtras(design, val, score) {
@@ -396,7 +440,7 @@
   window.__DS_PREMIUM = {
     scoreState, isDesignGenerated, staleState, refresh, renderStaleBanner, renderRoomMixEditor,
     renderRoomViewToggle, renderPortfolioOverlay,
-    startStory, exitStory, toggleStory, goStoryChapter, runTour, maybeTour,
+    startStory, exitStory, toggleStory, goStoryChapter, runTour,
     validationPanelExtras, exportDesignBundle, importDesignBundle, exportCustomerSvg,
     plannerSyncHint, renderCompare, highlightBomPid, roomPortfolioGrid
   };

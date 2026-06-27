@@ -450,6 +450,7 @@
       this.storyMode = false;
       this.storyChapter = 0;
       this.highlightPid = null;
+      this.staleBannerDismissed = null;
       this.history = new History(this); this.el = null;
     }
 
@@ -471,8 +472,8 @@
           </div>
           <span class="ds-spacer"></span>
           <button type="button" class="ds-btn" id="ds-gallery" title="Template gallery">Gallery</button>
-          <button type="button" class="ds-btn" id="ds-present" title="Story mode — executive → architecture → rooms → BOM">Story</button>
-          <button type="button" class="ds-btn" id="ds-tour" title="Guided tour">Tour</button>
+          <button type="button" class="ds-btn" id="ds-present" title="Story walkthrough — use Next step or arrow keys">Story</button>
+          <button type="button" class="ds-btn" id="ds-tour" title="Start guided tour (optional)">Tour</button>
           <button type="button" class="ds-btn" id="ds-share-design" title="Shareable .cpn-design bundle">Share</button>
           <button type="button" class="ds-btn" id="ds-customer-export" title="Customer-safe SVG export">Customer SVG</button>
           <input type="file" id="ds-import-design" accept=".json,.cpn-design.json,application/json" hidden/>
@@ -936,10 +937,7 @@
       this.previewIntent();
       this.setTab("intent");
       this.render();
-      setTimeout(() => {
-        this.refreshExplore();
-        window.__DS_PREMIUM?.maybeTour?.(this);
-      }, 500);
+      setTimeout(() => this.refreshExplore(), 500);
     }
 
     close() {
@@ -1061,6 +1059,7 @@
       this.activeRoomId = this.design.activeRoomId || this.design.rooms[0]?.id || null;
       this.pushHistory();
       this.customRoomMix = null;
+      this.staleBannerDismissed = null;
       const rat = document.getElementById("ds-intent-rationale");
       if (rat) {
         rat.hidden = false;
