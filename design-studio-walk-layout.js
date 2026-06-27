@@ -4,8 +4,8 @@
 (function () {
   "use strict";
 
-  const NET_SCALE = 0.034;
-  const ROOM_SCALE = 0.038;
+  const NET_SCALE = 0.042;
+  const ROOM_SCALE = 0.048;
 
   function nodeCenter(n) {
     return { x: n.x + (n.w || 76) / 2, y: n.y + (n.h || 46) / 2 };

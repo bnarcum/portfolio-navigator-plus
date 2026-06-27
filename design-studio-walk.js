@@ -46,7 +46,7 @@
     focusId: null, navIndex: 0, mission: null, waypointGroup: null, nearChamber: null,
     reticleChamber: null, bobPhase: 0, viewmodel: null, worldBounds: null,
     dustParticles: null, footPhase: 0,
-    topology: null, easyNav: true
+    topology: null, easyNav: true, worldColliders: []
   };
 
   function esc(s) {
@@ -173,8 +173,8 @@
       const wool = VOX.woolMat(THREE, cor.media);
       const pts = VOX.sampleSegment(ax, az, bx, bz, 1.1).filter((_, i) => i % 3 === 1);
       pts.forEach(p => {
-        const block = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.35, 0.92), wool);
-        block.position.set(p.x, 1.02, p.z);
+        const block = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.12, 0.92), wool);
+        block.position.set(p.x, 0.08, p.z);
         g.add(block);
       });
     }
@@ -197,7 +197,7 @@
     if (!VOX || !bounds) return;
     const sky = VOX.setBlockSky(THREE, scene);
     state.disposables.push(sky);
-    VOX.addVoxelWorld(THREE, scene, bounds, graph, state.disposables);
+    VOX.addVoxelWorld(THREE, scene, bounds, graph, state.disposables, state.worldColliders);
   }
 
   function setupAvatar(THREE, scene) {
@@ -417,9 +417,20 @@
     g.add(hitbox);
 
     g.position.set(ch.pos.x, 0, ch.pos.z);
+    g.rotation.y = podFaceYaw(ch);
     state.devicePods.push(g);
-    state.colliders.push({ x: ch.pos.x, z: ch.pos.z, r: 0.95 * scale, id: ch.id });
+    state.colliders.push({ x: ch.pos.x, z: ch.pos.z, r: 1.85 * scale, id: ch.id, kind: "pod" });
     return g;
+  }
+
+  function podFaceYaw(ch) {
+    const cors = state.graph?.corridors?.filter(c => c.from.id === ch.id || c.to.id === ch.id) || [];
+    if (!cors.length) return 0;
+    const cor = cors[0];
+    const other = cor.from.id === ch.id ? cor.to : cor.from;
+    const p = chamberWorldPos(ch);
+    const op = chamberWorldPos(other);
+    return Math.atan2(op.x - p.x, op.z - p.z);
   }
 
   function makeCableRun(THREE, cor) {
@@ -714,6 +725,7 @@
     state.devicePods = [];
     state.cables = [];
     state.colliders = [];
+    state.worldColliders = [];
 
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
@@ -745,7 +757,6 @@
       scene.add(makeCableRun(THREE, cor));
       scene.add(makeWalkway(THREE, cor));
     });
-    if (graph.kind === "room") addRoomDecor(THREE, scene, state.bounds);
 
     const spawn = graph.chambers.find(c => /switch|9200|9300/i.test(c.label)) || graph.chambers[0];
     state.chambers = graph.chambers;
@@ -799,6 +810,7 @@
     state.devicePods = [];
     state.cables = [];
     state.colliders = [];
+    state.worldColliders = [];
 
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
@@ -872,10 +884,28 @@
     return { x, z };
   }
 
+  function chamberApproachDir(ch) {
+    const p = chamberWorldPos(ch);
+    const cors = state.graph?.corridors?.filter(c => c.from.id === ch.id || c.to.id === ch.id) || [];
+    if (!cors.length) return { dx: 0, dz: 1 };
+    const other = cors[0].from.id === ch.id ? cors[0].to : cors[0].from;
+    const op = chamberWorldPos(other);
+    const dx = p.x - op.x, dz = p.z - op.z;
+    const len = Math.hypot(dx, dz) || 1;
+    return { dx: dx / len, dz: dz / len };
+  }
+
   function chamberStandPos(ch) {
     const p = chamberWorldPos(ch);
-    const stand = { x: p.x, y: EYE_HEIGHT, z: p.z + 2.4 };
-    if (state.mode === "retro") {
+    const pad = state.topology?.pads?.find(pad => pad.id === ch.id);
+    const standDist = Math.min(pad?.r ? pad.r * 0.72 : 2.6, 3.2);
+    const dir = chamberApproachDir(ch);
+    const stand = {
+      x: p.x + dir.dx * standDist,
+      y: EYE_HEIGHT,
+      z: p.z + dir.dz * standDist
+    };
+    if (state.mode === "retro" || state.topology?.isWalkable) {
       const snap = snapToWalkable(stand.x, stand.z);
       stand.x = snap.x;
       stand.z = snap.z;
@@ -1029,35 +1059,37 @@
     return m.grid[r][c] === 1;
   }
 
-  function tryMove(dx, dz) {
-    const r = 0.35;
-    const nx = state.pos.x + dx, nz = state.pos.z + dz;
-    if (!mazeBlocked(nx + Math.sign(dx) * r, state.pos.z) && !mazeBlocked(nx, state.pos.z + Math.sign(dz) * r)) {
-      if (!mazeBlocked(nx, nz)) { state.pos.x = nx; state.pos.z = nz; return; }
+  function isBlocked(x, z, playerR = 0.42) {
+    if (state.mode === "retro" && mazeBlocked(x, z)) return true;
+    const b = state.bounds;
+    if (b) {
+      if (x < b.minX + playerR || x > b.maxX - playerR) return true;
+      if (z < b.minZ + playerR || z > b.maxZ - playerR) return true;
     }
-    if (!mazeBlocked(nx, state.pos.z)) state.pos.x = nx;
-    else if (!mazeBlocked(state.pos.x, nz)) state.pos.z = nz;
-  }
-
-  function podBlocked(x, z, pad = 0.45) {
-    for (const col of state.colliders) {
+    const all = state.colliders.concat(state.worldColliders || []);
+    for (const col of all) {
       const dx = x - col.x, dz = z - col.z;
-      if (dx * dx + dz * dz < (col.r + pad) ** 2) return true;
+      if (dx * dx + dz * dz < (col.r + playerR) ** 2) return true;
     }
     return false;
   }
 
-  function tryMoveCorridor(dx, dz) {
-    let nx = state.pos.x + dx, nz = state.pos.z + dz;
-    const b = state.bounds;
-    if (b) {
-      nx = Math.max(b.minX, Math.min(b.maxX, nx));
-      nz = Math.max(b.minZ, Math.min(b.maxZ, nz));
+  function tryMove(dx, dz) {
+    const pr = 0.42;
+    const nx = state.pos.x + dx, nz = state.pos.z + dz;
+    if (!isBlocked(nx + Math.sign(dx) * pr, state.pos.z, pr) && !isBlocked(nx, state.pos.z + Math.sign(dz) * pr, pr)) {
+      if (!isBlocked(nx, nz, pr)) { state.pos.x = nx; state.pos.z = nz; return; }
     }
-    const tryAxis = (tx, tz) => !podBlocked(tx, tz, 0.25);
-    if (tryAxis(nx, nz)) { state.pos.x = nx; state.pos.z = nz; return; }
-    if (tryAxis(nx, state.pos.z)) state.pos.x = nx;
-    else if (tryAxis(state.pos.x, nz)) state.pos.z = nz;
+    if (!isBlocked(nx, state.pos.z, pr)) state.pos.x = nx;
+    else if (!isBlocked(state.pos.x, nz, pr)) state.pos.z = nz;
+  }
+
+  function tryMoveCorridor(dx, dz) {
+    const pr = 0.42;
+    const nx = state.pos.x + dx, nz = state.pos.z + dz;
+    if (!isBlocked(nx, nz, pr)) { state.pos.x = nx; state.pos.z = nz; return; }
+    if (!isBlocked(nx, state.pos.z, pr)) state.pos.x = nx;
+    else if (!isBlocked(state.pos.x, nz, pr)) state.pos.z = nz;
   }
 
   function flyEase(t) {
@@ -1133,8 +1165,18 @@
     const maxSpd = state.keys["Shift"] ? 11 : 8;
     const accel = 34;
     const friction = 10;
-    const fwd = new THREE.Vector3(Math.sin(state.yaw), 0, Math.cos(state.yaw));
-    const right = new THREE.Vector3(Math.cos(state.yaw), 0, -Math.sin(state.yaw));
+    let fwd, right;
+    if (state.thirdPerson && state.camera) {
+      fwd = new THREE.Vector3();
+      state.camera.getWorldDirection(fwd);
+      fwd.y = 0;
+      if (fwd.lengthSq() < 1e-6) fwd.set(Math.sin(state.yaw), 0, Math.cos(state.yaw));
+      else fwd.normalize();
+      right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
+    } else {
+      fwd = new THREE.Vector3(Math.sin(state.yaw), 0, Math.cos(state.yaw));
+      right = new THREE.Vector3(Math.cos(state.yaw), 0, -Math.sin(state.yaw));
+    }
 
     let ix = 0, iz = 0;
     if (state.keys["w"] || state.keys["ArrowUp"]) { ix += fwd.x; iz += fwd.z; }
@@ -1146,6 +1188,7 @@
       const len = Math.hypot(ix, iz) || 1;
       state.vel.x += (ix / len) * accel * dt;
       state.vel.z += (iz / len) * accel * dt;
+      if (state.thirdPerson) state.yaw = Math.atan2(ix / len, iz / len);
     } else {
       const damp = Math.exp(-friction * dt);
       state.vel.x *= damp;
@@ -1494,8 +1537,7 @@
     return `<div class="ds-walk-hud">
       <div class="ds-walk-hud-top">
         <strong class="ds-walk-title">${title}</strong>
-        <span class="ds-walk-hint">WASD move · Space jump · Shift sprint · V camera · drag look · tap devices</span>
-        <button type="button" class="ds-walk-btn ds-walk-audio-btn" data-action="audio-toggle" title="Toggle music">♫</button>
+        <span class="ds-walk-hint">WASD move · Space jump · Shift sprint · V camera · drag look</span>
         <button type="button" class="ds-walk-close" title="Exit walkthrough">✕</button>
       </div>
       <div class="ds-walk-xp-track"><div class="ds-walk-xp-bar" id="ds-walk-xp-bar"></div></div>
@@ -1572,12 +1614,6 @@
       }
       else if (a === "fp-trace-poe") startTrace("poe");
       else if (a === "fp-trace-av") startTrace("av");
-      else if (a === "audio-toggle") {
-        const muted = window.__DS_WALK_AUDIO?.toggleMute?.();
-        btn.textContent = muted ? "♪̸" : "♫";
-        btn.classList.toggle("muted", !!muted);
-        if (!muted && !window.__DS_WALK_AUDIO?.isRunning?.()) window.__DS_WALK_AUDIO?.start?.();
-      }
     });
   }
 
@@ -1672,7 +1708,7 @@
       }
     };
     const onLook = (dx, dy) => {
-      state.yaw -= dx * 0.003;
+      state.yaw += dx * 0.003;
       state.pitch = Math.max(-0.55, Math.min(0.55, state.pitch - dy * 0.003));
     };
     let downPos = null;
@@ -1763,6 +1799,7 @@
     state.devicePods = [];
     state.cables = [];
     state.colliders = [];
+    state.worldColliders = [];
     state.bounds = null;
     state.fly = null;
     state.vel = { x: 0, y: 0, z: 0 };

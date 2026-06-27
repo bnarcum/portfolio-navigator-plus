@@ -110,7 +110,7 @@
     return mesh;
   }
 
-  function addVoxelWorld(THREE, scene, bounds, graph, disposables) {
+  function addVoxelWorld(THREE, scene, bounds, graph, disposables, colliders) {
     const grass = grassTop(THREE);
     const side = grassSide(THREE);
     const stone = stoneTex(THREE);
@@ -140,28 +140,28 @@
 
     (graph?.chambers || []).forEach(ch => {
       const px = ch.pos.x, pz = ch.pos.z;
-      const pad = [];
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dz = -1; dz <= 1; dz++) {
-          pad.push({ x: px + dx * BLOCK, z: pz + dz * BLOCK });
-        }
-      }
-      const theme = ch.zone || "default";
-      const accent = theme === "ceiling" ? 0x9b7bd4 : theme === "rack" ? 0x4ab8d8 : 0x5a9e3a;
-      addInstancedBlocks(THREE, scene, pad, blockMat(THREE, null, accent), 0.5);
+      const pedestal = new THREE.Mesh(
+        new THREE.BoxGeometry(BLOCK * 1.4, BLOCK * 1.2, BLOCK * 1.4),
+        blockMat(THREE, stone)
+      );
+      pedestal.position.set(px, 0.1, pz);
+      scene.add(pedestal);
+      if (colliders) colliders.push({ x: px, z: pz, r: 1.05, kind: "pedestal", id: ch.id });
     });
 
     const pillarMat = blockMat(THREE, stone);
     const ph = 6;
-    [
+    const corners = [
       [bounds.minX - 4, bounds.minZ - 4],
       [bounds.maxX + 4, bounds.minZ - 4],
       [bounds.minX - 4, bounds.maxZ + 4],
       [bounds.maxX + 4, bounds.maxZ + 4]
-    ].forEach(([x, z]) => {
+    ];
+    corners.forEach(([x, z]) => {
       const col = new THREE.Mesh(new THREE.BoxGeometry(BLOCK, ph, BLOCK), pillarMat);
       col.position.set(x, ph / 2 - 0.5, z);
       scene.add(col);
+      if (colliders) colliders.push({ x, z, r: 0.72, kind: "pillar" });
     });
 
     return { grass, stone, materials };
