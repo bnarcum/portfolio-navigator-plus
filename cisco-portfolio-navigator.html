@@ -9,7 +9,8 @@
   <script type="importmap">
   {"imports":{"three":"./vendor/three.module.min.js"}}
   </script>
-  <link rel="stylesheet" href="design-studio.css?v=2.56.1"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+  <link rel="stylesheet" href="design-studio.css?v=2.56.2"/>
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     @font-face{
@@ -1127,8 +1128,8 @@
 <div id="actionbar">
   <div class="actionbar-filters">
   <div class="vm-seg" id="vm-seg" role="group" aria-label="Visualization level">
-    <button type="button" data-vm="overview"     title="Overview — 5 category bubbles">Overview</button>
-    <button type="button" data-vm="families"     class="active" title="Families — 53 product families (default)">Families</button>
+    <button type="button" data-vm="overview"     class="active" title="Overview — 5 category bubbles (default)">Overview</button>
+    <button type="button" data-vm="families"     title="Families — 53 product families">Families</button>
     <button type="button" data-vm="composition"  disabled title="Composition — pick a family first">Composition</button>
     <button type="button" data-vm="all-products" title="All Products — every family + product (dense; power-user view)">All</button>
     <button type="button" data-vm="spatial" title="Spatial — immersive 3D map of product families">Spatial</button>
@@ -3840,7 +3841,7 @@ document.getElementById("rst").addEventListener("click", resetAll);
 // View state — must exist before zoom init (svg.call(zoom) fires synchronously).
 const VIEW_MODE_KEY  = "cpn-view-mode-v2";
 const VIEW_FOCUS_KEY = "cpn-view-focus-v2";
-let viewMode  = "families";   // "overview" | "families" | "composition" | "spatial"
+let viewMode  = "overview";   // "overview" | "families" | "composition" | "spatial"
 let viewFocus = null;         // family id when in composition mode
 let viewNodes = NODES.slice();
 let viewLinks = LINKS.slice();
@@ -7948,22 +7949,15 @@ window.__cpnSpatialVisibleLabels = () => {
       applyViewLevel("composition", { focusFamily: savedFocus, initial: true });
       return;
     }
-    savedMode = "families";
-  }
-  if (savedMode === "overview"){
-    applyViewLevel("overview", { initial: true });
-    return;
-  }
-  if (savedMode === "all-products"){
+  } else if (savedMode === "all-products"){
     applyViewLevel("all-products", { initial: true });
     return;
-  }
-  if (savedMode === "spatial"){
+  } else if (savedMode === "spatial"){
     const ff = validFamilyFocus(savedFocus);
     applyViewLevel("spatial", { focusFamily: ff || undefined, initial: true });
     return;
   }
-  applyViewLevel("families", { initial: true });
+  applyViewLevel("overview", { initial: true });
 })();
 
 function applyConnectionHighlight(d, depth = connectionHighlightDepth){
@@ -9638,7 +9632,7 @@ document.addEventListener("keydown",ev=>{
    ══════════════════════════════════════════════════════════════════════════*/
 (function v2(){
 
-const APP_VERSION   = "2.56.1";
+const APP_VERSION   = "2.56.2";
 const DATA_UPDATED  = "2026-06-20";
 const STORAGE_KEYS  = {
   plans:    "cpn-plans-v2",
@@ -15503,15 +15497,15 @@ window.__cpnV2 = {
 </script>
 <script src="assets/family-heroes.js?v=2.51.2"></script>
 <script>window.__DS_ASSET_V="2.51.0";</script>
-<script src="design-studio-photos.js?v=2.56.1"></script>
-<script src="design-studio-stencils.js?v=2.56.1"></script>
-<script src="design-studio-templates.js?v=2.56.1"></script>
-<script src="design-studio-rules.js?v=2.56.1"></script>
-<script src="design-studio-intent.js?v=2.56.1"></script>
-<script src="design-studio-explore.js?v=2.56.1"></script>
-<script src="design-studio-premium.js?v=2.56.1"></script>
-<script src="design-studio-expert.js?v=2.56.1"></script>
-<script src="design-studio-walk.js?v=2.56.1"></script>
-<script src="design-studio.js?v=2.56.1"></script>
+<script src="design-studio-photos.js?v=2.56.2"></script>
+<script src="design-studio-stencils.js?v=2.56.2"></script>
+<script src="design-studio-templates.js?v=2.56.2"></script>
+<script src="design-studio-rules.js?v=2.56.2"></script>
+<script src="design-studio-intent.js?v=2.56.2"></script>
+<script src="design-studio-explore.js?v=2.56.2"></script>
+<script src="design-studio-premium.js?v=2.56.2"></script>
+<script src="design-studio-expert.js?v=2.56.2"></script>
+<script src="design-studio-walk.js?v=2.56.2"></script>
+<script src="design-studio.js?v=2.56.2"></script>
 </body>
 </html>
