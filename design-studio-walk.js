@@ -33,11 +33,14 @@
   const NET_LAYER_Z = { wan: -18, security: -12, core: -6, distribution: 0, dc: 2, access: 8, mgmt: 4, collab: 12 };
 
   const state = {
-    studio: null, mode: null, overlay: null, animId: 0, clock: 0,
-    THREE: null, renderer: null, scene: null, camera: null,
-    keys: {}, pointerLocked: false, yaw: 0, pitch: 0,
-    pos: { x: 0, y: 1.7, z: 0 }, chambers: [], devicePods: [], cables: [],
-    trace: null, maze: null, graph: null, texCache: new Map(), disposables: []
+    studio: null, mode: null, overlay: null, animId: 0, clock: 0, lastFrame: 0,
+    THREE: null, renderer: null, scene: null, camera: null, raycaster: null,
+    keys: {}, pointerLocked: false, lookDrag: false, lookLast: { x: 0, y: 0 },
+    yaw: 0, pitch: 0, vel: { x: 0, z: 0 },
+    pos: { x: 0, y: 1.7, z: 0 }, fly: null,
+    chambers: [], devicePods: [], cables: [], colliders: [], bounds: null,
+    trace: null, maze: null, graph: null, texCache: new Map(), disposables: [],
+    focusId: null, navIndex: 0
   };
 
   function esc(s) {
@@ -344,6 +347,7 @@
 
     g.position.set(ch.pos.x, 0, ch.pos.z);
     state.devicePods.push(g);
+    state.colliders.push({ x: ch.pos.x, z: ch.pos.z, r: 2.1 * scale, id: ch.id });
     return g;
   }
 
@@ -406,6 +410,7 @@
     state.graph = graph;
     state.devicePods = [];
     state.cables = [];
+    state.colliders = [];
 
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -419,16 +424,25 @@
 
     const camera = new THREE.PerspectiveCamera(68, 1, 0.1, 220);
     state.camera = camera;
+    state.raycaster = new THREE.Raycaster();
 
     const pods = await Promise.all(graph.chambers.map(ch => makeDevicePod(THREE, ch, 1)));
     pods.forEach(p => scene.add(p));
     graph.corridors.forEach(cor => scene.add(makeCableRun(THREE, cor)));
 
+    const xs = graph.chambers.map(c => c.pos.x);
+    const zs = graph.chambers.map(c => c.pos.z);
+    state.bounds = {
+      minX: Math.min(...xs) - 8, maxX: Math.max(...xs) + 8,
+      minZ: Math.min(...zs) - 8, maxZ: Math.max(...zs) + 8
+    };
+
     const spawn = graph.chambers.find(c => /switch|9200|9300/i.test(c.label)) || graph.chambers[0];
-    state.pos = { x: spawn.pos.x, y: 1.7, z: spawn.pos.z + 5 };
-    state.yaw = Math.PI;
-    state.pitch = -0.08;
+    teleportToChamber(spawn, true);
     state.chambers = graph.chambers;
+    state.navIndex = graph.chambers.indexOf(spawn);
+    document.getElementById("ds-walk-minimap")?.removeAttribute("hidden");
+    buildDeviceNav(graph.chambers);
     resizeRenderer();
   }
 
@@ -439,6 +453,7 @@
     state.maze = maze;
     state.devicePods = [];
     state.cables = [];
+    state.colliders = [];
 
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -451,6 +466,7 @@
 
     const camera = new THREE.PerspectiveCamera(72, 1, 0.1, 120);
     state.camera = camera;
+    state.raycaster = new THREE.Raycaster();
 
     const wallMat = new THREE.MeshStandardMaterial({ color: 0x1a3050, metalness: 0.4, roughness: 0.65, emissive: 0x0a1828, emissiveIntensity: 0.15 });
     const ceilMat = new THREE.MeshStandardMaterial({ color: 0x0a1420, metalness: 0.2, roughness: 0.9 });
@@ -498,11 +514,12 @@
     });
 
     const sp = maze.spawn;
-    state.pos = { x: sp.c * CELL + CELL / 2, y: 1.65, z: sp.r * CELL + CELL / 2 + 1.2 };
-    state.yaw = 0;
-    state.pitch = 0;
+    const spawnCh = maze.placements.find(p => p.r === sp.r && p.c === sp.c)?.chamber || graph.chambers[0];
+    teleportToChamber(spawnCh, true);
     state.chambers = graph.chambers;
+    state.navIndex = graph.chambers.indexOf(spawnCh);
     document.getElementById("ds-walk-minimap")?.removeAttribute("hidden");
+    buildDeviceNav(graph.chambers);
     resizeRenderer();
   }
 
@@ -513,6 +530,103 @@
     state.renderer.setSize(w, h, false);
     state.camera.aspect = w / h;
     state.camera.updateProjectionMatrix();
+  }
+
+  function chamberStandPos(ch) {
+    const p = chamberWorldPos(ch);
+    return { x: p.x, y: state.mode === "retro" ? 1.65 : 1.7, z: p.z + 3.2 };
+  }
+
+  function faceChamber(ch) {
+    const p = chamberWorldPos(ch);
+    state.yaw = Math.atan2(p.x - state.pos.x, p.z - state.pos.z);
+    state.pitch = -0.06;
+  }
+
+  function teleportToChamber(ch, instant) {
+    if (!ch) return;
+    const dest = chamberStandPos(ch);
+    state.navIndex = Math.max(0, state.chambers.indexOf(ch));
+    highlightNavChip(ch.id);
+    if (instant) {
+      state.pos = { ...dest };
+      state.vel = { x: 0, z: 0 };
+      faceChamber(ch);
+      state.fly = null;
+    } else {
+      state.fly = {
+        from: { ...state.pos },
+        to: dest,
+        yawFrom: state.yaw,
+        yawTo: Math.atan2(chamberWorldPos(ch).x - dest.x, chamberWorldPos(ch).z - dest.z),
+        t: 0,
+        dur: 0.65,
+        chamber: ch
+      };
+      state.vel = { x: 0, z: 0 };
+    }
+    setStatus(`At ${ch.label}${ch.pid ? " · " + ch.pid : ""}`);
+  }
+
+  function cycleDevice(dir) {
+    if (!state.chambers.length) return;
+    state.navIndex = (state.navIndex + dir + state.chambers.length) % state.chambers.length;
+    teleportToChamber(state.chambers[state.navIndex], false);
+  }
+
+  function buildDeviceNav(chambers) {
+    const bar = document.getElementById("ds-walk-devices");
+    if (!bar) return;
+    bar.innerHTML = chambers.map((ch, i) => {
+      const theme = zoneTheme(ch.zone);
+      const accent = "#" + theme.accent.toString(16).padStart(6, "0");
+      return `<button type="button" class="ds-walk-dev${i === state.navIndex ? " active" : ""}" data-chamber="${ch.id}" title="${esc(ch.label)}${ch.pid ? " · " + ch.pid : ""}">
+        <i style="background:${accent}"></i><span>${esc(ch.label.slice(0, 16))}</span></button>`;
+    }).join("");
+    bar.querySelectorAll("[data-chamber]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const ch = chambers.find(c => c.id === btn.dataset.chamber);
+        teleportToChamber(ch, false);
+      });
+    });
+  }
+
+  function highlightNavChip(id) {
+    document.querySelectorAll(".ds-walk-dev").forEach(el => {
+      el.classList.toggle("active", el.dataset.chamber === id);
+    });
+    state.focusId = id;
+    state.devicePods.forEach(pod => {
+      const on = pod.userData?.chamber?.id === id;
+      pod.scale.setScalar(on ? 1.06 : 1);
+      const ring = pod.children.find(c => c.geometry?.type === "TorusGeometry");
+      if (ring?.material) ring.material.opacity = on ? 1 : 0.55;
+    });
+  }
+
+  function minimapTeleport(mx, my, mmW, mmH) {
+    if (state.mode === "retro" && state.maze) {
+      const m = state.maze;
+      const cols = m.grid[0]?.length || 1;
+      const rows = m.grid.length;
+      const c = Math.floor((mx / mmW) * cols);
+      const r = Math.floor((my / mmH) * rows);
+      if (m.grid[r]?.[c] !== 0) return;
+      state.pos.x = c * CELL + CELL / 2;
+      state.pos.z = r * CELL + CELL / 2;
+      state.vel = { x: 0, z: 0 };
+      return;
+    }
+    if (!state.bounds || !state.chambers.length) return;
+    const tX = state.bounds.minX + (mx / mmW) * (state.bounds.maxX - state.bounds.minX);
+    const tZ = state.bounds.minZ + (my / mmH) * (state.bounds.maxZ - state.bounds.minZ);
+    let best = null, bestD = Infinity;
+    state.chambers.forEach(ch => {
+      const p = chamberWorldPos(ch);
+      const d = (p.x - tX) ** 2 + (p.z - tZ) ** 2;
+      if (d < bestD) { bestD = d; best = ch; }
+    });
+    if (best) teleportToChamber(best, false);
   }
 
   function mazeBlocked(x, z) {
@@ -533,30 +647,98 @@
     else if (!mazeBlocked(state.pos.x, nz)) state.pos.z = nz;
   }
 
-  function updatePlayer() {
-    const speed = state.keys["Shift"] ? 0.2 : 0.11;
-    const fwd = new state.THREE.Vector3(Math.sin(state.yaw), 0, Math.cos(state.yaw));
-    const right = new state.THREE.Vector3(Math.cos(state.yaw), 0, -Math.sin(state.yaw));
-    let mx = 0, mz = 0;
-    if (state.keys["w"] || state.keys["ArrowUp"]) { mx += fwd.x * speed; mz += fwd.z * speed; }
-    if (state.keys["s"] || state.keys["ArrowDown"]) { mx -= fwd.x * speed; mz -= fwd.z * speed; }
-    if (state.keys["a"] || state.keys["ArrowLeft"]) { mx -= right.x * speed; mz -= right.z * speed; }
-    if (state.keys["d"] || state.keys["ArrowRight"]) { mx += right.x * speed; mz += right.z * speed; }
+  function podBlocked(x, z, pad = 0.45) {
+    for (const col of state.colliders) {
+      const dx = x - col.x, dz = z - col.z;
+      if (dx * dx + dz * dz < (col.r + pad) ** 2) return true;
+    }
+    return false;
+  }
 
+  function tryMoveCorridor(dx, dz) {
+    const b = state.bounds;
+    let nx = state.pos.x + dx, nz = state.pos.z + dz;
+    if (b) {
+      nx = Math.max(b.minX, Math.min(b.maxX, nx));
+      nz = Math.max(b.minZ, Math.min(b.maxZ, nz));
+    }
+    const tryAxis = (tx, tz) => !podBlocked(tx, tz);
+    if (tryAxis(nx, nz)) { state.pos.x = nx; state.pos.z = nz; return; }
+    if (tryAxis(nx, state.pos.z)) state.pos.x = nx;
+    else if (tryAxis(state.pos.x, nz)) state.pos.z = nz;
+  }
+
+  function updateFly(dt) {
+    const f = state.fly;
+    if (!f) return false;
+    f.t = Math.min(1, f.t + dt / f.dur);
+    const e = f.t < 0.5 ? 2 * f.t * f.t : 1 - (-2 * f.t + 2) ** 2 / 2;
+    state.pos.x = f.from.x + (f.to.x - f.from.x) * e;
+    state.pos.y = f.from.y + (f.to.y - f.from.y) * e;
+    state.pos.z = f.from.z + (f.to.z - f.from.z) * e;
+    let dy = f.yawTo - f.yawFrom;
+    while (dy > Math.PI) dy -= Math.PI * 2;
+    while (dy < -Math.PI) dy += Math.PI * 2;
+    state.yaw = f.yawFrom + dy * e;
+    if (f.t >= 1) {
+      if (f.chamber) highlightNavChip(f.chamber.id);
+      state.fly = null;
+    }
+    return true;
+  }
+
+  function updatePlayer(dt) {
+    if (updateFly(dt)) { applyCamera(); return; }
+
+    const THREE = state.THREE;
+    const maxSpd = state.keys["Shift"] ? 16 : 10;
+    const accel = 42;
+    const friction = 10;
+    const fwd = new THREE.Vector3(Math.sin(state.yaw), 0, Math.cos(state.yaw));
+    const right = new THREE.Vector3(Math.cos(state.yaw), 0, -Math.sin(state.yaw));
+
+    let ix = 0, iz = 0;
+    if (state.keys["w"] || state.keys["ArrowUp"]) { ix += fwd.x; iz += fwd.z; }
+    if (state.keys["s"] || state.keys["ArrowDown"]) { ix -= fwd.x; iz -= fwd.z; }
+    if (state.keys["a"] || state.keys["ArrowLeft"]) { ix -= right.x; iz -= right.z; }
+    if (state.keys["d"] || state.keys["ArrowRight"]) { ix += right.x; iz += right.z; }
+
+    if (ix !== 0 || iz !== 0) {
+      const len = Math.hypot(ix, iz) || 1;
+      state.vel.x += (ix / len) * accel * dt;
+      state.vel.z += (iz / len) * accel * dt;
+    } else {
+      const damp = Math.exp(-friction * dt);
+      state.vel.x *= damp;
+      state.vel.z *= damp;
+    }
+    const spd = Math.hypot(state.vel.x, state.vel.z);
+    if (spd > maxSpd) {
+      state.vel.x = (state.vel.x / spd) * maxSpd;
+      state.vel.z = (state.vel.z / spd) * maxSpd;
+    }
+
+    const mx = state.vel.x * dt;
+    const mz = state.vel.z * dt;
     if (state.mode === "retro") tryMove(mx, mz);
-    else { state.pos.x += mx; state.pos.z += mz; }
+    else if (mx || mz) tryMoveCorridor(mx, mz);
 
     if (state.trace) {
       const wps = state.trace.waypoints;
-      state.trace.t = Math.min(1, state.trace.t + 0.007);
+      state.trace.t = Math.min(1, state.trace.t + dt * 0.45);
       const t = state.trace.t;
       const ax = wps[0].x, az = wps[0].z, bx = wps[1].x, bz = wps[1].z;
       state.pos.x = ax + (bx - ax) * t;
-      state.pos.z = az + (bz - az) * t + (state.mode === "retro" ? 0 : 3);
+      state.pos.z = az + (bz - az) * t;
+      state.pos.y = state.mode === "retro" ? 1.65 : 1.7;
       state.yaw = Math.atan2(bx - ax, bz - az);
+      state.vel = { x: 0, z: 0 };
       if (t >= 1) { setStatus(`Arrived: ${state.trace.label}`); state.trace = null; }
     }
+    applyCamera();
+  }
 
+  function applyCamera() {
     const cam = state.camera;
     if (!cam) return;
     cam.position.set(state.pos.x, state.pos.y, state.pos.z);
@@ -565,6 +747,8 @@
       state.pos.y + Math.sin(state.pitch),
       state.pos.z + Math.cos(state.yaw) * Math.cos(state.pitch)
     );
+    const compass = document.getElementById("ds-walk-compass");
+    if (compass) compass.style.transform = `rotate(${-state.yaw}rad)`;
   }
 
   function animateCables(t) {
@@ -609,45 +793,90 @@
 
   function drawMinimap() {
     const mm = document.getElementById("ds-walk-minimap");
-    const m = state.maze;
-    if (!mm || !m || state.mode !== "retro") return;
+    if (!mm) return;
     const ctx = mm.getContext("2d");
-    const W = mm.width = 140, H = mm.height = 100;
-    ctx.fillStyle = "rgba(4,16,31,0.92)";
+    const W = mm.width = 168, H = mm.height = 118;
+    ctx.fillStyle = "rgba(4,16,31,0.94)";
     ctx.fillRect(0, 0, W, H);
-    const rows = m.grid.length, cols = m.grid[0]?.length || 1;
-    const sx = W / cols, sy = H / rows;
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        ctx.fillStyle = m.grid[r][c] === 1 ? "#1a3050" : "#0a2030";
-        ctx.fillRect(c * sx, r * sy, sx - 0.5, sy - 0.5);
+    ctx.strokeStyle = "rgba(2,200,255,0.35)";
+    ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
+
+    if (state.mode === "retro" && state.maze) {
+      const m = state.maze;
+      const rows = m.grid.length, cols = m.grid[0]?.length || 1;
+      const sx = (W - 8) / cols, sy = (H - 8) / rows;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          ctx.fillStyle = m.grid[r][c] === 1 ? "#1a3050" : "#0a2030";
+          ctx.fillRect(4 + c * sx, 4 + r * sy, sx - 0.5, sy - 0.5);
+        }
       }
+      m.placements.forEach(p => {
+        ctx.fillStyle = "#44cc88";
+        ctx.fillRect(4 + p.c * sx + 1, 4 + p.r * sy + 1, sx * 2 - 2, sy * 2 - 2);
+      });
+      const px = 4 + (state.pos.x / CELL) * sx;
+      const py = 4 + (state.pos.z / CELL) * sy;
+      drawMinimapPlayer(ctx, px, py);
+      return;
     }
-    m.placements.forEach(p => {
-      ctx.fillStyle = "#44cc88";
-      ctx.fillRect(p.c * sx + 1, p.r * sy + 1, sx * 2 - 2, sy * 2 - 2);
+
+    if (!state.bounds || !state.chambers.length) return;
+    const b = state.bounds;
+    const pad = 6;
+    const rw = W - pad * 2, rh = H - pad * 2;
+    const scale = Math.min(rw / (b.maxX - b.minX), rh / (b.maxZ - b.minZ));
+    const ox = pad + (rw - (b.maxX - b.minX) * scale) / 2;
+    const oz = pad + (rh - (b.maxZ - b.minZ) * scale) / 2;
+    const toX = x => ox + (x - b.minX) * scale;
+    const toZ = z => oz + (z - b.minZ) * scale;
+
+    state.cables.forEach(g => {
+      const cor = g.userData?.corridor;
+      if (!cor) return;
+      const a = cor.from.pos, bp = cor.to.pos;
+      ctx.strokeStyle = "rgba(212,160,96,0.35)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(toX(a.x), toZ(a.z));
+      ctx.lineTo(toX(bp.x), toZ(bp.z));
+      ctx.stroke();
     });
-    const px = (state.pos.x / CELL) * sx;
-    const py = (state.pos.z / CELL) * sy;
+    state.chambers.forEach(ch => {
+      const p = ch.pos;
+      const theme = zoneTheme(ch.zone);
+      ctx.fillStyle = "#" + theme.accent.toString(16).padStart(6, "0");
+      ctx.beginPath();
+      ctx.arc(toX(p.x), toZ(p.z), ch.id === state.focusId ? 5 : 4, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    drawMinimapPlayer(ctx, toX(state.pos.x), toZ(state.pos.z));
+  }
+
+  function drawMinimapPlayer(ctx, px, py) {
     ctx.fillStyle = "#02c8ff";
     ctx.beginPath();
-    ctx.arc(px, py, 3, 0, Math.PI * 2);
+    ctx.arc(px, py, 4, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = "#ff9000";
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(px, py);
-    ctx.lineTo(px + Math.sin(state.yaw) * 10, py + Math.cos(state.yaw) * 10);
+    ctx.lineTo(px + Math.sin(state.yaw) * 12, py + Math.cos(state.yaw) * 12);
     ctx.stroke();
   }
 
-  function loop() {
+  function loop(now) {
     if (!state.renderer || !state.scene || !state.camera) return;
-    state.clock += 0.016;
-    updatePlayer();
+    const t = (now || performance.now()) / 1000;
+    const dt = Math.min(0.05, state.lastFrame ? t - state.lastFrame : 0.016);
+    state.lastFrame = t;
+    state.clock += dt;
+    updatePlayer(dt);
     animateCables(state.clock);
     updateFocusHud();
-    if (state.mode === "retro") drawMinimap();
-    state.renderer?.render(state.scene, state.camera);
+    drawMinimap();
+    state.renderer.render(state.scene, state.camera);
     state.animId = requestAnimationFrame(loop);
   }
 
@@ -655,15 +884,18 @@
     return `<div class="ds-walk-hud">
       <div class="ds-walk-hud-top">
         <strong class="ds-walk-title">${mode === "retro" ? "⬡ Network Dungeon" : "⬡ Path Walkthrough"}</strong>
-        <span class="ds-walk-hint">WASD move · Click canvas · Mouse look · Esc exit</span>
+        <span class="ds-walk-hint">WASD move · Drag to look · [ ] prev/next device · Click minimap to jump · Esc exit</span>
         <button type="button" class="ds-walk-close" title="Exit walkthrough">✕</button>
       </div>
       <div class="ds-walk-hud-mid">
         <button type="button" class="ds-walk-btn" data-action="trace-av">Trace AV path</button>
         <button type="button" class="ds-walk-btn" data-action="trace-poe">Trace PoE bus</button>
+        <button type="button" class="ds-walk-btn" data-action="prev-dev" title="Previous device">‹ Device</button>
+        <button type="button" class="ds-walk-btn" data-action="next-dev" title="Next device">Device ›</button>
         <button type="button" class="ds-walk-btn${mode === "retro" ? " active" : ""}" data-action="mode-retro">Retro</button>
         <button type="button" class="ds-walk-btn${mode === "corridor" ? " active" : ""}" data-action="mode-corridor">Corridor</button>
       </div>
+      <div class="ds-walk-devices" id="ds-walk-devices"></div>
       <div class="ds-walk-focus" id="ds-walk-focus" hidden></div>
       <div class="ds-walk-status" id="ds-walk-status">Explore the signal paths between devices</div>
     </div>`;
@@ -678,6 +910,8 @@
         else if (a === "mode-corridor") switchMode("corridor");
         else if (a === "trace-av") startTrace("av");
         else if (a === "trace-poe") startTrace("poe");
+        else if (a === "prev-dev") cycleDevice(-1);
+        else if (a === "next-dev") cycleDevice(1);
       });
     });
   }
@@ -715,31 +949,103 @@
     open(state.studio, mode);
   }
 
+  function pickDeviceAt(clientX, clientY, canvas) {
+    if (!state.raycaster || !state.camera) return null;
+    const rect = canvas.getBoundingClientRect();
+    const ndc = new state.THREE.Vector2(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1
+    );
+    state.raycaster.setFromCamera(ndc, state.camera);
+    const hits = state.raycaster.intersectObjects(state.devicePods, true);
+    for (const hit of hits) {
+      let o = hit.object;
+      while (o && !o.userData?.chamber) o = o.parent;
+      if (o?.userData?.chamber) return o.userData.chamber;
+    }
+    return null;
+  }
+
   function bindInput(canvas) {
     const onKey = e => {
+      const tag = (e.target.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select") return;
       state.keys[e.key] = e.type === "keydown";
-      if (e.key === "Escape") { e.preventDefault(); close(); }
+      if (e.type === "keydown") {
+        if (e.key === "Escape") { e.preventDefault(); close(); return; }
+        if (e.key === "[" || e.key === "{") { e.preventDefault(); cycleDevice(-1); return; }
+        if (e.key === "]" || e.key === "}") { e.preventDefault(); cycleDevice(1); return; }
+        if (e.key === "Tab") { e.preventDefault(); cycleDevice(e.shiftKey ? -1 : 1); return; }
+      }
+    };
+    const onLook = (dx, dy) => {
+      state.yaw -= dx * 0.003;
+      state.pitch = Math.max(-0.55, Math.min(0.55, state.pitch - dy * 0.003));
+    };
+    let downPos = null;
+    const onDown = e => {
+      if (e.button !== 0 && e.button !== 2) return;
+      const mm = e.target.closest("#ds-walk-minimap");
+      if (mm) {
+        const r = mm.getBoundingClientRect();
+        const scaleX = mm.width / r.width;
+        const scaleY = mm.height / r.height;
+        minimapTeleport((e.clientX - r.left) * scaleX, (e.clientY - r.top) * scaleY, mm.width, mm.height);
+        return;
+      }
+      if (!canvas.contains(e.target) && e.target !== canvas) return;
+      state.lookDrag = true;
+      downPos = { x: e.clientX, y: e.clientY };
+      state.lookLast = { x: e.clientX, y: e.clientY };
     };
     const onMove = e => {
-      if (!state.pointerLocked) return;
-      state.yaw -= e.movementX * 0.0022;
-      state.pitch = Math.max(-0.55, Math.min(0.55, state.pitch - e.movementY * 0.0022));
+      if (state.pointerLocked) {
+        onLook(e.movementX, e.movementY);
+        return;
+      }
+      if (!state.lookDrag) return;
+      onLook(e.clientX - state.lookLast.x, e.clientY - state.lookLast.y);
+      state.lookLast = { x: e.clientX, y: e.clientY };
     };
-    const onClick = () => canvas.requestPointerLock?.();
+    const onUp = e => {
+      if (e.button === 0 && downPos) {
+        const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
+        if (moved < 6) {
+          const ch = pickDeviceAt(e.clientX, e.clientY, canvas);
+          if (ch) teleportToChamber(ch, false);
+        }
+      }
+      state.lookDrag = false;
+      downPos = null;
+    };
+    const onDbl = () => canvas.requestPointerLock?.();
+    const onWheel = e => {
+      if (!canvas.matches(":hover")) return;
+      e.preventDefault();
+      const boost = e.deltaY < 0 ? 1.12 : 0.9;
+      state.vel.x *= boost;
+      state.vel.z *= boost;
+    };
     const onLock = () => {
       state.pointerLocked = document.pointerLockElement === canvas;
       state.overlay?.classList.toggle("ds-walk-locked", state.pointerLocked);
     };
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onKey);
-    canvas.addEventListener("mousemove", onMove);
-    canvas.addEventListener("click", onClick);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    canvas.addEventListener("mousedown", onDown);
+    canvas.addEventListener("dblclick", onDbl);
+    canvas.addEventListener("wheel", onWheel, { passive: false });
     document.addEventListener("pointerlockchange", onLock);
     state._inputCleanup = () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onKey);
-      canvas.removeEventListener("mousemove", onMove);
-      canvas.removeEventListener("click", onClick);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      canvas.removeEventListener("mousedown", onDown);
+      canvas.removeEventListener("dblclick", onDbl);
+      canvas.removeEventListener("wheel", onWheel);
       document.removeEventListener("pointerlockchange", onLock);
       document.exitPointerLock?.();
     };
@@ -756,6 +1062,11 @@
     state.texCache.clear();
     state.devicePods = [];
     state.cables = [];
+    state.colliders = [];
+    state.bounds = null;
+    state.fly = null;
+    state.vel = { x: 0, z: 0 };
+    state.lastFrame = 0;
     state.renderer?.dispose?.();
     state.renderer = null;
     state.scene = null;
@@ -796,7 +1107,8 @@
     overlay.innerHTML = `${hudHtml(mode)}
       <div class="ds-walk-stage">
         <div class="ds-walk-crosshair" aria-hidden="true"></div>
-        <canvas id="ds-walk-minimap" class="ds-walk-minimap" hidden></canvas>
+        <div class="ds-walk-compass" id="ds-walk-compass" aria-hidden="true"><span>N</span></div>
+        <canvas id="ds-walk-minimap" class="ds-walk-minimap" title="Click to jump"></canvas>
         <div class="ds-walk-canvas-wrap">
           <canvas id="ds-walk-canvas"></canvas>
         </div>
@@ -815,7 +1127,7 @@
       studio.roomView = mode === "retro" ? "retro" : "walk";
       window.__DS_PREMIUM?.renderRoomViewToggle?.(studio);
       const title = graph.room?.name || "Topology";
-      setStatus(`${title} — ${graph.chambers.length} devices · ${graph.corridors.length} links · Click canvas to look around`);
+      setStatus(`${title} — ${graph.chambers.length} devices · Drag canvas to look · Click device or chip to fly there`);
     } catch (err) {
       console.error("[DS Walk]", err);
       showWalkError(err?.message === "three-load" ? "3D library failed to load — hard-refresh" : `Walkthrough failed: ${err.message}`);

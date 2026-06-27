@@ -85,14 +85,16 @@ try {
       status: document.getElementById("ds-walk-status")?.textContent || "",
       canvasW: document.getElementById("ds-walk-canvas")?.width || 0,
       pods: stats.pods || 0,
-      minimap: !document.getElementById("ds-walk-minimap")?.hidden
+      minimap: !!document.getElementById("ds-walk-minimap"),
+      navChips: document.querySelectorAll(".ds-walk-dev").length
     };
   });
   if (retro.overlayHidden !== false) errors.push("retro overlay still hidden after click");
   if (!retro.walkOpen) errors.push(`retro walk not open; status="${retro.status}"`);
   if (retro.canvasW < 100) errors.push(`retro canvas width ${retro.canvasW}`);
   if (retro.pods < 3) errors.push(`expected device pods in retro, got ${retro.pods}`);
-  if (!retro.minimap) errors.push("retro minimap not visible");
+  if (!retro.minimap) errors.push("retro minimap missing");
+  if (retro.navChips < 3) errors.push(`expected device nav chips, got ${retro.navChips}`);
 
   await page.evaluate(() => window.__DS_WALK?.close?.());
   await page.waitForTimeout(200);
@@ -106,13 +108,15 @@ try {
       status: document.getElementById("ds-walk-status")?.textContent || "",
       hasError: document.getElementById("ds-walk-status")?.classList.contains("ds-walk-error"),
       pods: stats.pods || 0,
-      hasRenderer: !!stats.hasRenderer
+      hasRenderer: !!stats.hasRenderer,
+      navChips: document.querySelectorAll(".ds-walk-dev").length
     };
   });
   if (!corridor.walkOpen) errors.push(`corridor walk not open; status="${corridor.status}"`);
   if (corridor.hasError) errors.push(`corridor error status: ${corridor.status}`);
   if (corridor.pods < 3) errors.push(`expected device pods in corridor, got ${corridor.pods}`);
   if (!corridor.hasRenderer) errors.push("corridor missing WebGL renderer");
+  if (corridor.navChips < 3) errors.push(`corridor nav chips: ${corridor.navChips}`);
 
   if (errors.length) {
     console.error("FAIL\n" + errors.map(e => `  - ${e}`).join("\n"));
