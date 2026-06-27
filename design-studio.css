@@ -628,9 +628,19 @@
 
 /* Field Tech inspect side panel */
 #ds-walk-overlay.ds-field-panel-open .ds-walk-stage::before{content:"";position:absolute;inset:0;z-index:3;background:rgba(2,8,18,.35);pointer-events:none}
-.ds-field-panel{position:absolute;top:0;right:0;bottom:0;z-index:7;width:min(340px,92vw);display:flex;flex-direction:column;
-  background:linear-gradient(180deg,rgba(6,18,32,.97),rgba(4,12,24,.98));border-left:1px solid rgba(2,200,255,.35);
-  box-shadow:-8px 0 32px rgba(0,0,0,.45);overflow:hidden;pointer-events:auto}
+.ds-field-panel{position:absolute;top:0;right:0;bottom:0;z-index:20;width:min(380px,94vw);display:flex;flex-direction:column;
+  background:linear-gradient(180deg,rgba(8,20,36,.98),rgba(4,12,22,.99));border-left:1px solid rgba(2,200,255,.45);
+  box-shadow:-12px 0 40px rgba(0,0,0,.55);overflow:hidden;pointer-events:auto;
+  animation:ds-fp-slide .28s ease-out}
+@keyframes ds-fp-slide{from{transform:translateX(24px);opacity:.6}to{transform:none;opacity:1}}
+.ds-fp-badge{display:inline-block;font-size:8px;font-weight:800;letter-spacing:.12em;padding:3px 8px;border-radius:4px;
+  background:rgba(255,144,0,.2);border:1px solid rgba(255,144,0,.45);color:#ffcc66;margin-bottom:6px}
+.ds-fp-lead{font-size:12px!important;line-height:1.5!important;color:#e8f4ff!important;font-weight:600}
+.ds-fp-hero{border-left:3px solid rgba(2,200,255,.5);padding-left:10px}
+.ds-fp-spec-grid{display:flex;flex-wrap:wrap;gap:6px;font-size:9px;color:#9ec0dc}
+.ds-fp-spec-grid span{padding:3px 8px;border-radius:4px;border:1px solid rgba(2,200,255,.2);background:rgba(2,200,255,.06)}
+.ds-fp-portpath{font-size:9px;color:#7a9ab8}
+#ds-walk-overlay.ds-field-panel-open .ds-field-panel{box-shadow:-16px 0 48px rgba(2,200,255,.15),-12px 0 40px rgba(0,0,0,.6)}
 .ds-field-panel[hidden]{display:none!important}
 .ds-fp-head{display:flex;gap:8px;align-items:flex-start;padding:12px 12px 8px;border-bottom:1px solid rgba(2,200,255,.2)}
 .ds-fp-close{flex:0 0 auto;background:rgba(255,80,80,.12);border:1px solid rgba(255,100,100,.35);color:#ffb0b0;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:12px}
@@ -659,8 +669,11 @@
   background:rgba(0,0,0,.52);border:1px solid rgba(255,255,255,.08);border-radius:10px;
   backdrop-filter:blur(14px);box-shadow:0 8px 32px rgba(0,0,0,.45);padding:8px 12px}
 #ds-walk-overlay.ds-walk-epic .ds-walk-stage{flex:1;min-height:0}
-#ds-walk-overlay.ds-walk-epic .ds-walk-hud-mid,
-#ds-walk-overlay.ds-walk-epic .ds-walk-devices,
+#ds-walk-overlay.ds-walk-epic .ds-walk-hud-mid{display:flex}
+#ds-walk-overlay.ds-walk-epic .ds-walk-devices{
+  display:flex;position:absolute;bottom:52px;left:50%;transform:translateX(-50%);z-index:6;
+  max-width:min(92vw,720px);margin:0;padding:6px 10px;border-radius:10px;
+  background:rgba(0,0,0,.55);backdrop-filter:blur(10px);border:1px solid rgba(2,200,255,.2)}
 #ds-walk-overlay.ds-walk-epic .ds-walk-focus,
 #ds-walk-overlay.ds-walk-epic .ds-walk-status{display:none}
 #ds-walk-overlay.ds-walk-epic .ds-walk-mission{

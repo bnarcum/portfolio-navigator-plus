@@ -16,7 +16,17 @@
 
   function tipFor(ch) {
     const s = (ch.stencilId || ch.label || "").toLowerCase();
-    if (/9200|9300|switch/i.test(s)) return TEACH.switch;
+    const def = window.__DS_STENCILS?.getDef?.(ch.stencilId, ch.canvas === "room" ? "room" : "network");
+    const role = def?.role || "";
+    if (/ise|pan|psn/i.test(s)) return "ISE nodes enforce 802.1X — PAN is admin, PSN handles policy decisions.";
+    if (/fpr|firewall/i.test(s)) return "Firewall inspects traffic between zones — verify inside/outside interfaces match the diagram.";
+    if (/8200|sd-?wan|mx\d|wan/i.test(s) || role === "wan-edge") return "WAN edge terminates VPN/SD-WAN tunnels — confirm circuit handoff and routing.";
+    if (/9500|9400|core/i.test(s) || role === "core") return "Core switches aggregate the campus — expect redundant supervisors and 40/100G uplinks.";
+    if (/9300|9200|ms250|switch/i.test(s) || role === "access") return TEACH.switch;
+    if (/9179|mr57|ap\b/i.test(s) || role === "ap") return "Access points need PoE+ and correct switchport VLAN/trunk config.";
+    if (/n9k|spine|leaf|apic|ucs/i.test(s)) return "Data center fabric device — verify VPC/EVPN peer links and LACP bundles.";
+    if (/umbrella/i.test(s)) return "DNS-layer security — forwarders should point through this virtual appliance.";
+    if (/internet|mpls|dia/i.test(s)) return "Logical WAN handoff — trace which router or firewall owns this circuit.";
     if (/kit|codec|eq|pro|bar/i.test(s)) return TEACH.codec;
     if (/cam|quad/i.test(s)) return TEACH.camera;
     if (/mic/i.test(s)) return TEACH.mic;

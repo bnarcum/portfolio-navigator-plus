@@ -364,6 +364,22 @@
     g.userData.glowLight = glow;
     g.userData.ring = ring;
 
+    const shadow = new THREE.Mesh(
+      new THREE.CircleGeometry(1.4 * scale, 32),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false })
+    );
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.y = 0.02;
+    g.add(shadow);
+
+    const hitbox = new THREE.Mesh(
+      new THREE.SphereGeometry(2.2 * scale, 12, 12),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    hitbox.position.set(0, 1.1 * scale, 0);
+    hitbox.userData = { chamber: ch, kind: "hitbox" };
+    g.add(hitbox);
+
     g.position.set(ch.pos.x, 0, ch.pos.z);
     state.devicePods.push(g);
     state.colliders.push({ x: ch.pos.x, z: ch.pos.z, r: 2.1 * scale, id: ch.id });
@@ -371,33 +387,45 @@
   }
 
   function makeCableRun(THREE, cor) {
-    const a = cor.from.pos, b = cor.to.pos;
-    const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
-    const len = Math.hypot(dx, dy, dz) || 0.1;
+    const ax = cor.from.pos.x, az = cor.from.pos.z;
+    const bx = cor.to.pos.x, bz = cor.to.pos.z;
+    const dx = bx - ax, dz = bz - az;
+    const len = Math.hypot(dx, dz) || 0.1;
     const g = new THREE.Group();
-    const dir = new THREE.Vector3(dx, dy, dz).normalize();
+    const y = 0.07;
 
-    const outer = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.42, 0.42, len, 12, 1, true),
-      new THREE.MeshStandardMaterial({ color: cor.color, emissive: cor.color, emissiveIntensity: 0.2, transparent: true, opacity: 0.35, metalness: 0.5, roughness: 0.4, side: THREE.DoubleSide })
+    const tray = new THREE.Mesh(
+      new THREE.BoxGeometry(len, 0.05, 0.55),
+      new THREE.MeshStandardMaterial({
+        color: 0x0c1828, emissive: cor.color, emissiveIntensity: 0.35,
+        metalness: 0.65, roughness: 0.35
+      })
     );
-    outer.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
-    outer.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-    g.add(outer);
+    tray.position.set((ax + bx) / 2, y, (az + bz) / 2);
+    tray.rotation.y = Math.atan2(dx, dz);
+    g.add(tray);
 
-    const core = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.18, 0.18, len, 10),
-      new THREE.MeshStandardMaterial({ color: cor.color, emissive: cor.color, emissiveIntensity: 0.85, metalness: 0.3, roughness: 0.2 })
+    const stripe = new THREE.Mesh(
+      new THREE.BoxGeometry(len * 0.96, 0.02, 0.12),
+      new THREE.MeshStandardMaterial({
+        color: cor.color, emissive: cor.color, emissiveIntensity: 0.9, metalness: 0.2, roughness: 0.3
+      })
     );
-    core.position.copy(outer.position);
-    core.quaternion.copy(outer.quaternion);
-    g.add(core);
+    stripe.position.copy(tray.position);
+    stripe.position.y = y + 0.03;
+    stripe.rotation.copy(tray.rotation);
+    g.add(stripe);
 
     const pulse = new THREE.Mesh(
-      new THREE.SphereGeometry(0.22, 10, 10),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 })
+      new THREE.SphereGeometry(0.14, 10, 10),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.92 })
     );
-    pulse.userData = { cable: true, a, b, t: Math.random() };
+    pulse.userData = {
+      cable: true,
+      a: { x: ax, y: y + 0.05, z: az },
+      b: { x: bx, y: y + 0.05, z: bz },
+      t: Math.random()
+    };
     g.add(pulse);
 
     g.userData = { corridor: cor };
@@ -423,86 +451,89 @@
     }, 512, 512);
   }
 
+  function setSkyBackground(THREE, scene, kind) {
+    const tex = makeCanvasTexture(THREE, (ctx, w, h) => {
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      if (kind === "network") {
+        g.addColorStop(0, "#243040");
+        g.addColorStop(0.45, "#141c28");
+        g.addColorStop(1, "#0a1018");
+      } else {
+        g.addColorStop(0, "#2a3848");
+        g.addColorStop(0.5, "#1a2430");
+        g.addColorStop(1, "#101820");
+      }
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+    }, 4, 1024);
+    scene.background = tex;
+  }
+
   function addEpicVenue(THREE, scene, bounds, kind) {
     if (!bounds) return;
-    const pad = 14;
-    const w = Math.max(bounds.maxX - bounds.minX + pad * 2, 28);
-    const d = Math.max(bounds.maxZ - bounds.minZ + pad * 2, 28);
-    const h = kind === "room" ? 11 : 14;
+    const pad = 16;
+    const w = Math.max(bounds.maxX - bounds.minX + pad * 2, 32);
+    const d = Math.max(bounds.maxZ - bounds.minZ + pad * 2, 32);
+    const h = kind === "room" ? 9 : 11;
     const cx = (bounds.minX + bounds.maxX) / 2;
     const cz = (bounds.minZ + bounds.maxZ) / 2;
+    setSkyBackground(THREE, scene, kind);
+
     const floorTex = makeFloorTexture(THREE);
     floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
-    floorTex.repeat.set(w / 8, d / 8);
+    floorTex.repeat.set(w / 6, d / 6);
 
+    const floorColor = kind === "network" ? 0x2a3038 : 0x3a4048;
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(w, d),
       new THREE.MeshStandardMaterial({
-        map: floorTex, color: 0x8899aa, metalness: 0.72, roughness: 0.28,
-        emissive: 0x020810, emissiveIntensity: 0.15
+        map: floorTex, color: floorColor, metalness: kind === "network" ? 0.55 : 0.25,
+        roughness: kind === "network" ? 0.42 : 0.72
       })
     );
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(cx, 0, cz);
+    floor.receiveShadow = true;
     scene.add(floor);
 
     const wallMat = new THREE.MeshStandardMaterial({
-      color: 0x0c1828, metalness: 0.55, roughness: 0.65, emissive: 0x061018, emissiveIntensity: 0.2
-    });
-    const stripMat = new THREE.MeshStandardMaterial({
-      color: 0x02c8ff, emissive: 0x02c8ff, emissiveIntensity: 0.85, metalness: 0.9, roughness: 0.2
+      color: kind === "network" ? 0x141c26 : 0x1e2834, metalness: 0.4, roughness: 0.75
     });
     const walls = [
-      { sx: w, sz: 0.35, x: cx, z: cz - d / 2, ry: 0 },
-      { sx: w, sz: 0.35, x: cx, z: cz + d / 2, ry: 0 },
-      { sx: 0.35, sz: d, x: cx - w / 2, z: cz, ry: 0 },
-      { sx: 0.35, sz: d, x: cx + w / 2, z: cz, ry: 0 }
+      { sx: w, sz: 0.5, x: cx, z: cz - d / 2 },
+      { sx: w, sz: 0.5, x: cx, z: cz + d / 2 },
+      { sx: 0.5, sz: d, x: cx - w / 2, z: cz },
+      { sx: 0.5, sz: d, x: cx + w / 2, z: cz }
     ];
     walls.forEach(wl => {
       const wall = new THREE.Mesh(new THREE.BoxGeometry(wl.sx, h, wl.sz), wallMat);
       wall.position.set(wl.x, h / 2, wl.z);
       scene.add(wall);
-      const strip = new THREE.Mesh(new THREE.BoxGeometry(wl.sx * 0.92, 0.12, wl.sz + 0.2), stripMat);
-      strip.position.set(wl.x, h - 0.4, wl.z);
-      scene.add(strip);
     });
 
     const ceil = new THREE.Mesh(
       new THREE.PlaneGeometry(w, d),
-      new THREE.MeshStandardMaterial({ color: 0x060e18, metalness: 0.3, roughness: 0.9, side: THREE.DoubleSide })
+      new THREE.MeshStandardMaterial({ color: 0x0e141c, metalness: 0.2, roughness: 0.92, side: THREE.DoubleSide })
     );
     ceil.rotation.x = Math.PI / 2;
     ceil.position.set(cx, h, cz);
     scene.add(ceil);
 
-    const spots = Math.min(8, Math.ceil(w * d / 120));
-    for (let i = 0; i < spots; i++) {
-      const sx = cx + (Math.random() - 0.5) * w * 0.75;
-      const sz = cz + (Math.random() - 0.5) * d * 0.75;
-      const spot = new THREE.SpotLight(0xaaddff, kind === "room" ? 1.4 : 1.1, 22, 0.55, 0.6, 1);
-      spot.position.set(sx, h - 0.5, sz);
-      spot.target.position.set(sx, 0, sz);
-      scene.add(spot);
-      scene.add(spot.target);
-      const cone = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.02, 0.35, 3.5, 16, 1, true),
-        new THREE.MeshBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.04, side: THREE.DoubleSide, depthWrite: false })
-      );
-      cone.position.set(sx, h - 2, sz);
-      scene.add(cone);
+    const gridN = kind === "network" ? 6 : 4;
+    for (let i = 0; i < gridN; i++) {
+      for (let j = 0; j < gridN; j++) {
+        const lx = cx + (i / (gridN - 1) - 0.5) * w * 0.85;
+        const lz = cz + (j / (gridN - 1) - 0.5) * d * 0.85;
+        const bulb = new THREE.PointLight(kind === "network" ? 0xc8dce8 : 0xffeedd, 0.55, 18, 2);
+        bulb.position.set(lx, h - 0.6, lz);
+        scene.add(bulb);
+      }
     }
-
-    const dome = new THREE.Mesh(
-      new THREE.SphereGeometry(Math.max(w, d) * 0.9, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: 0x081828, side: THREE.BackSide, transparent: true, opacity: 0.35 })
-    );
-    dome.position.set(cx, 0, cz);
-    scene.add(dome);
   }
 
   function addDustParticles(THREE, scene, bounds) {
     if (!bounds) return;
-    const count = 180;
+    const count = 60;
     const geo = new THREE.BufferGeometry();
     const pos = new Float32Array(count * 3);
     const cx = (bounds.minX + bounds.maxX) / 2;
@@ -515,7 +546,7 @@
       pos[i * 3 + 2] = cz + (Math.random() - 0.5) * spreadZ;
     }
     geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    const mat = new THREE.PointsMaterial({ color: 0x88ddff, size: 0.06, transparent: true, opacity: 0.35, depthWrite: false });
+    const mat = new THREE.PointsMaterial({ color: 0xaaccdd, size: 0.04, transparent: true, opacity: 0.12, depthWrite: false });
     const pts = new THREE.Points(geo, mat);
     pts.userData.dust = true;
     scene.add(pts);
@@ -536,48 +567,30 @@
   }
 
   function addWorldScenery(THREE, scene, graph) {
-    const aisles = window.__DS_WALK_LAYOUT?.layerAisles(graph.chambers) || [];
-    aisles.forEach(a => {
-      const theme = zoneTheme(a.layer);
-      const w = Math.max(a.maxX - a.minX, 5);
-      const d = Math.max(a.maxZ - a.minZ, 5);
-      const slab = new THREE.Mesh(
-        new THREE.PlaneGeometry(w, d),
+    if (graph.kind !== "network") return;
+    const layers = [...new Set(graph.chambers.map(c => c.zone).filter(Boolean))];
+    layers.forEach(layer => {
+      const list = graph.chambers.filter(c => c.zone === layer);
+      if (!list.length) return;
+      const xs = list.map(c => c.pos.x), zs = list.map(c => c.pos.z);
+      const minX = Math.min(...xs) - 2, maxX = Math.max(...xs) + 2;
+      const minZ = Math.min(...zs) - 2, maxZ = Math.max(...zs) + 2;
+      const theme = zoneTheme(layer);
+      const lane = new THREE.Mesh(
+        new THREE.PlaneGeometry(maxX - minX, maxZ - minZ),
         new THREE.MeshStandardMaterial({
-          color: theme.color, transparent: true, opacity: graph.kind === "network" ? 0.42 : 0.32,
-          emissive: theme.accent, emissiveIntensity: 0.12, metalness: 0.2, roughness: 0.8
+          color: theme.color, transparent: true, opacity: 0.08,
+          metalness: 0.3, roughness: 0.9, depthWrite: false
         })
       );
-      slab.rotation.x = -Math.PI / 2;
-      slab.position.set((a.minX + a.maxX) / 2, 0.04, (a.minZ + a.maxZ) / 2);
-      scene.add(slab);
-      const edge = new THREE.LineSegments(
-        new THREE.EdgesGeometry(new THREE.PlaneGeometry(w, d)),
-        new THREE.LineBasicMaterial({ color: theme.accent, transparent: true, opacity: 0.5 })
-      );
-      edge.rotation.x = -Math.PI / 2;
-      edge.position.copy(slab.position);
-      edge.position.y = 0.05;
-      scene.add(edge);
-      if (graph.kind === "network") {
-        const sign = makeLabelSprite(THREE, a.layer.toUpperCase(), "layer", theme);
-        sign.position.set(a.cx, 2.8, a.minZ - 0.8);
-        sign.scale.set(1.6, 0.32, 1);
-        sign.material.opacity = 0.55;
-        scene.add(sign);
-      }
-    });
-    graph.corridors.forEach(cor => {
-      const a = cor.from.pos, b = cor.to.pos;
-      const len = Math.hypot(b.x - a.x, b.z - a.z);
-      if (len < 2) return;
-      const tray = new THREE.Mesh(
-        new THREE.BoxGeometry(len, 0.08, 1.2),
-        new THREE.MeshStandardMaterial({ color: 0x0a1828, emissive: cor.color, emissiveIntensity: 0.15, metalness: 0.6, roughness: 0.4 })
-      );
-      tray.position.set((a.x + b.x) / 2, 0.12, (a.z + b.z) / 2);
-      tray.rotation.y = Math.atan2(b.x - a.x, b.z - a.z);
-      scene.add(tray);
+      lane.rotation.x = -Math.PI / 2;
+      lane.position.set((minX + maxX) / 2, 0.02, (minZ + maxZ) / 2);
+      scene.add(lane);
+      const sign = makeLabelSprite(THREE, layer.toUpperCase(), "", theme);
+      sign.position.set((minX + maxX) / 2, 2.4, minZ - 0.5);
+      sign.scale.set(1.2, 0.24, 1);
+      sign.material.opacity = 0.45;
+      scene.add(sign);
     });
   }
 
@@ -811,7 +824,9 @@
     bar.querySelectorAll("[data-chamber]").forEach(btn => {
       btn.addEventListener("click", () => {
         const ch = chambers.find(c => c.id === btn.dataset.chamber);
+        if (!ch) return;
         teleportToChamber(ch, false);
+        openFieldPanel(ch);
       });
     });
   }
@@ -1006,8 +1021,6 @@
   function interactNearby() {
     const ch = state.reticleChamber;
     if (!ch) return;
-    const p = chamberWorldPos(ch);
-    if (Math.hypot(p.x - state.pos.x, p.z - state.pos.z) > 9) return;
     openFieldPanel(ch);
   }
 
@@ -1225,12 +1238,13 @@
     state.animId = requestAnimationFrame(loop);
   }
 
-  function hudHtml(mode) {
+  function hudHtml(mode, tab) {
     const title = mode === "retro" ? "SIGNAL QUEST" : "FIELD OPS";
+    const showMaze = tab !== "network";
     return `<div class="ds-walk-hud">
       <div class="ds-walk-hud-top">
         <strong class="ds-walk-title">${title}</strong>
-        <span class="ds-walk-hint">WASD move · drag look · E inspect · double-click lock</span>
+        <span class="ds-walk-hint">WASD · click device to learn · E inspect · double-click lock mouse</span>
         <button type="button" class="ds-walk-btn ds-walk-audio-btn" data-action="audio-toggle" title="Toggle music">♫</button>
         <button type="button" class="ds-walk-close" title="Exit walkthrough">✕</button>
       </div>
@@ -1240,8 +1254,8 @@
         <button type="button" class="ds-walk-btn" data-action="trace-poe">Trace PoE</button>
         <button type="button" class="ds-walk-btn" data-action="prev-dev">‹</button>
         <button type="button" class="ds-walk-btn" data-action="next-dev">›</button>
-        <button type="button" class="ds-walk-btn${mode === "retro" ? " active" : ""}" data-action="mode-retro">Dungeon</button>
-        <button type="button" class="ds-walk-btn${mode === "corridor" ? " active" : ""}" data-action="mode-corridor">Open</button>
+        ${showMaze ? `<button type="button" class="ds-walk-btn${mode === "retro" ? " active" : ""}" data-action="mode-retro" title="Arcade maze — not topology accurate">Maze</button>` : ""}
+        <button type="button" class="ds-walk-btn${mode === "corridor" ? " active" : ""}" data-action="mode-corridor">Explorer</button>
       </div>
       <div class="ds-walk-mission" id="ds-walk-mission"></div>
       <div class="ds-walk-devices" id="ds-walk-devices"></div>
@@ -1408,9 +1422,8 @@
       if (e.button === 0 && downPos) {
         const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
         if (moved < 6) {
-          const ch = pickDeviceAt(e.clientX, e.clientY, canvas);
+          const ch = pickDeviceAt(e.clientX, e.clientY, canvas) || state.reticleChamber;
           if (ch) openFieldPanel(ch);
-          else interactNearby();
         }
       }
       state.lookDrag = false;
@@ -1508,7 +1521,7 @@
     overlay.removeAttribute("hidden");
     overlay.setAttribute("aria-hidden", "false");
     overlay.className = `ds-walk-overlay ds-walk-epic ds-walk-${mode}`;
-    overlay.innerHTML = `${hudHtml(mode)}
+    overlay.innerHTML = `${hudHtml(mode, studio.tab)}
       <div class="ds-walk-stage">
         <div class="ds-walk-vignette" aria-hidden="true"></div>
         <div class="ds-walk-letterbox ds-walk-letterbox-top" aria-hidden="true"></div>
