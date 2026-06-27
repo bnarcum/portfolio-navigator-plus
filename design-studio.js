@@ -445,6 +445,11 @@
       this.presentation = false; this.showPorts = false; this.showMinimap = true;
       this.activeRoomId = null;
       this.lastPillarId = null;
+      this.customRoomMix = null;
+      this.roomView = "diagram";
+      this.storyMode = false;
+      this.storyChapter = 0;
+      this.highlightPid = null;
       this.history = new History(this); this.el = null;
     }
 
@@ -466,7 +471,11 @@
           </div>
           <span class="ds-spacer"></span>
           <button type="button" class="ds-btn" id="ds-gallery" title="Template gallery">Gallery</button>
-          <button type="button" class="ds-btn" id="ds-present" title="Presentation mode">Present</button>
+          <button type="button" class="ds-btn" id="ds-present" title="Story mode — executive → architecture → rooms → BOM">Story</button>
+          <button type="button" class="ds-btn" id="ds-tour" title="Guided tour">Tour</button>
+          <button type="button" class="ds-btn" id="ds-share-design" title="Shareable .cpn-design bundle">Share</button>
+          <button type="button" class="ds-btn" id="ds-customer-export" title="Customer-safe SVG export">Customer SVG</button>
+          <input type="file" id="ds-import-design" accept=".json,.cpn-design.json,application/json" hidden/>
           <button type="button" class="ds-btn" id="ds-snapshot" title="Save snapshot">Snapshot</button>
           <button type="button" class="ds-btn" id="ds-undo">↶</button>
           <button type="button" class="ds-btn" id="ds-redo">↷</button>
@@ -484,6 +493,7 @@
               ${buildOneCiscoHeroHtml()}
               <label class="ds-intent-label" for="ds-intent-text">Opportunity brief</label>
               <div id="ds-intent-chips"></div>
+              <div id="ds-room-mix-editor" hidden></div>
               <div id="ds-stale-hint" class="ds-stale-hint" hidden></div>
               <textarea id="ds-intent-text" placeholder="e.g. SNRA campus + 12 conference rooms and 6 huddles — or AI-ready DC spine-leaf with GPU compute…"></textarea>
               <div id="ds-intent-rationale" hidden></div>
@@ -496,12 +506,14 @@
                 <div class="ds-intent-section-head"><strong>Reference architectures</strong><span>Or open <em>Gallery</em> for full library</span></div>
                 <div class="ds-arch-row" id="ds-arch-presets"></div>
               </div>
+              <div id="ds-compare" class="ds-compare-wrap"></div>
               <div class="ds-intent-actions">
                 <button type="button" class="ds-btn primary" id="ds-generate">Generate Draft</button>
                 <button type="button" class="ds-btn" id="ds-clear">Start Over</button>
               </div>
             </div>
             <div id="ds-canvas-wrap" class="network-mode">
+              <div id="ds-stale-banner" class="ds-stale-banner" hidden></div>
               <div id="ds-floorplan"></div>
               <div id="ds-toolbar"></div>
               <div id="ds-minimap"><svg id="ds-minimap-svg"></svg></div>
@@ -554,6 +566,7 @@
       this.populateArchPresets();
       this.buildGallery();
       this.previewIntent();
+      window.__DS_PREMIUM?.renderCompare?.(this);
       const ver = document.getElementById("ds-version");
       if (ver) ver.textContent = "v" + (window.__cpnV2?.APP_VERSION || window.__DS_ASSET_V || "?");
     }
@@ -640,7 +653,25 @@
         $$(".ds-gallery-tabs button").forEach(x => x.classList.toggle("active", x.dataset.gtab === b.dataset.gtab));
         this.renderGalleryGrid(b.dataset.gtab);
       });
-      $("ds-present").onclick = () => this.togglePresentation();
+      $("ds-present").onclick = () => {
+        if (window.__DS_PREMIUM?.toggleStory) window.__DS_PREMIUM.toggleStory(this);
+        else this.togglePresentation();
+      };
+      $("ds-tour")?.addEventListener("click", () => window.__DS_PREMIUM?.runTour?.(this, 0));
+      $("ds-share-design")?.addEventListener("click", () => window.__DS_PREMIUM?.exportDesignBundle?.(this));
+      $("ds-customer-export")?.addEventListener("click", () => window.__DS_PREMIUM?.exportCustomerSvg?.(this));
+      const importInp = $("ds-import-design");
+      if (importInp && !importInp.dataset.wired) {
+        importInp.dataset.wired = "1";
+        importInp.addEventListener("change", e => {
+          window.__DS_PREMIUM?.importDesignBundle?.(this, e.target.files?.[0]);
+          e.target.value = "";
+        });
+      }
+      $("ds-share-design")?.addEventListener("contextmenu", e => {
+        e.preventDefault();
+        importInp?.click();
+      });
       $("ds-snapshot").onclick = () => this.saveSnapshot();
 
       const svg = $("ds-svg");
@@ -665,7 +696,12 @@
         if ((e.key === "z" && e.shiftKey && (e.metaKey || e.ctrlKey)) || (e.key === "y" && e.ctrlKey)) { e.preventDefault(); this.history.redo(); }
         if (e.key === "l") this.toggleLinkMode();
         if (e.key === "f" && !(e.metaKey || e.ctrlKey)) this.fitView();
-        if (e.key === "p" && !(e.metaKey || e.ctrlKey)) this.togglePresentation();
+        if (e.key === "p" && !(e.metaKey || e.ctrlKey)) {
+          if (window.__DS_PREMIUM?.toggleStory) window.__DS_PREMIUM.toggleStory(this);
+          else this.togglePresentation();
+        }
+        if (this.storyMode && e.key === "ArrowLeft") { e.preventDefault(); window.__DS_PREMIUM?.goStoryChapter?.(this, this.storyChapter - 1); }
+        if (this.storyMode && e.key === "ArrowRight") { e.preventDefault(); window.__DS_PREMIUM?.goStoryChapter?.(this, this.storyChapter + 1); }
         if (e.key === "[" && this.tab === "room") this.cycleRoom(-1);
         if (e.key === "]" && this.tab === "room") this.cycleRoom(1);
         if (e.key === "/") { e.preventDefault(); $("ds-palette-search")?.focus(); }
@@ -691,7 +727,10 @@
             ta.value = pillar.intent;
             ta.focus();
           }
-          this.toast(`Brief loaded — ${pillar.shortLabel || pillar.label}`);
+          this.toast(`Brief loaded — click Generate Draft for ${pillar.shortLabel || pillar.label}`);
+          const gen = document.getElementById("ds-generate");
+          gen?.classList.add("ds-pulse-cta");
+          setTimeout(() => gen?.classList.remove("ds-pulse-cta"), 2400);
           this.previewIntent();
           this.refreshExplore();
         };
@@ -897,10 +936,20 @@
       this.previewIntent();
       this.setTab("intent");
       this.render();
-      setTimeout(() => this.refreshExplore(), 500);
+      setTimeout(() => {
+        this.refreshExplore();
+        window.__DS_PREMIUM?.maybeTour?.(this);
+      }, 500);
     }
 
-    close() { saveDesign(this.design); this.el?.classList.remove("open"); this.el?.classList.remove("ds-present-mode"); document.body.classList.remove("design-studio-open"); }
+    close() {
+      saveDesign(this.design);
+      window.__DS_PREMIUM?.plannerSyncHint?.(this);
+      if (this.storyMode) window.__DS_PREMIUM?.exitStory?.(this);
+      this.el?.classList.remove("open");
+      this.el?.classList.remove("ds-present-mode");
+      document.body.classList.remove("design-studio-open");
+    }
 
     setTab(tab) {
       this.tab = tab;
@@ -922,6 +971,7 @@
       }
       this.renderPanel();
       this.refreshExplore();
+      window.__DS_PREMIUM?.refresh?.(this);
     }
 
     renderRoomGuide() {
@@ -961,6 +1011,7 @@
       bar.querySelectorAll(".ds-room-pill").forEach(btn => {
         btn.addEventListener("click", () => this.switchToRoom(btn.dataset.roomId));
       });
+      window.__DS_PREMIUM?.renderRoomViewToggle?.(this);
     }
 
     updateRoomPicker() {
@@ -994,6 +1045,7 @@
             : `<strong>Brief parsed</strong> — click <em>Generate Draft</em> to apply it to the canvas.`;
         } else hint.hidden = true;
       }
+      window.__DS_PREMIUM?.renderRoomMixEditor?.(this, parsed);
       this.refreshExplore();
     }
 
@@ -1002,11 +1054,13 @@
       const text = document.getElementById("ds-intent-text").value.trim();
       if (!text) { this.toast("Enter a description"); return; }
       if (!INT?.generateFromIntent) { this.toast("Intent engine not loaded — hard-refresh (⌘⇧R) to load v2.47+"); return; }
-      const { plan, score, fixes } = INT.generateFromIntent(text, this.design, intentDeps());
+      const opts = this.customRoomMix?.length ? { roomMix: this.customRoomMix } : undefined;
+      const { plan, score, fixes } = INT.generateFromIntent(text, this.design, intentDeps(), opts);
       if (this.design.nodes.some(n => n.canvas !== "room")) autoLayoutNetwork(this.design);
       this.design.rooms.forEach(r => autoLayoutRoom(this.design, r.id));
       this.activeRoomId = this.design.activeRoomId || this.design.rooms[0]?.id || null;
       this.pushHistory();
+      this.customRoomMix = null;
       const rat = document.getElementById("ds-intent-rationale");
       if (rat) {
         rat.hidden = false;
@@ -1074,6 +1128,7 @@ Account: ${this.design.account}`;
       if (!confirm("Start over? This clears the canvas, rooms, links, and BOM. Your account name is kept.")) return;
       this.design = emptyDesign(name);
       this.activeRoomId = null;
+      this.customRoomMix = null;
       this.selectedNode = null;
       this.selectedLink = null;
       this.linkFrom = null;
@@ -1214,15 +1269,25 @@ Account: ${this.design.account}`;
       const bom = computeBom(this.design);
       const score = computeScore(this.design);
       const badge = document.getElementById("ds-score-badge");
+      const scoreUi = window.__DS_PREMIUM?.scoreState?.(this.design, score) || { label: `${score}/100`, cls: "ds-score", title: "" };
       if (badge) {
-        badge.textContent = score + "/100";
-        badge.className = score >= 80 ? "ds-score good" : score >= 50 ? "ds-score ok" : "ds-score low";
+        badge.textContent = scoreUi.label;
+        badge.className = scoreUi.cls;
+        badge.title = scoreUi.title || "";
+      }
+      const ccwBtn = document.getElementById("ds-export-ccw");
+      if (ccwBtn) {
+        const val = validateDesign(this.design);
+        const ready = score >= 70 && !val.warnings.some(w => w.severity === "error");
+        ccwBtn.classList.toggle("ds-ccw-ready", ready && bom.length > 0);
+        ccwBtn.title = ready ? "Validation passed — export to CCW" : "Export hardware PIDs to CCW";
       }
       document.getElementById("ds-status-left").textContent =
-        `${this.design.nodes.length} devices · ${this.design.links.length} links · ${bom.length} BOM · Score ${score}`;
+        `${this.design.nodes.length} devices · ${this.design.links.length} links · ${bom.length} BOM · ${scoreUi.label === "—" ? "Not scored" : "Score " + scoreUi.label}`;
       const room = this.design.rooms.find(r => r.id === this.activeRoomId);
       const roomHint = this.tab === "room" && room ? ` · ${room.name}` : "";
-      document.getElementById("ds-status-right").textContent = `v3${roomHint} · ${this.design.account}`;
+      document.getElementById("ds-status-right").textContent = `v${window.__cpnV2?.APP_VERSION || "?"}${roomHint} · ${this.design.account}`;
+      window.__DS_PREMIUM?.refresh?.(this);
     }
 
     renderPalette() {
@@ -1636,16 +1701,19 @@ Account: ${this.design.account}`;
         body.innerHTML = `
           <div class="ds-bom-actions">
             <button type="button" class="ds-btn ds-export-ccw ds-export-ccw-block" id="ds-export-ccw-panel"${bom.length ? "" : " disabled"}>Export to CCW</button>
-            <span class="ds-bom-actions-hint">CCW_Prep CSV · hardware PIDs from canvas</span>
+            <span class="ds-bom-actions-hint">CCW_Prep CSV · click a row to highlight on canvas</span>
           </div>
           ${bom.length ? `
-          <table class="ds-table"><thead><tr><th>Item</th><th>PID</th><th>Qty</th></tr></thead>
-          <tbody>${bom.map(b => `<tr><td title="${escapeAttr(b.pid)}">${escapeHtml((b.desc || b.pid).slice(0, 42))}</td><td class="ds-pid-cell">${escapeHtml(b.pid)}</td><td>${b.qty}</td></tr>`).join("")}</tbody></table>
+          <table class="ds-table ds-bom-table"><thead><tr><th>Item</th><th>PID</th><th>Qty</th></tr></thead>
+          <tbody>${bom.map(b => `<tr class="ds-bom-row" data-pid="${escapeAttr(b.pid)}"><td title="${escapeAttr(b.pid)}">${escapeHtml((b.desc || b.pid).slice(0, 42))}</td><td class="ds-pid-cell">${escapeHtml(b.pid)}</td><td>${b.qty}</td></tr>`).join("")}</tbody></table>
           <div class="ds-bom-total">${bom.length} CCW lines · ${bom.reduce((s, b) => s + b.qty, 0)} qty</div>
           ${deco.length ? `<div class="ds-bom-deco">${deco.length} layout-only item(s) on canvas (tables, generic displays, credenza) — not in CCW export.</div>` : ""}
           <div class="ds-bom-deco">Licenses, Smart Net, copper/AV cabling, and services — quote in CCW or use Manual BOM.</div>
           <div style="padding:8px 12px"><button type="button" class="ds-btn" id="ds-add-bom">+ Manual BOM</button></div>` : `<div class="ds-empty">Generate from Intent or Gallery, then export to CCW</div>`}`;
         document.getElementById("ds-export-ccw-panel")?.addEventListener("click", () => this.exportCcw());
+        body.querySelectorAll(".ds-bom-row").forEach(row => {
+          row.addEventListener("click", () => window.__DS_PREMIUM?.highlightBomPid?.(this, row.dataset.pid));
+        });
         document.getElementById("ds-add-bom")?.addEventListener("click", () => {
           const pid = prompt("PID:"); if (!pid) return;
           (this.design.bomOverrides ||= []).push({ pid, desc: prompt("Desc:", pid) || pid, qty: parseInt(prompt("Qty:", "1") || "1", 10), type: "manual" });
@@ -1695,10 +1763,15 @@ Account: ${this.design.account}`;
       } else {
         const val = validateDesign(this.design);
         const score = computeScore(this.design);
+        const extras = window.__DS_PREMIUM?.validationPanelExtras?.(this.design, val, score) || {};
+        const scoreLabel = window.__DS_PREMIUM?.scoreState?.(this.design, score)?.label || `${score}/100`;
         body.innerHTML = `
-          <div class="ds-score-panel">Design score: <strong>${score}/100</strong></div>
+          <div class="ds-score-panel">Design score: <strong>${scoreLabel}</strong></div>
+          ${extras.badgeHtml || ""}
+          ${extras.poeBar || ""}
           ${val.warnings.length ? `<ul class="ds-val-list error">${val.warnings.map(w => `<li>${escapeHtml(w.msg || w)}</li>`).join("")}</ul>` : `<div class="ds-empty" style="color:var(--accent)">✓ No blocking issues</div>`}
-          ${val.tips.length ? `<ul class="ds-val-list tip">${val.tips.map(t => `<li>${escapeHtml(t.msg || t)}</li>`).join("")}</ul>` : ""}`;
+          ${val.tips.length ? `<ul class="ds-val-list tip">${val.tips.map(t => `<li>${escapeHtml(t.msg || t)}</li>`).join("")}</ul>` : ""}
+          ${extras.ccwReady ? `<p class="ds-ccw-ready-note">✓ CCW-ready — export hardware PIDs from BOM tab.</p>` : ""}`;
       }
     }
 

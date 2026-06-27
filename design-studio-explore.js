@@ -67,6 +67,24 @@
     return (window.DCLOUD_ENTRIES || []).find(e => e.id === id);
   }
 
+  function rankSkills(ctx, limit = 2) {
+    if (typeof window.learningRankEntries !== "function") return [];
+    return window.learningRankEntries({
+      familyIds: ctx.familyIds || [],
+      sources: ctx.skillSources || ["cisco-u", "webex-academy"],
+      limit,
+      requireProductOrFamily: false
+    });
+  }
+
+  function dcloudProgressHtml(labs) {
+    if (!labs?.length || typeof localStorage === "undefined") return "";
+    let done = 0;
+    labs.forEach(l => { try { if (localStorage.getItem(`cpn-dcloud-done-${l.id}`)) done++; } catch (e) { /* ignore */ } });
+    if (!done) return "";
+    return `<span class="ds-explore-progress">${done}/${labs.length} labs marked complete</span>`;
+  }
+
   function rankLabs(ctx, limit = 3) {
     if (typeof window.dcloudRankEntries === "function") {
       const ranked = window.dcloudRankEntries({
@@ -132,6 +150,7 @@
         lede: "Your diagram is a starting point — validate the room design and try the devices on dCloud.",
         docs: docFromRoomTpl(tplKey),
         labs: rankLabs(ctx, 2),
+        skills: rankSkills(ctx, 2),
         pathId: ctx.pathId || "hybrid-work",
         browseQuery: ctx.query || room?.name || "hybrid work room"
       };
@@ -146,6 +165,7 @@
         lede: "Read the validated design guide, then launch a hands-on lab matched to this topology.",
         docs: docsFromCitations(plan).length ? docsFromCitations(plan) : docFromNetTpl(netKey),
         labs: rankLabs(ctx, 2),
+        skills: rankSkills(ctx, 2),
         pathId: ctx.pathId,
         browseQuery: ctx.query || netTpl?.label || "campus network"
       };
@@ -175,6 +195,7 @@
       lede: "Generate your draft here, then explore Cisco validated guides and dCloud labs for the same story.",
       docs,
       labs: rankLabs(merged, 3),
+      skills: rankSkills(merged, 2),
       pathId: merged.pathId,
       browseQuery: merged.query
     };
@@ -209,7 +230,8 @@
     if (!ctx) return "";
     const docs = ctx.docs || [];
     const labs = ctx.labs || [];
-    if (!docs.length && !labs.length && !ctx.pathId) {
+    const skills = ctx.skills || [];
+    if (!docs.length && !labs.length && !skills.length && !ctx.pathId) {
       return `<section class="ds-explore ds-explore--empty" hidden></section>`;
     }
     const docCards = docs.map(d =>
@@ -232,15 +254,25 @@
         </div>
       </div>`
     ).join("");
+    const skillCards = skills.map(s =>
+      `<a class="ds-explore-card ds-explore-card--skill" href="${esc(s.url)}" target="_blank" rel="noopener">
+        <span class="ds-explore-badge ds-explore-badge--skill">Skills</span>
+        <strong>${esc(s.linkLabel || s.name || s.title)}</strong>
+        ${s.duration ? `<span class="ds-explore-meta">${esc(s.duration)}</span>` : ""}
+        <span class="ds-explore-cta">Open learning ↗</span>
+      </a>`
+    ).join("");
   return `<section class="ds-explore" aria-label="Learn more">
       <header class="ds-explore-head">
         <span class="ds-explore-eyebrow">${esc(ctx.eyebrow || "Want to know more?")}</span>
         <p>${esc(ctx.lede || "")}</p>
       </header>
       ${ctx.pathId ? renderPathStrip(ctx.pathId) : ""}
-      <div class="ds-explore-grid">${docCards}${labCards}</div>
+      <div class="ds-explore-ladder"><span>CVD</span><span>→</span><span>Skills</span><span>→</span><span>dCloud</span><span>→</span><span>BOM</span></div>
+      <div class="ds-explore-grid">${docCards}${skillCards}${labCards}</div>
       <footer class="ds-explore-foot">
         <button type="button" class="ds-explore-browse" data-browse-query="${esc(ctx.browseQuery || "")}">Browse all matching dCloud labs</button>
+        ${dcloudProgressHtml(labs)}
         <span class="ds-explore-note">RTP datacenter · Cisco.com login required</span>
       </footer>
     </section>`;

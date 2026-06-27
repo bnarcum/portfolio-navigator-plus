@@ -446,8 +446,10 @@
     </section>`;
   }
 
-  function generateFromIntent(text, design, deps) {
-    const plan = buildPlan(parseIntent(text));
+  function generateFromIntent(text, design, deps, options) {
+    const parsed = parseIntent(text);
+    if (options?.roomMix?.length) parsed.roomMix = options.roomMix;
+    const plan = buildPlan(parsed);
     executePlan(plan, design, deps);
     const fixes = autoRemediate(design, deps.rules, deps.uid, deps.stencils);
     const score = deps.rules?.computeScore?.(design) ?? 0;
