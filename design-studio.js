@@ -679,6 +679,8 @@
                   <g id="ds-layer-bands"></g>
                   <g id="ds-links"></g>
                   <g id="ds-nodes"></g>
+                  <path id="ds-linkdraft" class="ds-linkdraft" d="" />
+                  <g id="ds-guides"></g>
                 </g>
               </svg>
             </div>
@@ -714,6 +716,14 @@
             <div id="ds-gallery-grid"></div>
             <p class="ds-gallery-explore-hint">Each template links to validated guides and dCloud labs — click a card to add it, or use the links to learn first.</p>
           </div>
+        </div>
+        <div id="ds-cmdk" hidden>
+          <div class="ds-cmdk-backdrop"></div>
+          <div class="ds-cmdk-panel" role="dialog" aria-label="Command palette">
+            <input id="ds-cmdk-input" type="text" placeholder="Type a command… (devices, layout, wire, validate, export, 3D walk)" autocomplete="off" spellcheck="false"/>
+            <ul id="ds-cmdk-list"></ul>
+            <div class="ds-cmdk-foot"><kbd>↑</kbd><kbd>↓</kbd> navigate · <kbd>↵</kbd> run · <kbd>esc</kbd> close</div>
+          </div>
         </div>`;
       document.body.appendChild(root);
       this.el = root;
@@ -748,6 +758,7 @@
         <button type="button" id="ds-delete-sel">Delete</button>
         <button type="button" id="ds-floor-upload">Floor plan</button>
         <button type="button" id="ds-fit">Fit</button>
+        <button type="button" id="ds-cmdk-btn" title="Command palette (⌘K / Ctrl+K)">⌘K</button>
         <button type="button" id="ds-walk-corridor" class="ds-walk-toolbar" hidden title="3D walkthrough along your diagram">Walk</button>
         <input type="file" id="ds-floor-input" accept="image/*" hidden/>`;
       LAYERS.forEach(l => { const o = document.createElement("option"); o.value = l; o.textContent = LAYER_LABELS[l]; document.getElementById("ds-layer-filter").appendChild(o); });
@@ -792,6 +803,7 @@
       $("ds-delete-sel").onclick = () => this.deleteSelected();
       $("ds-dup").onclick = () => this.duplicateSelected();
       $("ds-fit").onclick = () => this.fitView();
+      $("ds-cmdk-btn").onclick = () => this.openCmdK();
       const tb = document.getElementById("ds-toolbar");
       tb?.addEventListener("click", e => {
         if (e.target.closest("#ds-walk-corridor")) { e.preventDefault(); this.openWalk(); }
@@ -842,7 +854,7 @@
       const svg = $("ds-svg");
       svg.onmousedown = e => this.onSvgDown(e);
       svg.onmousemove = e => this.onSvgMove(e);
-      svg.onmouseup = () => this.onSvgUp();
+      svg.onmouseup = e => this.onSvgUp(e);
       svg.onwheel = e => this.onWheel(e);
       svg.onclick = e => {
         if (e.target === svg || e.target.id === "ds-viewport" || e.target.classList?.contains("ds-layer-band")) {
@@ -851,8 +863,26 @@
         }
       };
 
+      const cmdk = $("ds-cmdk");
+      const cmdkInput = $("ds-cmdk-input");
+      cmdk?.querySelector(".ds-cmdk-backdrop")?.addEventListener("click", () => this.closeCmdK());
+      cmdkInput?.addEventListener("input", e => this.renderCmdK(e.target.value));
+      cmdkInput?.addEventListener("keydown", e => {
+        const n = this._cmdkItems?.length || 0;
+        if (e.key === "ArrowDown") { e.preventDefault(); this.cmdkIndex = n ? (this.cmdkIndex + 1) % n : 0; this.renderCmdK(cmdkInput.value); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); this.cmdkIndex = n ? (this.cmdkIndex - 1 + n) % n : 0; this.renderCmdK(cmdkInput.value); }
+        else if (e.key === "Enter") { e.preventDefault(); this.runCmdK(this.cmdkIndex); }
+        else if (e.key === "Escape") { e.preventDefault(); this.closeCmdK(); }
+      });
+
       document.addEventListener("keydown", e => {
         if (!this.el?.classList.contains("open")) return;
+        if ((e.key === "k" || e.key === "K") && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          if (document.getElementById("ds-cmdk")?.hidden === false) this.closeCmdK();
+          else this.openCmdK();
+          return;
+        }
         const tag = (e.target.tagName || "").toLowerCase();
         if (tag === "input" || tag === "textarea" || tag === "select") return;
         if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); this.deleteSelected(); }
@@ -1668,6 +1698,7 @@ Account: ${this.design.account}`;
         const lp = linkLabelPos(a, b, off, this.tab === "room");
         g.querySelector(".ds-link-under")?.setAttribute("d", path);
         g.querySelector(".ds-link-path")?.setAttribute("d", path);
+        g.querySelector(".ds-link-flow")?.setAttribute("d", path);
         const grp = g.querySelector(".ds-link-label-group");
         if (grp) grp.setAttribute("transform", `translate(${lp.x},${lp.y})`);
       });
@@ -1726,9 +1757,12 @@ Account: ${this.design.account}`;
         const dash = ms.dash ? ` stroke-dasharray="${ms.dash}"` : "";
         const sw = hl ? ms.w + 0.75 : ms.w;
         const underW = sw + 3.5;
+        const flow = !this.presentation
+          ? `<path class="ds-link-flow${hl ? " hot" : ""}" d="${path}" style="stroke:${ms.stroke};color:${ms.stroke}"/>` : "";
         return `<g class="ds-link${sel}${hl}${dim}${avHl}" data-link="${l.id}" data-media="${escapeAttr(l.media || "cat6")}">
           <path class="ds-link-under" d="${path}" style="stroke-width:${underW}"/>
           <path class="ds-link-path${sel}" d="${path}" marker-end="url(#ds-arrow-${l.media || "cat6"})" style="stroke:${ms.stroke};stroke-width:${sw}${dash ? ";stroke-dasharray:" + ms.dash : ""}"/>
+          ${flow}
           ${showLbl ? `<g class="ds-link-label-group" transform="translate(${lp.x},${lp.y})">
             <rect class="ds-link-label-bg" x="${-lw / 2}" y="-11" width="${lw}" height="${lh}" rx="6"/>
             <text class="ds-link-label" text-anchor="middle" y="0">${escapeHtml(lbl)}</text>
@@ -1790,6 +1824,10 @@ Account: ${this.design.account}`;
           ${roomLbl}
           ${showLayer ? `<text class="ds-node-layer" x="4" y="11">${escapeHtml(LAYER_LABELS[n.layer]?.slice(0, 12) || n.layer)}</text>` : ""}
           <g class="ds-ports">${ports}</g>
+          ${this.presentation ? "" : `<g class="ds-connect-handle" data-connect="${n.id}">
+            <circle class="ds-connect-dot" cx="${w + 11}" cy="${h / 2}" r="8"/>
+            <path class="ds-connect-plus" d="M${w + 11} ${h / 2 - 4}V${h / 2 + 4}M${w + 7} ${h / 2}H${w + 15}"/>
+          </g>`}
         </g>`;
       }).join("");
 
@@ -1802,13 +1840,26 @@ Account: ${this.design.account}`;
       nodesG.querySelectorAll(".ds-node").forEach(el => {
         el.onmousedown = e => {
           if (e.target.classList?.contains("ds-port")) return;
+          if (e.target.closest?.(".ds-connect-handle")) return;
           e.stopPropagation();
           const id = el.dataset.node;
-          const prev = this.selectedNode;
           this.selectedNode = id; this.selectedLink = null;
           this.drag = { node: this.design.nodes.find(n => n.id === id) };
           this.renderInspector();
           this.renderCanvas();
+        };
+      });
+
+      nodesG.querySelectorAll(".ds-connect-handle").forEach(el => {
+        el.onmousedown = e => {
+          e.stopPropagation();
+          e.preventDefault();
+          const fromId = el.dataset.connect;
+          const n = this.design.nodes.find(x => x.id === fromId);
+          if (!n) return;
+          this.linkDrag = { from: fromId };
+          document.getElementById("ds-svg")?.classList.add("connecting");
+          this.updateLinkDraft(this.clientToSvg(e.clientX, e.clientY));
         };
       });
 
@@ -1996,6 +2047,66 @@ Account: ${this.design.account}`;
       void vp?.getBBox?.();
     }
 
+    cmdkActions() {
+      const list = [
+        { id: "fit", label: "Fit diagram to view", hint: "F", run: () => this.fitView() },
+        { id: "add", label: "Add a device…", hint: "search stencils", run: () => { this.closeCmdK(); document.getElementById("ds-palette-search")?.focus(); } },
+        { id: "auto-layout", label: "Auto-layout diagram", run: () => document.getElementById("ds-auto-layout")?.click() },
+        { id: "auto-wire", label: "Auto-wire connections", run: () => document.getElementById("ds-auto-wire")?.click() },
+        { id: "validate", label: "Validate design", run: () => this.setPanel?.("validate") || document.querySelector('#ds-panel-tabs [data-panel="validate"]')?.click() },
+        { id: "walk", label: "Open 3D walkthrough", run: () => this.openWalk() },
+        { id: "tab-network", label: "Go to Network diagram", run: () => this.setTab("network") },
+        { id: "tab-room", label: "Go to Room diagram", run: () => this.setTab("room") },
+        { id: "tab-intent", label: "Go to Intent", run: () => this.setTab("intent") },
+        { id: "export-svg", label: "Export diagram as SVG", run: () => this.exportSvg() },
+        { id: "export-pack", label: "Export full design pack", run: () => document.getElementById("ds-export-pack")?.click() || this.exportPack?.() },
+        { id: "bands", label: "Toggle network layer bands", run: () => { this.design.showLayerBands = this.design.showLayerBands === false; this.renderCanvas(); } },
+        { id: "duplicate", label: "Duplicate selection", hint: "⌘D", run: () => this.duplicateSelected() },
+        { id: "delete", label: "Delete selection", hint: "⌫", run: () => this.deleteSelected() }
+      ];
+      return list;
+    }
+
+    openCmdK() {
+      const el = document.getElementById("ds-cmdk");
+      if (!el) return;
+      el.hidden = false;
+      this.cmdkIndex = 0;
+      const input = document.getElementById("ds-cmdk-input");
+      input.value = "";
+      this.renderCmdK("");
+      requestAnimationFrame(() => input.focus());
+    }
+
+    closeCmdK() {
+      const el = document.getElementById("ds-cmdk");
+      if (el) el.hidden = true;
+    }
+
+    renderCmdK(query) {
+      const ul = document.getElementById("ds-cmdk-list");
+      if (!ul) return;
+      const q = (query || "").trim().toLowerCase();
+      const items = this.cmdkActions().filter(a => !q || a.label.toLowerCase().includes(q));
+      this._cmdkItems = items;
+      if (this.cmdkIndex >= items.length) this.cmdkIndex = 0;
+      ul.innerHTML = items.length
+        ? items.map((a, i) => `<li class="ds-cmdk-item${i === this.cmdkIndex ? " active" : ""}" data-i="${i}">
+            <span>${escapeHtml(a.label)}</span>${a.hint ? `<kbd>${escapeHtml(a.hint)}</kbd>` : ""}</li>`).join("")
+        : `<li class="ds-cmdk-empty">No matching command</li>`;
+      ul.querySelectorAll(".ds-cmdk-item").forEach(li => {
+        li.onmouseenter = () => { this.cmdkIndex = +li.dataset.i; this.renderCmdK(query); };
+        li.onclick = () => this.runCmdK(+li.dataset.i);
+      });
+    }
+
+    runCmdK(i) {
+      const item = this._cmdkItems?.[i];
+      if (!item) return;
+      this.closeCmdK();
+      try { item.run(); } catch (err) { console.error("[cmdk]", err); }
+    }
+
     openWalk() {
       if (!window.__DS_WALK?.open) {
         this.toast("Walk module not loaded — hard-refresh the page");
@@ -2015,11 +2126,18 @@ Account: ${this.design.account}`;
     onSvgDown(e) { if (!e.target.closest(".ds-node") && !e.target.closest(".ds-link-path") && !e.target.closest(".ds-link-under") && !e.target.closest(".ds-port")) this.panDrag = { ox: e.clientX, oy: e.clientY, px: this.pan.x, py: this.pan.y }; }
 
     onSvgMove(e) {
+      if (this.linkDrag) {
+        const pt = this.clientToSvg(e.clientX, e.clientY);
+        this.updateLinkDraft(pt);
+        this.highlightConnectTarget(e);
+        return;
+      }
       if (this.drag?.node) {
         const pt = this.clientToSvg(e.clientX, e.clientY);
         let nx = pt.x - (this.drag.node.w || 76) / 2, ny = pt.y - (this.drag.node.h || 46) / 2;
         if (this.design.snapGrid !== false) { nx = snap(nx); ny = snap(ny); }
-        this.drag.node.x = nx; this.drag.node.y = ny;
+        const aligned = this.applyAlignmentSnap(this.drag.node, nx, ny);
+        this.drag.node.x = aligned.x; this.drag.node.y = aligned.y;
         this.updateNodeDragPosition(this.drag.node);
         return;
       }
@@ -2030,7 +2148,129 @@ Account: ${this.design.account}`;
       }
     }
 
-    onSvgUp() { if (this.drag) this.pushHistory(); this.drag = null; this.panDrag = null; }
+    onSvgUp(e) {
+      if (this.linkDrag) {
+        const toId = this.connectTargetAt(e);
+        const fromId = this.linkDrag.from;
+        this.linkDrag = null;
+        this.clearLinkDraft();
+        document.querySelectorAll(".ds-node.connect-target").forEach(el => el.classList.remove("connect-target"));
+        if (toId && toId !== fromId && !this.linkExists(fromId, toId)) {
+          this.createLink(fromId, "", toId, "");
+        } else {
+          this.renderCanvas();
+        }
+        return;
+      }
+      this.clearGuides();
+      if (this.drag) this.pushHistory();
+      this.drag = null; this.panDrag = null;
+    }
+
+    linkExists(a, b) {
+      return this.design.links.some(l =>
+        (l.from === a && l.to === b) || (l.from === b && l.to === a));
+    }
+
+    nodeCenterXY(n) {
+      return { x: n.x + (n.w || 76) / 2, y: n.y + (n.h || 46) / 2 };
+    }
+
+    updateLinkDraft(pt) {
+      const n = this.design.nodes.find(x => x.id === this.linkDrag?.from);
+      const draft = document.getElementById("ds-linkdraft");
+      if (!n || !draft) return;
+      const c = this.nodeCenterXY(n);
+      const mx = (c.x + pt.x) / 2;
+      draft.setAttribute("d", `M${c.x} ${c.y} C${mx} ${c.y} ${mx} ${pt.y} ${pt.x} ${pt.y}`);
+      draft.classList.add("active");
+    }
+
+    clearLinkDraft() {
+      const draft = document.getElementById("ds-linkdraft");
+      if (draft) { draft.setAttribute("d", ""); draft.classList.remove("active"); }
+      document.getElementById("ds-svg")?.classList.remove("connecting");
+    }
+
+    connectTargetAt(e) {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const g = el?.closest?.(".ds-node");
+      return g?.dataset?.node || null;
+    }
+
+    highlightConnectTarget(e) {
+      const id = this.connectTargetAt(e);
+      document.querySelectorAll("#ds-nodes .ds-node").forEach(el => {
+        el.classList.toggle("connect-target", el.dataset.node === id && id !== this.linkDrag?.from);
+      });
+    }
+
+    /** Figma-style alignment: snap dragged node to other nodes' edges/centers and draw guide lines. */
+    applyAlignmentSnap(node, nx, ny) {
+      const TH = 6;
+      const w = node.w || 76, h = node.h || 46;
+      const others = this.visibleNodes().filter(o => o.id !== node.id);
+      if (!others.length) { this.clearGuides(); return { x: nx, y: ny }; }
+      const vTargets = []; // vertical lines (x)
+      const hTargets = []; // horizontal lines (y)
+      others.forEach(o => {
+        const ow = o.w || 76, oh = o.h || 46;
+        vTargets.push(o.x, o.x + ow / 2, o.x + ow);
+        hTargets.push(o.y, o.y + oh / 2, o.y + oh);
+      });
+      const guides = [];
+      // X candidates: left, center, right of dragged node
+      const xCands = [{ edge: nx, anchor: "l" }, { edge: nx + w / 2, anchor: "c" }, { edge: nx + w, anchor: "r" }];
+      let bestX = null;
+      xCands.forEach(c => {
+        vTargets.forEach(t => {
+          const d = Math.abs(c.edge - t);
+          if (d <= TH && (!bestX || d < bestX.d)) bestX = { d, t, anchor: c.anchor };
+        });
+      });
+      if (bestX) {
+        if (bestX.anchor === "l") nx = bestX.t;
+        else if (bestX.anchor === "c") nx = bestX.t - w / 2;
+        else nx = bestX.t - w;
+        guides.push({ type: "v", at: bestX.t });
+      }
+      const yCands = [{ edge: ny, anchor: "t" }, { edge: ny + h / 2, anchor: "m" }, { edge: ny + h, anchor: "b" }];
+      let bestY = null;
+      yCands.forEach(c => {
+        hTargets.forEach(t => {
+          const d = Math.abs(c.edge - t);
+          if (d <= TH && (!bestY || d < bestY.d)) bestY = { d, t, anchor: c.anchor };
+        });
+      });
+      if (bestY) {
+        if (bestY.anchor === "t") ny = bestY.t;
+        else if (bestY.anchor === "m") ny = bestY.t - h / 2;
+        else ny = bestY.t - h;
+        guides.push({ type: "h", at: bestY.t });
+      }
+      this.drawGuides(guides);
+      return { x: nx, y: ny };
+    }
+
+    drawGuides(guides) {
+      const g = document.getElementById("ds-guides");
+      if (!g) return;
+      if (!guides.length) { g.innerHTML = ""; return; }
+      const nodes = this.visibleNodes();
+      const minX = Math.min(...nodes.map(n => n.x)) - 60;
+      const maxX = Math.max(...nodes.map(n => n.x + (n.w || 76))) + 60;
+      const minY = Math.min(...nodes.map(n => n.y)) - 60;
+      const maxY = Math.max(...nodes.map(n => n.y + (n.h || 46))) + 60;
+      g.innerHTML = guides.map(gd => gd.type === "v"
+        ? `<line class="ds-guide" x1="${gd.at}" y1="${minY}" x2="${gd.at}" y2="${maxY}"/>`
+        : `<line class="ds-guide" x1="${minX}" y1="${gd.at}" x2="${maxX}" y2="${gd.at}"/>`
+      ).join("");
+    }
+
+    clearGuides() {
+      const g = document.getElementById("ds-guides");
+      if (g) g.innerHTML = "";
+    }
 
     onWheel(e) {
       e.preventDefault();
