@@ -234,13 +234,23 @@
         <span class="ds-mobj-text">${esc(obj.label)}${active && p.tot > 1 ? ` (${p.cur}/${p.tot})` : ""}</span>
       </li>`;
     }).join("");
+    const collapsed = panel.classList.contains("collapsed");
     panel.innerHTML = `
       <div class="ds-mission-head">
         <strong>${esc(m.title)}</strong>
         <span class="ds-mission-xp">${m.xp}/${m.totalXp} XP</span>
+        <button type="button" class="ds-mission-toggle" data-action="mission-collapse"
+          aria-label="Collapse objectives" title="Collapse objectives">${collapsed ? "▸" : "▾"}</button>
       </div>
       <p class="ds-mission-active">${o ? esc(o.detail || o.label) : "All objectives complete"}</p>
       <ol class="ds-mission-list">${list}</ol>`;
+    const toggle = panel.querySelector(".ds-mission-toggle");
+    if (toggle) toggle.onclick = e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const isCollapsed = panel.classList.toggle("collapsed");
+      toggle.textContent = isCollapsed ? "▸" : "▾";
+    };
     if (bar) {
       const pct = Math.round((m.xp / (m.totalXp || 1)) * 100);
       bar.style.width = pct + "%";

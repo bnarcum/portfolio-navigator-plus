@@ -423,41 +423,62 @@
     const dx = bx - ax, dz = bz - az;
     const len = Math.hypot(dx, dz) || 0.1;
     const g = new THREE.Group();
-    const y = 0.14;
+    const yaw = Math.atan2(dx, dz);
+    const yBase = 0.11;
+    const color = cor.color ?? 0x02c8ff;
 
-    const tray = new THREE.Mesh(
-      new THREE.BoxGeometry(len, 0.03, 0.35),
+    // Recessed dark lane so the route reads as a deliberate connection.
+    const lane = new THREE.Mesh(
+      new THREE.BoxGeometry(len, 0.05, 0.62),
       new THREE.MeshStandardMaterial({
-        color: 0x0c1828, emissive: cor.color, emissiveIntensity: 0.35,
-        metalness: 0.65, roughness: 0.35
+        color: 0x0a1622, emissive: color, emissiveIntensity: 0.18,
+        metalness: 0.5, roughness: 0.45
       })
     );
-    tray.position.set((ax + bx) / 2, y, (az + bz) / 2);
-    tray.rotation.y = Math.atan2(dx, dz);
-    g.add(tray);
+    lane.position.set((ax + bx) / 2, yBase, (az + bz) / 2);
+    lane.rotation.y = yaw;
+    g.add(lane);
 
-    const stripe = new THREE.Mesh(
-      new THREE.BoxGeometry(len * 0.96, 0.02, 0.12),
-      new THREE.MeshStandardMaterial({
-        color: cor.color, emissive: cor.color, emissiveIntensity: 0.9, metalness: 0.2, roughness: 0.3
-      })
+    // Bright centerline showing the exact device-to-device link.
+    const line = new THREE.Mesh(
+      new THREE.BoxGeometry(len, 0.04, 0.16),
+      new THREE.MeshBasicMaterial({ color })
     );
-    stripe.position.copy(tray.position);
-    stripe.position.y = y + 0.03;
-    stripe.rotation.copy(tray.rotation);
-    g.add(stripe);
+    line.position.set((ax + bx) / 2, yBase + 0.05, (az + bz) / 2);
+    line.rotation.y = yaw;
+    g.add(line);
 
-    const pulse = new THREE.Mesh(
-      new THREE.SphereGeometry(0.14, 10, 10),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.92 })
-    );
-    pulse.userData = {
-      cable: true,
-      a: { x: ax, y: y + 0.05, z: az },
-      b: { x: bx, y: y + 0.05, z: bz },
-      t: Math.random()
-    };
-    g.add(pulse);
+    // Endpoint nodes at each device so connections are visually anchored.
+    [[ax, az], [bx, bz]].forEach(([nx, nz]) => {
+      const node = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.3, 0.3, 0.12, 16),
+        new THREE.MeshBasicMaterial({ color })
+      );
+      node.position.set(nx, yBase + 0.04, nz);
+      g.add(node);
+    });
+
+    // Several packets flowing along the link to show live data movement.
+    const pktY = yBase + 0.18;
+    const packetCount = Math.max(2, Math.min(4, Math.round(len / 6)));
+    for (let i = 0; i < packetCount; i++) {
+      const pkt = new THREE.Mesh(
+        new THREE.SphereGeometry(0.17, 12, 12),
+        new THREE.MeshBasicMaterial({ color: 0xffffff })
+      );
+      const halo = new THREE.Mesh(
+        new THREE.SphereGeometry(0.28, 12, 12),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.4 })
+      );
+      pkt.add(halo);
+      pkt.userData = {
+        cable: true,
+        a: { x: ax, y: pktY, z: az },
+        b: { x: bx, y: pktY, z: bz },
+        t: i / packetCount
+      };
+      g.add(pkt);
+    }
 
     g.userData = { corridor: cor };
     state.cables.push(g);
@@ -1068,8 +1089,9 @@
     const accel = 34;
     const friction = 10;
     // Movement basis is always relative to the camera orbit yaw (mouse-controlled).
+    // Screen-right corresponds to world (-cos, +sin) for this look basis.
     const fwdX = Math.sin(state.yaw), fwdZ = Math.cos(state.yaw);
-    const rightX = Math.cos(state.yaw), rightZ = -Math.sin(state.yaw);
+    const rightX = -Math.cos(state.yaw), rightZ = Math.sin(state.yaw);
 
     let ix = 0, iz = 0;
     if (state.keys["w"] || state.keys["ArrowUp"]) { ix += fwdX; iz += fwdZ; }

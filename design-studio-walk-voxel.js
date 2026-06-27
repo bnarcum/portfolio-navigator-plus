@@ -82,13 +82,8 @@
     floor.position.set(cx, -0.25, cz);
     scene.add(floor);
 
-    (graph?.corridors || []).forEach(cor => {
-      const ax = cor.from.pos.x, az = cor.from.pos.z;
-      const bx = cor.to.pos.x, bz = cor.to.pos.z;
-      if (![ax, az, bx, bz].every(Number.isFinite)) return;
-      addLinkPath(THREE, scene, ax, az, bx, bz, woolMat(THREE, cor.media), 1.55);
-    });
-
+    // Link routes are drawn by walk.js makeCableRun (clean glowing lanes with
+    // traveling packets), so the world only provides the floor + device pads.
     (graph?.chambers || []).forEach(ch => {
       const px = ch.pos.x, pz = ch.pos.z;
       if (!Number.isFinite(px) || !Number.isFinite(pz)) return;
