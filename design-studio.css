@@ -531,8 +531,11 @@
 .ds-bom-copy:hover{color:#7ee8ff}
 
 /* Network path walkthrough */
-#ds-walk-overlay{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;background:linear-gradient(180deg,#040c18 0%,#081828 100%);border-radius:0}
+#ds-walk-overlay{position:absolute;inset:0;z-index:20;display:flex!important;flex-direction:column;background:linear-gradient(180deg,#040c18 0%,#081828 100%);min-height:0}
 #ds-walk-overlay[hidden]{display:none!important}
+#ds-toolbar .ds-walk-toolbar{border-color:rgba(0,212,255,.4);color:#7ee8ff}
+#ds-toolbar .ds-walk-toolbar:hover{background:rgba(0,212,255,.12)}
+.ds-walk-status.ds-walk-error{color:#ff8888}
 .ds-walk-hud{flex:0 0 auto;padding:8px 12px;background:rgba(4,16,31,.92);border-bottom:1px solid rgba(2,200,255,.2);backdrop-filter:blur(8px)}
 .ds-walk-hud-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .ds-walk-title{color:#e8f4ff;font-size:12px;font-weight:800;letter-spacing:.04em}

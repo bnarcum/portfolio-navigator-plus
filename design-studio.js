@@ -721,6 +721,7 @@
       this.ensureSymbolDefs();
       this.wireEvents();
       this.wireOneCiscoPillars();
+      this.observeCanvasResize();
       this.populateTemplates();
       this.populateArchPresets();
       this.buildGallery();
@@ -747,6 +748,8 @@
         <button type="button" id="ds-delete-sel">Delete</button>
         <button type="button" id="ds-floor-upload">Floor plan</button>
         <button type="button" id="ds-fit">Fit</button>
+        <button type="button" id="ds-walk-corridor" class="ds-walk-toolbar" hidden title="3D path walkthrough (WASD)">Walk</button>
+        <button type="button" id="ds-walk-retro" class="ds-walk-toolbar" hidden title="Retro network dungeon">Retro</button>
         <input type="file" id="ds-floor-input" accept="image/*" hidden/>`;
       LAYERS.forEach(l => { const o = document.createElement("option"); o.value = l; o.textContent = LAYER_LABELS[l]; document.getElementById("ds-layer-filter").appendChild(o); });
       MEDIA_TYPES.forEach(m => { const o = document.createElement("option"); o.value = m.id; o.textContent = m.label; document.getElementById("ds-link-media").appendChild(o); });
@@ -790,6 +793,8 @@
       $("ds-delete-sel").onclick = () => this.deleteSelected();
       $("ds-dup").onclick = () => this.duplicateSelected();
       $("ds-fit").onclick = () => this.fitView();
+      $("ds-walk-corridor")?.addEventListener("click", () => window.__DS_WALK?.open?.(this, "corridor"));
+      $("ds-walk-retro")?.addEventListener("click", () => window.__DS_WALK?.open?.(this, "retro"));
       $("ds-auto-layout").onclick = () => {
         if (this.tab === "room" && this.activeRoomId) autoLayoutRoom(this.design, this.activeRoomId);
         else autoLayoutNetwork(this.design);
@@ -1111,7 +1116,7 @@
 
     setTab(tab) {
       this.tab = tab;
-      if (tab !== "room") window.__DS_WALK?.close?.();
+      if (tab !== "room" && tab !== "network") window.__DS_WALK?.close?.();
       if (tab === "network" || tab === "room") this.design.mode = tab;
       if (tab === "room" && !this.activeRoomId && this.design.rooms.length)
         this.activeRoomId = this.design.rooms[0].id;
@@ -1121,12 +1126,15 @@
       const wrap = document.getElementById("ds-canvas-wrap");
       wrap.classList.toggle("room-mode", tab === "room");
       wrap.classList.toggle("network-mode", tab === "network");
+      const showWalk = tab === "room" || tab === "network";
+      document.getElementById("ds-walk-corridor")?.toggleAttribute("hidden", !showWalk);
+      document.getElementById("ds-walk-retro")?.toggleAttribute("hidden", !showWalk);
       this.updateRoomPicker();
       this.renderRoomGuide();
       if (tab !== "intent") {
         this.renderPalette();
         this.renderCanvas();
-        if (tab === "room") requestAnimationFrame(() => this.fitView());
+        this.scheduleFitView();
       }
       this.renderPanel();
       this.refreshExplore();
@@ -2017,6 +2025,33 @@ Account: ${this.design.account}`;
       const wrap = document.getElementById("ds-canvas-wrap");
       const guideBottom = guide.offsetTop + guide.offsetHeight;
       return Math.max(guideBottom + 10, wrap?.classList.contains("room-mode") ? 118 : 52);
+    }
+
+    observeCanvasResize() {
+      if (this._fitObs) return;
+      const wrap = document.getElementById("ds-canvas-wrap");
+      if (!wrap || typeof ResizeObserver === "undefined") return;
+      this._fitObs = new ResizeObserver(() => {
+        if (this.tab === "network" || this.tab === "room") {
+          clearTimeout(this._fitTimer);
+          this._fitTimer = setTimeout(() => this.scheduleFitView(), 100);
+        }
+      });
+      this._fitObs.observe(wrap);
+    }
+
+    scheduleFitView() {
+      const run = () => {
+        const rect = document.getElementById("ds-svg")?.getBoundingClientRect();
+        if (rect && rect.width > 8 && rect.height > 8) {
+          this.fitView();
+          return true;
+        }
+        return false;
+      };
+      requestAnimationFrame(() => {
+        if (!run()) requestAnimationFrame(() => { if (!run()) setTimeout(run, 60); });
+      });
     }
 
     fitView() {

@@ -4,7 +4,42 @@
 (function () {
   "use strict";
 
-  const THREE_URL = "vendor/three.module.min.js";
+  const THREE_URL = new URL("vendor/three.module.min.js", document.baseURI).href;
+
+  function waitForCanvasSize(canvas, maxTries = 24) {
+    return new Promise(resolve => {
+      let tries = 0;
+      const tick = () => {
+        const w = canvas.clientWidth;
+        const h = canvas.clientHeight;
+        if (w > 48 && h > 48) return resolve({ w, h });
+        if (++tries >= maxTries) return resolve({ w: Math.max(w, 800), h: Math.max(h, 480) });
+        requestAnimationFrame(tick);
+      };
+      tick();
+    });
+  }
+
+  async function loadThree() {
+    if (state.THREE) return state.THREE;
+    if (window.__cpnWalkTHREE) {
+      state.THREE = window.__cpnWalkTHREE;
+      return state.THREE;
+    }
+    try {
+      state.THREE = await import(/* @vite-ignore */ THREE_URL);
+      window.__cpnWalkTHREE = state.THREE;
+      return state.THREE;
+    } catch (e1) {
+      try {
+        state.THREE = await import("three");
+        window.__cpnWalkTHREE = state.THREE;
+        return state.THREE;
+      } catch (e2) {
+        throw new Error("three-load");
+      }
+    }
+  }
   const MEDIA_COLORS = {
     cat6: 0xd4a060, cat6a: 0xe8b870, hdmi: 0x5ce0a8, usb: 0x44cc88,
     "fiber-sm": 0x6eb8ff, "fiber-mm": 0x6eb8ff, speaker: 0xc8a0e8, control: 0xc8a0e8
@@ -39,13 +74,6 @@
 
   function esc(s) {
     return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
-  }
-
-  async function loadThree() {
-    if (state.THREE) return state.THREE;
-    const m = await import(THREE_URL);
-    state.THREE = m;
-    return m;
   }
 
   function tplItemForNode(studio, room, node) {
@@ -99,7 +127,53 @@
         color: MEDIA_COLORS[l.media] || MEDIA_COLORS.cat6
       };
     }).filter(Boolean);
-    return { room, chambers, corridors };
+    return { room, chambers, corridors, kind: "room" };
+  }
+
+  const NET_LAYER_Z = { wan: -18, security: -12, core: -6, distribution: 0, dc: 2, access: 8, mgmt: 4, collab: 12 };
+
+  function buildNetworkGraph(studio) {
+    const nodes = studio.design.nodes.filter(n => {
+      if (n.roomId || n.canvas === "room") return false;
+      const def = window.__DS_STENCILS?.getDef?.(n.stencilId, "network");
+      return !def?.decorative;
+    });
+    const nodeIds = new Set(nodes.map(n => n.id));
+    const links = studio.design.links.filter(l => nodeIds.has(l.from) && nodeIds.has(l.to));
+    const chambers = nodes.map(n => {
+      const def = window.__DS_STENCILS?.getDef?.(n.stencilId, "network");
+      const layer = n.layer || "access";
+      const lx = { wan: 40, security: 188, core: 336, distribution: 484, dc: 632, access: 780, mgmt: 928, collab: 1076 }[layer] || n.x;
+      return {
+        id: n.id,
+        label: n.label || def?.label || n.stencilId,
+        pid: n.pid || def?.pid || "",
+        zone: layer,
+        pos: { x: (lx - 500) * 0.06, y: 3 + (n.y || 0) * 0.004, z: NET_LAYER_Z[layer] || 0 },
+        color: MEDIA_COLORS.cat6
+      };
+    });
+    const chamberMap = Object.fromEntries(chambers.map(c => [c.id, c]));
+    const corridors = links.map(l => {
+      const a = chamberMap[l.from];
+      const b = chamberMap[l.to];
+      if (!a || !b) return null;
+      return {
+        id: l.id,
+        from: a,
+        to: b,
+        media: l.media || "cat6",
+        label: l.label || "Link",
+        fromPort: l.fromPort,
+        toPort: l.toPort,
+        color: MEDIA_COLORS[l.media] || MEDIA_COLORS.cat6
+      };
+    }).filter(Boolean);
+    return { room: { name: "Network topology" }, chambers, corridors, kind: "network" };
+  }
+
+  function buildGraph(studio) {
+    return studio.tab === "room" ? buildRoomGraph(studio) : buildNetworkGraph(studio);
   }
 
   function buildMazeFromGraph(graph) {
@@ -173,11 +247,11 @@
   }
 
   function startTrace(kind) {
-    const graph = buildRoomGraph(state.studio);
+    const graph = buildGraph(state.studio);
     if (!graph) return;
     const pick = kind === "av"
       ? graph.corridors.find(c => c.media === "hdmi" || c.media === "usb")
-      : graph.corridors.find(c => c.media === "cat6" || c.media === "cat6a");
+      : graph.corridors.find(c => c.media === "cat6" || c.media === "cat6a" || /fiber/i.test(c.media || ""));
     if (!pick) { setStatus(kind === "av" ? "No AV link in this room" : "No PoE link in this room"); return; }
     state.trace = {
       waypoints: [pick.from.pos, pick.to.pos],
@@ -234,10 +308,9 @@
     return g;
   }
 
-  async function initCorridor(studio, canvas) {
+  async function initCorridor(studio, canvas, graph) {
     const THREE = await loadThree();
-    const graph = buildRoomGraph(studio);
-    if (!graph?.chambers.length) throw new Error("no-room");
+    if (!graph?.chambers.length) throw new Error("no-graph");
 
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -333,9 +406,8 @@
   }
 
   /* ── Doom-style raycaster ── */
-  function initDoom(studio, canvas) {
-    const graph = buildRoomGraph(studio);
-    if (!graph?.chambers.length) throw new Error("no-room");
+  function initDoom(studio, canvas, graph) {
+    if (!graph?.chambers.length) throw new Error("no-graph");
     const maze = buildMazeFromGraph(graph);
     const ctx = canvas.getContext("2d");
     const W = canvas.width = canvas.clientWidth;
@@ -461,18 +533,27 @@
     };
   }
 
+  function showWalkError(msg) {
+    const status = document.getElementById("ds-walk-status");
+    if (status) {
+      status.textContent = msg;
+      status.classList.add("ds-walk-error");
+    }
+  }
+
   async function open(studio, mode) {
-    if (!studio || studio.tab !== "room") {
-      studio?.toast?.("Switch to Room tab first");
+    if (!studio || (studio.tab !== "room" && studio.tab !== "network")) {
+      studio?.toast?.("Open Network or Room tab first");
       return;
     }
-    const graph = buildRoomGraph(studio);
+    const graph = buildGraph(studio);
     if (!graph?.chambers.length) {
-      studio.toast?.("Add a room template with devices first");
+      studio.toast?.(studio.tab === "room" ? "Add a room template with devices first" : "Add network devices first");
       return;
     }
 
     mode = mode === "retro" ? "retro" : "corridor";
+    if (state.mode) close(true);
     state.studio = studio;
     state.mode = mode;
 
@@ -484,6 +565,7 @@
     }
     state.overlay = overlay;
     overlay.hidden = false;
+    overlay.removeAttribute("hidden");
     overlay.setAttribute("aria-hidden", "false");
     overlay.className = `ds-walk-overlay ds-walk-${mode}`;
     overlay.innerHTML = `${hudHtml(mode)}
@@ -494,22 +576,28 @@
 
     const canvas = overlay.querySelector("#ds-walk-canvas");
     bindInput(canvas);
+    setStatus("Loading walkthrough…");
+
+    await waitForCanvasSize(canvas);
 
     try {
       if (mode === "retro") {
-        initDoom(studio, canvas);
+        initDoom(studio, canvas, graph);
         loopDoom();
       } else {
-        await initCorridor(studio, canvas);
+        await initCorridor(studio, canvas, graph);
         loopCorridor();
       }
       studio.roomView = mode === "retro" ? "retro" : "walk";
       window.__DS_PREMIUM?.renderRoomViewToggle?.(studio);
-      setStatus(`${graph.room.name} — ${graph.chambers.length} chambers · ${graph.corridors.length} paths`);
+      const title = graph.room?.name || "Topology";
+      setStatus(`${title} — ${graph.chambers.length} chambers · ${graph.corridors.length} paths · WASD to move`);
     } catch (err) {
-      console.error(err);
-      studio.toast?.("Walkthrough failed to load — try Retro mode");
-      close();
+      console.error("[DS Walk]", err);
+      showWalkError(err?.message === "three-load"
+        ? "3D library failed to load — try Retro mode or hard-refresh"
+        : "Walkthrough failed — try Retro mode");
+      studio.toast?.("Walkthrough failed — see message in overlay");
     }
 
     state._resize = () => {
@@ -545,6 +633,7 @@
     if (state.studio && !silent) {
       state.studio.roomView = "diagram";
       window.__DS_PREMIUM?.renderRoomViewToggle?.(state.studio);
+      state.studio.scheduleFitView?.();
     }
     state.mode = null;
     if (!silent) state.studio = null;

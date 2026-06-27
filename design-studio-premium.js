@@ -160,6 +160,7 @@
           window.__DS_WALK?.close?.();
           studio.roomView = v;
           studio.renderCanvas();
+          studio.scheduleFitView?.();
         }
         renderRoomViewToggle(studio);
         if (studio.roomView === "diagram") requestAnimationFrame(() => studio.fitView());
