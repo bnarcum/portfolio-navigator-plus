@@ -22,10 +22,18 @@
   function scoreState(design, score) {
     if (!design?.nodes?.length) return { label: "—", cls: "ds-score idle", title: "Generate a draft to score" };
     if (!isDesignGenerated(design)) return { label: "Draft", cls: "ds-score idle", title: "Canvas not synced with brief — Generate Draft" };
+    const roomCount = design.rooms?.length || 0;
+    if (roomCount > 1 && score < 50) {
+      return {
+        label: `${roomCount} rooms`,
+        cls: "ds-score good",
+        title: `Portfolio of ${roomCount} collaboration spaces — open Room tab for per-space score`
+      };
+    }
     return {
       label: `${score}/100`,
       cls: score >= 80 ? "ds-score good" : score >= 50 ? "ds-score ok" : "ds-score low",
-      title: "Design completeness score"
+      title: roomCount ? `Design score · ${roomCount} room${roomCount === 1 ? "" : "s"}` : "Design completeness score"
     };
   }
 
@@ -105,7 +113,14 @@
     const rooms = studio.design.rooms || [];
     if (!rooms.length) return "";
     const tpl = k => window.__DS_TEMPLATES?.ROOM_TEMPLATES?.[k];
-    return `<div class="ds-portfolio-grid" role="list">${rooms.map((r, i) => {
+    const counts = {};
+    rooms.forEach(r => { counts[r.template] = (counts[r.template] || 0) + 1; });
+    const summary = Object.entries(counts).map(([k, n]) => {
+      const lbl = ROOM_TYPE_LABELS[k] || tpl(k)?.category || k;
+      return `${n}× ${lbl}`;
+    }).join(" · ");
+    return `<p class="ds-portfolio-summary">${esc(summary)}</p>
+    <div class="ds-portfolio-grid" role="list">${rooms.map((r, i) => {
       const t = tpl(r.template);
       const active = r.id === studio.activeRoomId ? " active" : "";
       const short = (ROOM_TYPE_LABELS[r.template] || t?.category || "Room").slice(0, 6);

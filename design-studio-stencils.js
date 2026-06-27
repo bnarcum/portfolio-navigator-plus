@@ -158,16 +158,16 @@
     "board-pro": { label: "Board Pro 75", pid: "CS-BRD-75-K9", shape: "display", ports: "display-hdmi", w: 104, h: 60, poeW: 0 },
     "desk-pro": { label: "Desk Pro", pid: "CS-DESKPRO-K9", shape: "codec", ports: "codec-av", w: 76, h: 48, poeW: 30 },
     "quad-cam": { label: "Quad Camera", pid: "CS-QUADCAM-K9", shape: "camera", ports: "cam-hdmi", w: 56, h: 52 },
-    "ceiling-mic": { label: "Ceiling Mic Pro", pid: "CS-MIC-CLG-P", shape: "ceiling-mic", ports: "mic-poe", w: 56, h: 38, poeW: 15 },
-    "table-mic": { label: "Table Mic Pro", pid: "CS-MIC-TBL-P", shape: "table-mic", ports: "mic-poe", w: 52, h: 42, poeW: 10 },
-    "touch-10": { label: "Touch 10", pid: "CS-TOUCH10-K9", shape: "touch", ports: "touch-lan", w: 64, h: 48, poeW: 12 },
-    "room-navigator": { label: "Room Navigator", pid: "CS-NAV-T-K9", shape: "touch", ports: "touch-lan", w: 64, h: 48, poeW: 12 },
+    "ceiling-mic": { label: "Ceiling Mic Pro", pid: "CS-MIC-CLG-P", shape: "ceiling-mic", ports: "mic-poe", w: 48, h: 34, poeW: 15 },
+    "table-mic": { label: "Table Mic Pro", pid: "CS-MIC-TBL-P", shape: "table-mic", ports: "mic-poe", w: 44, h: 38, poeW: 10 },
+    "touch-10": { label: "Touch 10", pid: "CS-TOUCH10-K9", shape: "touch", ports: "touch-lan", w: 58, h: 42, poeW: 12 },
+    "room-navigator": { label: "Room Navigator", pid: "CS-NAV-T-K9", shape: "touch", ports: "touch-lan", w: 58, h: 42, poeW: 12 },
     "display-75": { label: "Display 75\"", pid: "DISPLAY-75-4K", shape: "display", ports: "display-hdmi", w: 100, h: 58, ccwEligible: false, decorative: true },
     "display-86": { label: "Display 86\"", pid: "DISPLAY-86-4K", shape: "display", ports: "display-hdmi", w: 108, h: 62, ccwEligible: false, decorative: true },
     "credenza-rack": { label: "12U Credenza", pid: "RACK-12U-CRED", shape: "rack", ports: "generic", w: 56, h: 72, ccwEligible: false, decorative: true },
     "conf-table-12": { label: "Conf Table (12)", pid: "FURN-TABLE-12", shape: "table", ports: "generic", w: 120, h: 56, ccwEligible: false, decorative: true },
     "conf-table-8": { label: "Huddle Table (8)", pid: "FURN-TABLE-8", shape: "table", ports: "generic", w: 88, h: 48, ccwEligible: false, decorative: true },
-    "c9200-collab": { label: "C9200 Collab SW", pid: "C9200-24P", shape: "switch", ports: "switch-24", w: 80, h: 44, poeW: 370, layer: "collab", role: "collab-switch" }
+    "c9200-collab": { label: "C9200 Collab SW", pid: "C9200-24P", shape: "switch", ports: "switch-24", w: 96, h: 50, poeW: 370, layer: "collab", role: "collab-switch" }
   };
 
   const FAMILY_TO_STENCIL = {
@@ -272,7 +272,8 @@
     const sel = selected ? " ds-node-selected" : "";
     const isRoomShape = ["codec", "display", "camera", "mic", "ceiling-mic", "table-mic", "touch", "switch"].includes(shape);
     const isCeilingMic = shape === "ceiling-mic";
-    const iconScale = isCeilingMic ? 0.5 : isRoomShape ? 0.5 : 0.45;
+    const isDisplay = shape === "display";
+    const iconScale = isCeilingMic ? 0.55 : isDisplay ? 0.58 : isRoomShape ? 0.5 : 0.45;
     const iconDraw = 80 * iconScale;
     const iconX = (VW - iconDraw) / 2;
     const iconY = (VH - iconDraw) / 2;
@@ -294,7 +295,7 @@
         : `x="1" y="1" width="${VW - 2}" height="${VH - 2}" rx="8"`}
         fill="url(#${gid}-bg)" stroke="${accent}" stroke-width="${isRoomShape ? "1.5" : "1.25"}" opacity="0.98"/>
       ${isCeilingMic ? "" : `<rect x="1" y="1" width="${VW - 2}" height="${VH - 2}" rx="8" fill="url(#${gid}-shine)" pointer-events="none"/>
-      <rect x="0" y="9" width="5" height="${VH - 18}" rx="2" fill="${accent}" opacity="0.92"/>`}
+      ${isDisplay ? "" : `<rect x="0" y="9" width="4" height="${VH - 18}" rx="2" fill="${accent}" opacity="0.75"/>`}`}
       <rect x="10" y="${VH - 9}" width="${VW - 20}" height="2.5" rx="1" fill="${accent}" opacity="0.28"/>
       <g class="ds-node-symbol" style="color:${accent}" transform="translate(${iconX},${iconY}) scale(${iconScale})">
         <use href="#icon-${sym}" width="80" height="80"/>

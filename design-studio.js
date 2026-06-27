@@ -1256,8 +1256,13 @@ Account: ${this.design.account}`;
     }
 
     shouldShowLinkLabel(links, linkId) {
+      if (this.presentation && this.tab === "room") {
+        const l = this.design.links.find(x => x.id === linkId);
+        if (l && (l.media === "hdmi" || l.media === "usb" || /hdmi|usb|video|camera|display|codec|touch|mic/i.test(l.label || ""))) return true;
+        return links.length <= 6;
+      }
       if (this.selectedLink === linkId || this.linkMode) return true;
-      if (this.tab === "room") return links.length <= 4;
+      if (this.tab === "room") return links.length <= 5;
       return links.length <= 8;
     }
 
@@ -1351,6 +1356,7 @@ Account: ${this.design.account}`;
         ? this.design.rooms.filter(r => r.id === this.activeRoomId)
         : this.design.rooms;
       let html = "";
+      const ROOM_LABELS = { boardroom: "Boardroom", conference: "Conference", huddle: "Huddle", training: "Training", executive: "Executive", teamsRoom: "Teams", zoomRoom: "Zoom", ctMediumDualDisplay: "Dual display", ctSmallCollab: "Small collab", divisible: "Divisible" };
       rooms.forEach(room => {
         const tpl = TPL()?.ROOM_TEMPLATES?.[room.template];
         if (!tpl?.zones) return;
@@ -1368,6 +1374,20 @@ Account: ${this.design.account}`;
             <text class="ds-zone-label-text" x="12" y="16">${escapeHtml(label)}</text>
           </g>`;
         });
+        const typeLbl = ROOM_LABELS[room.template] || room.name;
+        const ctRef = tpl.ct ? String(tpl.ct).replace(/Design Guide$/i, "").trim().slice(0, 36) : "";
+        const badgeW = Math.min((tpl.w || 340) + 80, 440);
+        html += `<g class="ds-room-story" data-room="${room.id}" transform="translate(${ox},${oy - 20})">
+          <rect class="ds-room-story-bg" width="${badgeW}" height="16" rx="4"/>
+          <text class="ds-room-story-text" x="8" y="12">Cisco Tested · ${escapeHtml(typeLbl)}</text>
+          ${ctRef ? `<text class="ds-room-story-ct" x="${badgeW - 8}" y="12" text-anchor="end">${escapeHtml(ctRef)}</text>` : ""}
+        </g>`;
+        if (this.design.rooms.length > 1 && room.id === this.activeRoomId) {
+          html += `<g class="ds-room-portfolio-badge" transform="translate(${ox + badgeW + 8},${oy - 20})">
+            <rect width="72" height="16" rx="4" class="ds-room-portfolio-bg"/>
+            <text x="36" y="12" text-anchor="middle" class="ds-room-portfolio-text">${this.design.rooms.length} rooms</text>
+          </g>`;
+        }
       });
       zoneLayer.innerHTML = html;
     }
@@ -1518,17 +1538,19 @@ Account: ${this.design.account}`;
         const off = this._linkOffsets.get(l.id) || 0;
         const sel = this.selectedLink === l.id ? " selected" : "";
         const hl = selNode && (l.from === selNode || l.to === selNode) ? " highlighted" : "";
-        const dim = selNode && !hl && !sel ? " dimmed" : "";
+        const isAv = this.tab === "room" && (l.media === "hdmi" || l.media === "usb" || /camera|display|codec|hdmi|usb/i.test(l.label || ""));
+        const avHl = this.presentation && isAv ? " av-chain" : "";
+        const dim = selNode && !hl && !sel && !avHl ? " dimmed" : "";
         const path = linkRoute(a.x, a.y, b.x, b.y, off);
         const lp = linkLabelPos(a, b, off, this.tab === "room");
         const lbl = linkDisplayLabel(links, l);
-        const showLbl = lbl && !this.presentation && this.shouldShowLinkLabel(links, l.id);
+        const showLbl = lbl && this.shouldShowLinkLabel(links, l.id) && (!this.presentation || this.tab === "room");
         const portDetail = sel && l.fromPort && l.toPort ? `${l.fromPort} → ${l.toPort}` : "";
         const lw = Math.max(36, lbl.length * 6.5 + 14);
         const lh = portDetail ? 24 : 14;
         const ms = linkMediaStyle(l.media);
         const dash = ms.dash ? ` stroke-dasharray="${ms.dash}"` : "";
-        return `<g class="ds-link${sel}${hl}${dim}" data-link="${l.id}" data-media="${escapeAttr(l.media || "cat6")}">
+        return `<g class="ds-link${sel}${hl}${dim}${avHl}" data-link="${l.id}" data-media="${escapeAttr(l.media || "cat6")}">
           <path class="ds-link-path${sel}" d="${path}" marker-end="url(#ds-arrow-${l.media || "cat6"})" style="stroke:${ms.stroke};stroke-width:${hl ? ms.w + 1 : ms.w}${dash ? ";stroke-dasharray:" + ms.dash : ""}"/>
           ${showLbl ? `<g class="ds-link-label-group" transform="translate(${lp.x},${lp.y})">
             <rect class="ds-link-label-bg" x="${-lw / 2}" y="-11" width="${lw}" height="${lh}" rx="3"/>
@@ -1569,12 +1591,16 @@ Account: ${this.design.account}`;
         const isHub = mode === "room" && /switch|9200|9300|collab/i.test(n.stencilId || "");
         const isDeco = def?.decorative;
         const isRoom = mode === "room";
+        const pid = n.pid || def?.pid;
+        const showPid = isRoom && !isDeco && pid && !/^N\/A/i.test(pid) && def?.shape !== "display" && def?.shape !== "table";
         const lblText = (dispLabel || "").slice(0, 24) + qty;
         const lblW = Math.max(w, Math.min(lblText.length * 6.2 + 12, 148));
         const lblX = (w - lblW) / 2;
+        const pidY = h + (showPid ? 28 : 14);
         const roomLbl = isRoom
           ? `<rect class="ds-node-label-bg ds-node-label-bg-below" x="${lblX}" y="${h + 3}" width="${lblW}" height="15" rx="3"/>
-             <text class="ds-node-label ds-node-label-below" x="${w / 2}" y="${h + 14}" text-anchor="middle">${escapeHtml(lblText)}</text>`
+             <text class="ds-node-label ds-node-label-below" x="${w / 2}" y="${h + 14}" text-anchor="middle">${escapeHtml(lblText)}</text>
+             ${showPid ? `<text class="ds-node-pid" x="${w / 2}" y="${pidY}" text-anchor="middle">${escapeHtml(String(pid).slice(0, 18))}</text>` : ""}`
           : `<rect class="ds-node-label-bg" x="2" y="${h - 18}" width="${w - 4}" height="14" rx="3"/>
              <text class="ds-node-label" x="${w / 2}" y="${h - 7}" text-anchor="middle">${escapeHtml(lblText)}</text>`;
         return `<g class="ds-node${sel}${isHub ? " ds-hub" : ""}${isDeco ? " ds-deco" : ""}${isRoom ? " ds-room-node" : ""}" data-node="${n.id}" transform="translate(${n.x},${n.y})">

@@ -15,6 +15,9 @@
 #design-studio.ds-present-mode #ds-header button:not(#ds-present):not(#ds-close){display:none}
 #design-studio.ds-present-mode #ds-minimap,#design-studio.ds-present-mode #ds-legend{display:none}
 #design-studio.ds-present-mode .ds-ports{display:none}
+#design-studio.ds-present-mode #ds-story-host .ds-story-nav-row{display:none}
+#design-studio.ds-present-mode #ds-room-guide .ds-room-view-toggle{display:none}
+#design-studio.ds-present-mode #ds-status-left{display:none}
 
 #ds-header{display:flex;align-items:center;gap:8px;padding:8px 12px;flex-wrap:wrap;
   background:var(--glass-bg);border-bottom:1px solid var(--border);flex-shrink:0}
@@ -455,14 +458,24 @@
 @keyframes ds-pulse{0%,100%{box-shadow:none}50%{box-shadow:0 0 0 3px rgba(0,212,255,.6)}}
 .ds-bom-row{cursor:pointer}
 .ds-bom-row:hover{background:rgba(0,212,255,.08)}
-.ds-device-photo .ds-photo-plate{filter:drop-shadow(0 1px 3px rgba(0,0,0,.25))}
-.ds-device-photo .ds-photo-frame{pointer-events:none}
+.ds-device-photo .ds-photo-plate{filter:drop-shadow(0 1px 2px rgba(0,0,0,.12))}
+.ds-device-photo .ds-photo-frame{pointer-events:none;opacity:.65}
 .ds-device-photo .ds-photo-img{pointer-events:none}
-.ds-st-photo-wrap{display:inline-flex;align-items:center;justify-content:center;padding:2px;border-radius:4px;background:#f0f4f8;border:1px solid rgba(2,200,255,.2)}
+.ds-device-photo.ds-node-selected .ds-photo-frame{opacity:1;stroke:#00d4ff}
+.ds-st-photo-wrap{display:inline-flex;align-items:center;justify-content:center;padding:2px;border-radius:4px;background:#eef2f7;border:1px solid rgba(15,23,42,.08)}
 .ds-st-photo{display:block;object-fit:contain;background:transparent}
 .ds-stencil .ds-st-photo{width:22px;height:22px}
 .ds-node.ds-bom-highlight{filter:drop-shadow(0 0 8px #00d4ff)}
 .ds-room-guide-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.ds-room-story-bg{fill:rgba(10,30,50,.88);stroke:rgba(0,212,255,.35);stroke-width:.5}
+.ds-room-story-text,.ds-room-story-ct{font-size:9px;font-weight:700;fill:#b8e8ff}
+.ds-room-story-ct{fill:#7ec8e8;font-weight:600}
+.ds-room-portfolio-bg{fill:rgba(0,212,255,.15);stroke:rgba(0,212,255,.4);stroke-width:.5}
+.ds-room-portfolio-text{font-size:9px;font-weight:800;fill:#00d4ff}
+.ds-node-pid{font-size:8px;font-weight:600;fill:#7a9ab8;pointer-events:none}
+.ds-link.av-chain .ds-link-path{stroke-width:3!important;filter:drop-shadow(0 0 4px rgba(0,212,255,.5))}
+.ds-link.av-chain .ds-link-label-bg{fill:rgba(0,40,60,.92);stroke:rgba(0,212,255,.5)}
+.ds-portfolio-summary{margin:0 0 10px;font-size:11px;color:#8ecae0;line-height:1.4}
 
 body.design-studio-open #app-chrome,
 body.design-studio-open #gw,
