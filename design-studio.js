@@ -35,17 +35,17 @@
   const LAYER_Y = { wan: 40, security: 120, core: 200, distribution: 300, access: 400, mgmt: 500, collab: 580, dc: 260 };
 
   const LINK_MEDIA_STYLE = {
-    "fiber-sm": { stroke: "#5a9fd4", w: 2.5 },
-    "fiber-mm": { stroke: "#5a9fd4", w: 2.5 },
-    "fiber-40g": { stroke: "#7090ff", w: 3 },
-    dac: { stroke: "#7090ff", w: 2 },
-    hdmi: { stroke: "#44cc88", w: 2.5, dash: "7 4" },
-    "usb-c": { stroke: "#44cc88", w: 2, dash: "5 3" },
-    speaker: { stroke: "#aa88cc", w: 1.5, dash: "4 3" },
-    control: { stroke: "#aa88cc", w: 1.5, dash: "4 3" },
-    wireless: { stroke: "#6688aa", w: 1.5, dash: "2 4" },
-    cat6a: { stroke: "#d4a060", w: 2 },
-    cat6: { stroke: "#c49050", w: 2 }
+    "fiber-sm": { stroke: "#6eb8ff", w: 2.75 },
+    "fiber-mm": { stroke: "#6eb8ff", w: 2.75 },
+    "fiber-40g": { stroke: "#88a8ff", w: 3.25 },
+    dac: { stroke: "#88a8ff", w: 2.5 },
+    hdmi: { stroke: "#5ce0a8", w: 2.75, dash: "8 5" },
+    "usb-c": { stroke: "#5ce0a8", w: 2.25, dash: "5 3" },
+    speaker: { stroke: "#c8a0e8", w: 2, dash: "4 3" },
+    control: { stroke: "#c8a0e8", w: 2, dash: "4 3" },
+    wireless: { stroke: "#88aacc", w: 2, dash: "3 4" },
+    cat6a: { stroke: "#e8b870", w: 2.5 },
+    cat6: { stroke: "#d4a060", w: 2.5 }
   };
 
   /** One Cisco strategy — Design Studio Intent hero (self-contained; mirrors main app deck) */
@@ -290,6 +290,43 @@
     return { x: midx + px * lift, y: midy + offset + py * lift - 8 };
   }
 
+  const LAYER_BAND_STYLE = {
+    wan: { accent: "#02C8FF", fill: "0.06", stroke: "0.22" },
+    security: { accent: "#FF007F", fill: "0.05", stroke: "0.18" },
+    core: { accent: "#0A60FF", fill: "0.07", stroke: "0.24" },
+    distribution: { accent: "#3070E5", fill: "0.05", stroke: "0.18" },
+    dc: { accent: "#6080FF", fill: "0.05", stroke: "0.18" },
+    access: { accent: "#02C8FF", fill: "0.05", stroke: "0.2" },
+    mgmt: { accent: "#B4B9C0", fill: "0.04", stroke: "0.14" },
+    collab: { accent: "#44CC88", fill: "0.05", stroke: "0.18" }
+  };
+
+  function layerBandSvg(layer, x, bandH) {
+    const st = LAYER_BAND_STYLE[layer] || LAYER_BAND_STYLE.access;
+    const w = LAYER_COL_W;
+    const title = LAYER_LABELS[layer] || layer;
+    const parts = String(title).split(/\s*\/\s*/);
+    const titleY = parts.length > 1 ? 66 : 70;
+    const titleSvg = parts.length === 1
+      ? `<text class="ds-layer-title" x="${x + w / 2}" y="${titleY}" text-anchor="middle">${escapeHtml(parts[0])}</text>`
+      : `<text class="ds-layer-title" x="${x + w / 2}" y="${titleY - 5}" text-anchor="middle">${parts.map((p, i) =>
+        `<tspan x="${x + w / 2}" dy="${i ? 11 : 0}">${escapeHtml(p.trim())}</tspan>`).join("")}</text>`;
+    return `<g class="ds-layer-col ds-layer-col-${layer}">
+      <defs>
+        <linearGradient id="ds-band-${layer}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${st.accent}" stop-opacity="${st.fill}"/>
+          <stop offset="55%" stop-color="${st.accent}" stop-opacity="0.02"/>
+          <stop offset="100%" stop-color="${st.accent}" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <rect class="ds-layer-band" x="${x}" y="76" width="${w}" height="${bandH}" rx="14"
+        fill="url(#ds-band-${layer})" stroke="${st.accent}" stroke-opacity="${st.stroke}" stroke-width="1"/>
+      <rect class="ds-layer-pill" x="${x + 10}" y="52" width="${w - 20}" height="24" rx="12"
+        fill="rgba(4,16,31,0.88)" stroke="${st.accent}" stroke-opacity="0.35" stroke-width="1"/>
+      ${titleSvg}
+    </g>`;
+  }
+
   function layerTitleSvg(layer, cx, y) {
     const raw = LAYER_LABELS[layer] || layer;
     const parts = String(raw).split(/\s*\/\s*/);
@@ -434,7 +471,7 @@
         const def = STN()?.getDef?.(n.stencilId, "network");
         const nh = n.h || def?.h || 48;
         n.x = x;
-        n.y = LAYER_START_Y + i * Math.max(LAYER_ROW_H, nh + 36);
+        n.y = LAYER_START_Y + i * Math.max(LAYER_ROW_H, nh + (window.__DS_PHOTOS?.resolveUrl?.(n.stencilId, def) ? 44 : 36));
         if (design.snapGrid !== false) { n.x = snap(n.x); n.y = snap(n.y); }
       });
     });
@@ -533,6 +570,8 @@
               </div>
             </div>
             <div id="ds-canvas-wrap" class="network-mode">
+              <div id="ds-canvas-vignette" aria-hidden="true"></div>
+              <div id="ds-canvas-ambient" aria-hidden="true"></div>
               <div id="ds-stale-banner" class="ds-stale-banner" hidden></div>
               <div id="ds-floorplan"></div>
               <div id="ds-toolbar"></div>
@@ -1542,10 +1581,9 @@ Account: ${this.design.account}`;
         bandsG.innerHTML = LAYERS.filter(l => activeLayers.includes(l)).map(layer => {
           const x = (LAYER_X[layer] || 400) - 12;
           const layerNodes = nodes.filter(n => n.layer === layer);
-          const maxY = layerNodes.length ? Math.max(...layerNodes.map(n => n.y + (n.h || 46))) + 32 : 520;
-          const title = LAYER_LABELS[layer] || layer;
-          return `<rect class="ds-layer-band" x="${x}" y="80" width="${LAYER_COL_W}" height="${Math.max(420, maxY - 68)}"/>
-            ${layerTitleSvg(layer, x + LAYER_COL_W / 2, 74)}`;
+          const maxY = layerNodes.length ? Math.max(...layerNodes.map(n => n.y + (n.h || 46))) + 48 : 520;
+          const bandH = Math.max(420, maxY - 60);
+          return layerBandSvg(layer, x, bandH);
         }).join("");
       } else bandsG.innerHTML = "";
 
@@ -1605,24 +1643,26 @@ Account: ${this.design.account}`;
         const dispLabel = displayNodeLabel(n.label);
         const title = [n.label, n.pid || def?.pid].filter(Boolean).join(" · ");
         const svgInner = STN()?.renderDeviceSvg?.(def, w, h, sel, n.stencilId) || `<rect class="ds-node-box" width="${w}" height="${h}" rx="6"/>`;
+        const hasPhoto = !!(window.__DS_PHOTOS?.resolveUrl?.(n.stencilId, def));
         const ports = this.showPortsOnNode(n) ? STN()?.renderPorts?.(n, mode, this.linkFrom === n.id ? this.linkFromPort : null) || "" : "";
         const showLayer = n.layer && this.tab === "network" && !showBands;
         const isHub = mode === "room" && /switch|9200|9300|collab/i.test(n.stencilId || "");
         const isDeco = def?.decorative;
         const isRoom = mode === "room";
+        const belowLabel = isRoom || hasPhoto;
         const pid = n.pid || def?.pid;
-        const showPid = isRoom && !isDeco && pid && !/^N\/A/i.test(pid) && def?.shape !== "display" && def?.shape !== "table";
+        const showPid = belowLabel && !isDeco && pid && !/^N\/A/i.test(pid) && def?.shape !== "display" && def?.shape !== "table";
         const lblText = (dispLabel || "").slice(0, 22) + qty;
-        const lblW = Math.min(Math.max(w, lblText.length * 5.8 + 10), w + 24);
+        const lblW = Math.min(Math.max(w, lblText.length * 5.8 + 10), w + 28);
         const lblX = (w - lblW) / 2;
         const pidY = h + 26;
-        const roomLbl = isRoom
-          ? `<rect class="ds-node-label-bg ds-node-label-bg-below" x="${lblX}" y="${h + 4}" width="${lblW}" height="14" rx="3"/>
+        const roomLbl = belowLabel
+          ? `<rect class="ds-node-label-bg ds-node-label-bg-below" x="${lblX}" y="${h + 4}" width="${lblW}" height="14" rx="4"/>
              <text class="ds-node-label ds-node-label-below" x="${w / 2}" y="${h + 14}" text-anchor="middle">${escapeHtml(lblText)}</text>
              ${showPid ? `<text class="ds-node-pid" x="${w / 2}" y="${pidY}" text-anchor="middle">${escapeHtml(String(pid).slice(0, 16))}</text>` : ""}`
           : `<rect class="ds-node-label-bg" x="2" y="${h - 18}" width="${w - 4}" height="14" rx="3"/>
              <text class="ds-node-label" x="${w / 2}" y="${h - 7}" text-anchor="middle">${escapeHtml(lblText)}</text>`;
-        return `<g class="ds-node${sel}${isHub ? " ds-hub" : ""}${isDeco ? " ds-deco" : ""}${isRoom ? " ds-room-node" : ""}" data-node="${n.id}" transform="translate(${n.x},${n.y})">
+        return `<g class="ds-node${sel}${isHub ? " ds-hub" : ""}${isDeco ? " ds-deco" : ""}${isRoom ? " ds-room-node" : ""}${hasPhoto ? " ds-photo-node" : ""}" data-node="${n.id}" transform="translate(${n.x},${n.y})">
           <title>${escapeHtml(title)}</title>
           ${isHub ? `<rect class="ds-node-hub-ring" x="-4" y="-4" width="${w + 8}" height="${h + 8}" rx="10"/>` : ""}
           ${svgInner}
