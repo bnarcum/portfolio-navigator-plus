@@ -35,6 +35,17 @@
   const EYE_HEIGHT = 1.62;
   const PLAYER_R = 0.4;
 
+  // Camera glide pacing (walk speed — ~3s short hops, ~6s longer runs).
+  const FLY_DUR_MIN = 2.8;
+  const FLY_DUR_MAX = 6.0;
+  const FLY_DIST_SCALE = 0.52;
+  const TRACE_DUR_MIN = 4.0;
+  const TRACE_DUR_MAX = 8.0;
+  const TRACE_LEN_SCALE = 0.42;
+  const FOLLOW_POE_FADE_MS = 600;
+
+  const MOVE_KEYS = new Set(["w", "a", "s", "d", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+
   const state = {
     studio: null, mode: null, overlay: null, animId: 0, clock: 0, lastFrame: 0,
     THREE: null, renderer: null, scene: null, camera: null, raycaster: null,
@@ -1105,6 +1116,7 @@
 
   function teleportToChamber(ch, instant) {
     if (!ch) return;
+    if (!instant) cancelMotion();
     const dest = chamberStandPos(ch);
     const prev = state.chambers[state.navIndex];
     if (!instant && prev && prev.id !== ch.id) startWayfinding(ch, prev);
@@ -1120,7 +1132,6 @@
           path,
           i: 0,
           t: 0,
-          stepDur: 0.5,
           chamber: ch,
           dest
         };
@@ -1136,13 +1147,14 @@
       faceChamber(ch);
       state.fly = null;
     } else {
+      const dist = Math.hypot(dest.x - state.pos.x, dest.z - state.pos.z);
       state.fly = {
         from: { ...state.pos },
         to: dest,
         yawFrom: state.yaw,
         yawTo: Math.atan2(chamberWorldPos(ch).x - dest.x, chamberWorldPos(ch).z - dest.z),
         t: 0,
-        dur: 0.65,
+        dur: flyDuration(dist),
         chamber: ch
       };
       state.vel = { x: 0, y: 0, z: 0 };
@@ -1701,6 +1713,76 @@
     return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
   }
 
+  function flyDuration(dist) {
+    return Math.max(FLY_DUR_MIN, Math.min(FLY_DUR_MAX, (dist || 0) * FLY_DIST_SCALE));
+  }
+
+  function cancelMotion() {
+    if (!state.fly && !state.trace) return;
+    state.fly = null;
+    state.trace = null;
+    setTraceCable(null);
+  }
+
+  function cableCurveForCor(cor) {
+    if (!cor) return null;
+    const g = state.cables.find(c => c.userData?.corridor?.id === cor.id);
+    return g?.userData?.curve || null;
+  }
+
+  function traceWaypointsForCorridor(cor) {
+    const curve = cableCurveForCor(cor);
+    if (curve) {
+      const steps = 40;
+      const wps = [];
+      for (let i = 0; i <= steps; i++) {
+        const p = curve.getPoint(i / steps);
+        const y = Math.max(EYE_HEIGHT - 0.15, Math.min(p.y + 0.28, EYE_HEIGHT + 0.6));
+        wps.push({ x: p.x, y, z: p.z });
+      }
+      return wps;
+    }
+    const a = chamberWorldPos(cor.from);
+    const b = chamberWorldPos(cor.to);
+    return [
+      { x: a.x, y: EYE_HEIGHT, z: a.z },
+      { x: b.x, y: EYE_HEIGHT, z: b.z }
+    ];
+  }
+
+  function traceDurationForCorridor(waypoints) {
+    let len = 0;
+    for (let i = 1; i < waypoints.length; i++) {
+      const a = waypoints[i - 1], b = waypoints[i];
+      len += Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
+    }
+    return Math.max(TRACE_DUR_MIN, Math.min(TRACE_DUR_MAX, len * TRACE_LEN_SCALE));
+  }
+
+  function updateTrace(dt) {
+    const tr = state.trace;
+    if (!tr?.waypoints?.length) return false;
+    const wps = tr.waypoints;
+    const dur = tr.dur || TRACE_DUR_MIN;
+    tr.t = Math.min(1, tr.t + dt / dur);
+    const u = flyEase(tr.t);
+    const seg = u * (wps.length - 1);
+    const i = Math.min(Math.floor(seg), wps.length - 2);
+    const f = seg - i;
+    const a = wps[i], b = wps[i + 1];
+    state.pos.x = a.x + (b.x - a.x) * f;
+    state.pos.y = a.y + (b.y - a.y) * f;
+    state.pos.z = a.z + (b.z - a.z) * f;
+    state.yaw = Math.atan2(b.x - a.x, b.z - a.z);
+    state.vel = { x: 0, y: 0, z: 0 };
+    if (tr.t >= 1) {
+      setStatus(`Arrived: ${tr.label}`);
+      state.trace = null;
+      setTraceCable(null);
+    }
+    return true;
+  }
+
   function updateFly(dt) {
     const f = state.fly;
     if (!f) return false;
@@ -1709,7 +1791,8 @@
       const idx = f.i || 0;
       const fromPt = idx === 0 ? f.from : f.path[idx - 1];
       const toPt = idx < f.path.length ? f.path[idx] : f.dest;
-      f.t = Math.min(1, f.t + dt / (f.stepDur || 0.5));
+      const segDur = flyDuration(Math.hypot(toPt.x - fromPt.x, toPt.z - fromPt.z));
+      f.t = Math.min(1, f.t + dt / segDur);
       const e = flyEase(f.t);
       state.pos.x = fromPt.x + (toPt.x - fromPt.x) * e;
       state.pos.z = fromPt.z + (toPt.z - fromPt.z) * e;
@@ -1750,6 +1833,7 @@
 
   function updatePlayer(dt) {
     if (updateFly(dt)) { applyCamera(); return; }
+    if (updateTrace(dt)) { applyCamera(); return; }
 
     if (!state.fly && !state.trace) {
       state.vel.y = (state.vel.y ?? 0) - 30 * dt;
@@ -1808,18 +1892,6 @@
       state.pos.z = safe.z;
     }
 
-    if (state.trace) {
-      const wps = state.trace.waypoints;
-      state.trace.t = Math.min(1, state.trace.t + dt * 0.45);
-      const t = state.trace.t;
-      const ax = wps[0].x, az = wps[0].z, bx = wps[1].x, bz = wps[1].z;
-      state.pos.x = ax + (bx - ax) * t;
-      state.pos.z = az + (bz - az) * t;
-      state.pos.y = EYE_HEIGHT;
-      state.yaw = Math.atan2(bx - ax, bz - az);
-      state.vel = { x: 0, y: 0, z: 0 };
-      if (t >= 1) { setStatus(`Arrived: ${state.trace.label}`); state.trace = null; setTraceCable(null); }
-    }
     const footSpd = Math.hypot(state.vel.x, state.vel.z);
     if (footSpd > 0.3) {
       state.footPhase += dt;
@@ -2350,28 +2422,37 @@
     const studio = state.studio;
     const graph = state.graph;
     if (!studio || !graph) return;
+    cancelMotion();
+    setStatus("Following PoE path…");
+
+    const fadeOut = () => new Promise(resolve => {
+      const ov = state.overlay;
+      if (!ov) { resolve(); return; }
+      ov.classList.add("ds-walk-fade-out");
+      setTimeout(resolve, FOLLOW_POE_FADE_MS);
+    });
+
+    const switchWalk = (tab) => {
+      window.__cpnFollowPoE = true;
+      close(true);
+      studio.setTab(tab);
+      setTimeout(() => studio.openWalk?.(), 80);
+    };
+
+    await fadeOut();
+
     if (graph.kind === "network") {
-      const poe = graph.corridors.find(c => /cat6|cat6a/i.test(c.media || "") && /poe|touch|mic|kit|codec|bar/i.test(`${c.label} ${c.from?.label} ${c.to?.label}`))
-        || graph.corridors.find(c => /cat6/i.test(c.media || ""));
       const room = studio.design.rooms.find(r =>
         studio.design.nodes.some(n => n.roomId === r.id && /9200|touch|kit|bar|codec/i.test(`${n.stencilId} ${n.label}`)));
       if (!room) { setStatus("Add a collaboration room to follow PoE downstream"); return; }
-      window.__cpnFollowPoE = true;
       studio.activeRoomId = room.id;
       studio.design.activeRoomId = room.id;
-      close(true);
-      studio.setTab("room");
-      setTimeout(() => studio.openWalk?.(), 200);
-      setStatus("Following PoE to collaboration room…");
+      switchWalk("room");
       return;
     }
     const hasNet = studio.design.nodes.some(n => n.canvas !== "room" && !n.roomId);
     if (!hasNet) { setStatus("Add a network topology to trace upstream PoE"); return; }
-    window.__cpnFollowPoE = true;
-    close(true);
-    studio.setTab("network");
-    setTimeout(() => studio.openWalk?.(), 200);
-    setStatus("Following PoE upstream to the closet…");
+    switchWalk("network");
   }
 
   function renderOutcomeReadout() {
@@ -2447,7 +2528,7 @@
     state.overlay?.querySelectorAll("[data-move]").forEach(btn => {
       const key = map[btn.dataset.move];
       if (!key) return;
-      const down = e => { e.preventDefault(); state.keys[key] = true; };
+      const down = e => { e.preventDefault(); cancelMotion(); state.keys[key] = true; };
       const up = () => { state.keys[key] = false; };
       btn.addEventListener("pointerdown", down);
       btn.addEventListener("pointerup", up);
@@ -2494,17 +2575,20 @@
   }
 
   function startTrace(kind) {
-    const graph = buildGraph(state.studio);
+    cancelMotion();
+    const graph = state.graph || buildGraph(state.studio);
     if (!graph) return;
     const pick = kind === "av"
       ? graph.corridors.find(c => c.media === "hdmi" || c.media === "usb")
       : graph.corridors.find(c => c.media === "cat6" || c.media === "cat6a" || /fiber/i.test(c.media || ""));
     if (!pick) { setStatus(kind === "av" ? "No AV link in this room" : "No PoE link in this room"); return; }
+    const waypoints = traceWaypointsForCorridor(pick);
     setTraceCable(pick);
     state.trace = {
-      waypoints: [chamberWorldPos(pick.from), chamberWorldPos(pick.to)],
+      waypoints,
       label: `${pick.label} · ${pick.fromPort || ""} → ${pick.toPort || ""}`,
       t: 0,
+      dur: traceDurationForCorridor(waypoints),
       cor: pick
     };
     setStatus(`Tracing: ${pick.label}`);
@@ -2534,6 +2618,7 @@
       const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
       state.keys[k] = e.type === "keydown";
       if (e.type === "keydown") {
+        if (MOVE_KEYS.has(e.key)) cancelMotion();
         if (e.key === "Escape") {
           e.preventDefault();
           e.stopPropagation();
@@ -2741,6 +2826,9 @@
       initFieldSystems(graph);
       loop();
       state.overlay?.classList.remove("ds-walk-loading");
+      state.overlay?.classList.remove("ds-walk-fade-out");
+      state.overlay?.classList.add("ds-walk-fade-in");
+      requestAnimationFrame(() => state.overlay?.classList.remove("ds-walk-fade-in"));
       studio.roomView = "walk";
       window.__DS_PREMIUM?.renderRoomViewToggle?.(studio);
       setStatus("Pick a device below or tap a connected link to walk your diagram");

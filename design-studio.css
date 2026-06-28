@@ -630,7 +630,8 @@
 .ds-bom-copy:hover{color:#7ee8ff}
 
 /* Network path walkthrough */
-#ds-walk-overlay{position:absolute;inset:0;z-index:20;display:flex!important;flex-direction:column;background:linear-gradient(180deg,#040c18 0%,#081828 100%);min-height:0}
+#ds-walk-overlay{position:absolute;inset:0;z-index:20;display:flex!important;flex-direction:column;background:linear-gradient(180deg,#040c18 0%,#081828 100%);min-height:0;transition:opacity .6s ease}
+#ds-walk-overlay.ds-walk-fade-out,#ds-walk-overlay.ds-walk-fade-in{opacity:0}
 #ds-walk-overlay[hidden]{display:none!important}
 #ds-walk-overlay.ds-walk-locked .ds-walk-crosshair{opacity:1}
 .ds-walk-stage{flex:1;position:relative;min-height:280px;display:flex;flex-direction:column}
