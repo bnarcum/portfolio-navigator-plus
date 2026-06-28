@@ -2041,9 +2041,27 @@
       animateOutcomes(state.clock);
       if (state.clock - (state._outcomeT || 0) > 0.5) { state._outcomeT = state.clock; renderOutcomeReadout(); }
     }
-    drawMinimap();
+    // Minimap is canvas-2D and relatively costly; 15fps is plenty for a map.
+    if (state.clock - (state._miniT || 0) > 0.066) { state._miniT = state.clock; drawMinimap(); }
+    adaptQuality(dt);
     state.renderer.render(state.scene, state.camera);
     state.animId = requestAnimationFrame(loop);
+  }
+
+  // One-way quality gate: if sustained FPS is low (AA + shadows + 2x DPR can be
+  // heavy on integrated GPUs), drop to 1x pixel ratio once to recover smoothness.
+  function adaptQuality(dt) {
+    const s = state;
+    s._fpsAcc = (s._fpsAcc || 0) + dt;
+    s._fpsN = (s._fpsN || 0) + 1;
+    if (s._fpsAcc < 1.5) return;
+    const fps = s._fpsN / s._fpsAcc;
+    s._fpsAcc = 0; s._fpsN = 0;
+    if (!s._qualityDropped && fps < 38 && s.renderer && s.renderer.getPixelRatio() > 1) {
+      s._qualityDropped = true;
+      s.renderer.setPixelRatio(1);
+      resizeRenderer();
+    }
   }
 
   // ---- Cisco Spaces outcome overlay ---------------------------------------
@@ -2472,6 +2490,8 @@
     removeOutcomeOverlay();
     state.outcomes = false;
     state.outcomeStats = null;
+    state._qualityDropped = false;
+    state._fpsAcc = 0; state._fpsN = 0; state._miniT = 0; state._outcomeT = 0;
     if (state.envRT) { state.envRT.dispose?.(); state.envRT = null; }
     if (state.scene) state.scene.environment = null;
     if (state.viewmodel && state.camera) state.camera.remove(state.viewmodel);
