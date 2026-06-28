@@ -83,6 +83,33 @@
     return issues;
   }
 
+  // Cisco Spaces design rules: sensor gateways, connector need, beacons, outcomes.
+  function validateSpaces(design) {
+    const w = [], tips = [];
+    const all = design.nodes;
+    const d = n => nodeDef(n);
+    const spacesCloud = all.filter(n => d(n)?.role === "spaces-cloud");
+    const connectors = all.filter(n => d(n)?.role === "connector");
+    const sensors = all.filter(n => d(n)?.role === "sensor");
+    const gateways = all.filter(n => d(n)?.mtGateway);
+    const beacons = all.filter(n => d(n)?.spacesBeacon);
+    const catalystAps = all.filter(n => d(n)?.spacesBeacon && /cw9179|catalyst|^cw/i.test(n.stencilId || ""));
+
+    if (sensors.length && gateways.length === 0)
+      w.push({ id: "spaces-mt-gw", severity: "error", msg: `${sensors.length} Meraki MT sensor(s) need a gateway — add a Meraki MR access point or MV camera (MT is BLE/IoT, not PoE).` });
+
+    if (spacesCloud.length) {
+      if (beacons.length === 0)
+        tips.push({ id: "spaces-beacons", msg: "Cisco Spaces enabled but no APs — add Catalyst/Meraki APs as BLE beacons for wayfinding & Detect-and-Locate." });
+      if (catalystAps.length && connectors.length === 0)
+        tips.push({ id: "spaces-connector", msg: "On-prem Catalyst/WLC detected — add a Spaces Connector 3 to stream location data to Cisco Spaces (Meraki is cloud-to-cloud, no connector needed)." });
+      tips.push({ id: "spaces-outcomes", msg: `Spaces outcomes enabled: Live Occupancy, Smart Workspaces, wayfinding${sensors.length ? `, IoT (${sensors.length} sensor${sensors.length > 1 ? "s" : ""})` : ""}.` });
+    } else if (sensors.length || beacons.length >= 2) {
+      tips.push({ id: "spaces-add", msg: "Add the Cisco Spaces cloud node to unlock occupancy, wayfinding and IoT dashboards from your APs/sensors." });
+    }
+    return { w, tips };
+  }
+
   function validateDesign(design) {
     const w = [], tips = [];
     const network = nets(design);
@@ -90,6 +117,9 @@
 
     w.push(...validateLinkPorts(design));
     w.push(...validateRoomArchitecture(design));
+    const sp = validateSpaces(design);
+    w.push(...sp.w);
+    tips.push(...sp.tips);
 
     const cores = network.filter(n => /core|c9500|n9k-spine|spine/i.test(n.stencilId + n.label));
     const fws = network.filter(n => /fpr|firewall|sf-/i.test(n.stencilId));
@@ -303,7 +333,7 @@
   }
 
   window.__DS_RULES = {
-    validateDesign, computeScore, getSuggestions, applyFix, computePoeBudget,
+    validateDesign, validateSpaces, computeScore, getSuggestions, applyFix, computePoeBudget,
     validateLinkPorts, autoWireLayerBased, generateCustomerNarrative
   };
 })();

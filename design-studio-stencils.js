@@ -11,7 +11,7 @@
     switch: "switch", router: "router", firewall: "shield", ap: "wifi",
     nexus: "fabric", server: "server", codec: "telepresence", display: "monitor",
     camera: "camera", mic: "headset", "ceiling-mic": "ceiling-mic", "table-mic": "table-mic",
-    touch: "touch", cloud: "cloud", user: "endpoint"
+    touch: "touch", cloud: "cloud", user: "endpoint", sensor: "cube"
   };
 
   const STENCIL_SYMBOL = {
@@ -21,17 +21,22 @@
     apic: "cube", "ucs-x": "server", "fpr-2130": "shield", "fpr-1120": "shield",
     cw9179f: "wifi", mr57: "wifi", "c8200-sdwan": "router", "c8200-sdwan-2": "router",
     mx85: "router", internet: "cloud", mpls: "globe", "users-vlan": "endpoint",
-    "credenza-rack": "server"
+    "credenza-rack": "server",
+    "spaces-cloud": "cloud", "spaces-connector": "gear",
+    mt10: "cube", mt12: "cube", mt15: "cube", mt20: "cube", mt30: "cube", mt40: "cube",
+    mv2: "camera"
   };
 
   const LAYER_ACCENT = {
     wan: "#02C8FF", security: "#FF007F", core: "#0A60FF", distribution: "#3070E5",
-    access: "#02C8FF", dc: "#6080FF", mgmt: "#B4B9C0", collab: "#44CC88", logical: "#8899AA"
+    access: "#02C8FF", dc: "#6080FF", mgmt: "#B4B9C0", collab: "#44CC88", logical: "#8899AA",
+    spaces: "#6F42C1", iot: "#16B35A"
   };
 
   const ROLE_ACCENT = {
     "wan-edge": "#02C8FF", firewall: "#FF007F", ise: "#FF007F", ap: "#02C8FF",
-    spine: "#6080FF", leaf: "#6080FF", cloud: "#02C8FF", "collab-switch": "#FF9000"
+    spine: "#6080FF", leaf: "#6080FF", cloud: "#02C8FF", "collab-switch": "#FF9000",
+    sensor: "#16B35A", "spaces-cloud": "#6F42C1", connector: "#6F42C1"
   };
 
   const ROOM_SHAPE_ACCENT = {
@@ -147,8 +152,8 @@
     "c9300-access": { label: "C9300 Access", pid: "C9300-48P", layer: "access", role: "access", shape: "switch", ports: "switch-48", w: 88, h: 48, poeW: 740, rackU: 1 },
     "c9200-access": { label: "C9200 Access", pid: "C9200-24P", layer: "access", role: "access", shape: "switch", ports: "switch-24", w: 80, h: 44, poeW: 370, rackU: 1 },
     "c9200-collab": { label: "C9200 Collab SW", pid: "C9200-24P", layer: "collab", role: "collab-switch", shape: "switch", ports: "switch-24", w: 80, h: 44, poeW: 370 },
-    "cw9179f": { label: "CW9179F AP", pid: "CW9179F", layer: "access", role: "ap", shape: "ap", ports: "ap-single", w: 72, h: 44, poeW: 25 },
-    "mr57": { label: "MR57 AP", pid: "MR57-HW", layer: "access", role: "ap", shape: "ap", ports: "ap-single", w: 72, h: 44, poeW: 25 },
+    "cw9179f": { label: "CW9179F AP", pid: "CW9179F", layer: "access", role: "ap", shape: "ap", ports: "ap-single", w: 72, h: 44, poeW: 25, spacesBeacon: true },
+    "mr57": { label: "MR57 AP", pid: "MR57-HW", layer: "access", role: "ap", shape: "ap", ports: "ap-single", w: 72, h: 44, poeW: 25, spacesBeacon: true, mtGateway: true },
     "c8200-sdwan": { label: "C8200 SD-WAN", pid: "C8200-1N-4T", layer: "wan", role: "wan-edge", shape: "router", ports: "router-dual", w: 84, h: 44 },
     "c8200-sdwan-2": { label: "C8200 SD-WAN (B)", pid: "C8200-1N-4T", layer: "wan", role: "wan-edge", shape: "router", ports: "router-dual", w: 84, h: 44 },
     "vmanage": { label: "vManage", pid: "SD-WAN-VMS-SMALL", layer: "mgmt", role: "controller", shape: "server", ports: "generic", w: 72, h: 48, bomEligible: false },
@@ -166,7 +171,21 @@
     "umbrella-va": { label: "Umbrella VA", pid: "UMB-VA-VM", layer: "security", role: "dns", shape: "cloud", ports: "generic", w: 76, h: 44, bomEligible: false },
     "internet": { label: "Internet / DIA", pid: "N/A-INTERNET", layer: "wan", role: "cloud", shape: "cloud", ports: "generic", w: 80, h: 44 },
     "mpls": { label: "MPLS WAN", pid: "N/A-MPLS", layer: "wan", role: "cloud", shape: "cloud", ports: "generic", w: 80, h: 44 },
-    "users-vlan": { label: "Users / VLAN", pid: "N/A-VLAN", layer: "access", role: "logical", shape: "user", ports: "generic", w: 72, h: 48 }
+    "users-vlan": { label: "Users / VLAN", pid: "N/A-VLAN", layer: "access", role: "logical", shape: "user", ports: "generic", w: 72, h: 48 },
+
+    // ---- Cisco Spaces (location + IoT platform) -----------------------------
+    "spaces-cloud": { label: "Cisco Spaces", pid: "N/A-SPACES", layer: "spaces", role: "spaces-cloud", shape: "cloud", ports: "generic", w: 84, h: 46, bomEligible: false, spaces: true, tier: "ACT/SEE/EXTEND/ACT+" },
+    "spaces-connector": { label: "Spaces Connector 3", pid: "SPACES-CONNECTOR", layer: "spaces", role: "connector", shape: "server", ports: "generic", w: 76, h: 46, bomEligible: false, spaces: true },
+    // Meraki MT environmental/IoT sensors — BLE, require an MR AP or MV camera gateway.
+    "mt10": { label: "MT10 Temp/Humidity", pid: "MT10-HW", layer: "iot", role: "sensor", shape: "sensor", ports: "generic", w: 54, h: 40, poeW: 0, spaces: true, gateway: "meraki", sensorOf: "temp/humidity" },
+    "mt12": { label: "MT12 Water Leak", pid: "MT12-HW", layer: "iot", role: "sensor", shape: "sensor", ports: "generic", w: 54, h: 40, spaces: true, gateway: "meraki", sensorOf: "water" },
+    "mt14": { label: "MT14 Air Quality", pid: "MT14-HW", layer: "iot", role: "sensor", shape: "sensor", ports: "generic", w: 54, h: 40, spaces: true, gateway: "meraki", sensorOf: "air-quality" },
+    "mt15": { label: "MT15 Indoor Air", pid: "MT15-HW", layer: "iot", role: "sensor", shape: "sensor", ports: "generic", w: 54, h: 40, spaces: true, gateway: "meraki", sensorOf: "co2/voc" },
+    "mt20": { label: "MT20 Door Sensor", pid: "MT20-HW", layer: "iot", role: "sensor", shape: "sensor", ports: "generic", w: 54, h: 40, spaces: true, gateway: "meraki", sensorOf: "door" },
+    "mt30": { label: "MT30 Smart Button", pid: "MT30-HW", layer: "iot", role: "sensor", shape: "sensor", ports: "generic", w: 54, h: 40, spaces: true, gateway: "meraki", sensorOf: "button" },
+    "mt40": { label: "MT40 Smart Power", pid: "MT40-HW", layer: "iot", role: "sensor", shape: "sensor", ports: "generic", w: 54, h: 40, spaces: true, gateway: "meraki", sensorOf: "power" },
+    // Meraki MV camera doubles as an MT gateway and occupancy sensor.
+    "mv2": { label: "Meraki MV2 Camera", pid: "MV2-HW", layer: "access", role: "camera", shape: "camera", ports: "ap-single", w: 64, h: 48, poeW: 13, spaces: true, mtGateway: true }
   };
 
   const ROOM_DEVICES = {

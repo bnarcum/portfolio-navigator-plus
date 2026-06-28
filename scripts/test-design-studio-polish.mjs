@@ -18,11 +18,49 @@ try {
   await page.goto("http://127.0.0.1:8765/cisco-portfolio-navigator.html", { waitUntil: "load", timeout: 60000 });
   await page.waitForFunction(() => window.__cpnV2?.APP_VERSION, { timeout: 60000 });
   const version = await page.evaluate(() => window.__cpnV2.APP_VERSION);
-  if (version !== "2.72.0") errors.push(`version ${version} != 2.72.0`);
+  if (version !== "2.72.1") errors.push(`version ${version} != 2.72.1`);
 
   await page.click("#design-studio-btn");
   await page.waitForSelector("#design-studio.open", { timeout: 8000 });
   await page.waitForTimeout(300);
+
+  // Cisco Spaces stencils must exist and surface in the catalog palette.
+  const spaces = await page.evaluate(() => {
+    const S = window.__DS_STENCILS;
+    if (!S) return { ok: false };
+    const cat = S.buildCatalogStencils?.([]) || [];
+    const ids = new Set(cat.map(c => c.id));
+    return {
+      ok: true,
+      connector: !!S.getDef("spaces-connector", "network"),
+      mt10: !!S.getDef("mt10", "network"),
+      inCatalog: ids.has("spaces-connector") && ids.has("mt10") && ids.has("spaces-cloud"),
+      mrGateway: !!S.NETWORK_DEVICES?.mr57?.mtGateway
+    };
+  });
+  if (!spaces.ok) errors.push("stencils module missing");
+  if (!spaces.connector || !spaces.mt10) errors.push("Spaces stencils (connector/mt10) missing");
+  if (!spaces.inCatalog) errors.push("Spaces stencils not surfaced in catalog palette");
+  if (!spaces.mrGateway) errors.push("MR57 not flagged as MT gateway");
+
+  // Spaces validation: an MT sensor with no Meraki gateway must raise an error.
+  const spacesVal = await page.evaluate(() => {
+    const R = window.__DS_RULES;
+    if (!R?.validateSpaces) return { ok: false };
+    const noGw = R.validateSpaces({ nodes: [{ id: "s1", stencilId: "mt10", canvas: "network" }], links: [] });
+    const withGw = R.validateSpaces({ nodes: [
+      { id: "s1", stencilId: "mt10", canvas: "network" },
+      { id: "g1", stencilId: "mr57", canvas: "network" }
+    ], links: [] });
+    return {
+      ok: true,
+      errsWithoutGw: noGw.w.some(x => x.id === "spaces-mt-gw"),
+      noErrWithGw: !withGw.w.some(x => x.id === "spaces-mt-gw")
+    };
+  });
+  if (!spacesVal.ok) errors.push("validateSpaces missing");
+  if (!spacesVal.errsWithoutGw) errors.push("MT sensor without gateway did not raise error");
+  if (!spacesVal.noErrWithGw) errors.push("MT sensor with MR gateway still errored");
 
   // Intent view styling: generate button must not be a native button (has gradient bg),
   // textarea must not default to monospace.
