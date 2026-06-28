@@ -618,26 +618,36 @@
     );
     g.add(tube);
 
-    // Short connector collar right where the cable plugs into each device.
-    [a, b].forEach(p => {
-      const collar = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.13, 0.16, 0.3, 14),
-        new THREE.MeshStandardMaterial({ color: 0x14202e, emissive: color, emissiveIntensity: 0.45, metalness: 0.6, roughness: 0.35 })
-      );
-      collar.position.set(p.x, p.y, p.z);
-      g.add(collar);
-    });
+    const roomWalk = state.graph?.kind === "room";
+    // Connector collars only in network walk — room devices are small; collars obscure product photos.
+    if (!roomWalk) {
+      const outA = new THREE.Vector3().subVectors(mid, a).normalize();
+      const outB = new THREE.Vector3().subVectors(mid, b).normalize();
+      [ { p: a, out: outA }, { p: b, out: outB } ].forEach(({ p, out }) => {
+        const collar = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.06, 0.072, 0.14, 10),
+          new THREE.MeshStandardMaterial({
+            color: 0x14202e, emissive: color, emissiveIntensity: 0.32,
+            metalness: 0.55, roughness: 0.38
+          })
+        );
+        collar.position.copy(p).addScaledVector(out, 0.08);
+        g.add(collar);
+      });
+    }
 
     // Packets flow from source → target along the curve (data direction).
+    const pktR = roomWalk ? 0.08 : 0.12;
+    const haloR = roomWalk ? 0.14 : 0.22;
     const packetCount = Math.max(2, Math.min(5, Math.round(len / 5)));
     for (let i = 0; i < packetCount; i++) {
       const pkt = new THREE.Mesh(
-        new THREE.SphereGeometry(0.16, 12, 12),
+        new THREE.SphereGeometry(pktR, 10, 10),
         new THREE.MeshBasicMaterial({ color: 0xffffff })
       );
       const halo = new THREE.Mesh(
-        new THREE.SphereGeometry(0.3, 12, 12),
-        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35 })
+        new THREE.SphereGeometry(haloR, 10, 10),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: roomWalk ? 0.28 : 0.35 })
       );
       pkt.add(halo);
       pkt.userData = { packet: true, t: i / packetCount };
