@@ -1055,6 +1055,10 @@
         { id: destCh.id, label: destCh.label, x: destCh.pos.x, z: destCh.pos.z }
       ];
     }
+    // Anchor the route at the player's current position (the "you are here" dot)
+    // so the path is drawn from where you actually stand, like real wayfinding.
+    const pd = Math.hypot(state.pos.x - legs[0].x, state.pos.z - legs[0].z);
+    if (pd > 0.8) legs.unshift({ id: "__you", label: "You", x: state.pos.x, z: state.pos.z });
     const pts = legs.map(l => ({ x: l.x, z: l.z }));
     const destPt = { x: destCh.pos.x, z: destCh.pos.z };
     const group = buildRouteOverlay(pts, destPt, destCh.label);
@@ -1065,6 +1069,20 @@
       legs, legCursor: 1, startLen, category: poiCategory(destCh)
     };
     renderWayfindCard();
+  }
+
+  // Real wayfinding: draw a route from where the player stands and let them walk
+  // it themselves with live turn-by-turn — do NOT teleport/auto-walk them there.
+  function beginGuidedRoute(destCh) {
+    if (!destCh) return;
+    let from = state.chambers[0], best = Infinity;
+    state.chambers.forEach(c => {
+      const d = Math.hypot(state.pos.x - c.pos.x, state.pos.z - c.pos.z);
+      if (d < best) { best = d; from = c; }
+    });
+    startWayfinding(destCh, from);
+    setStatus(`Follow the route to ${destCh.label}`);
+    window.__DS_WALK_AUDIO?.sfx?.missionStart?.();
   }
 
   function clearWayfinding() {
@@ -1150,15 +1168,25 @@
     const tgt = legs[cur];
 
     // GPS-style arrow points to the next node relative to where the player faces.
-    if (arrowEl && tgt) {
+    let rel = 0;
+    if (tgt) {
       const bearing = Math.atan2(tgt.x - state.pos.x, tgt.z - state.pos.z);
-      let rel = state.yaw - bearing;
+      rel = state.yaw - bearing;
       while (rel > Math.PI) rel -= Math.PI * 2;
       while (rel < -Math.PI) rel += Math.PI * 2;
-      arrowEl.style.transform = `rotate(${rel}rad)`;
+      if (arrowEl) arrowEl.style.transform = `rotate(${rel}rad)`;
     }
     if (stepEl && tgt) {
-      stepEl.textContent = cur >= legs.length - 1 ? `Arrive at ${tgt.label}` : `Continue to ${tgt.label}`;
+      const dNext = Math.hypot(state.pos.x - tgt.x, state.pos.z - tgt.z);
+      if (cur >= legs.length - 1) {
+        stepEl.textContent = dNext < 6 ? `Arriving at ${tgt.label}` : `Head to ${tgt.label}`;
+      } else {
+        let side = "Continue to";
+        if (Math.abs(rel) >= 2.4) side = "Turn around to";
+        else if (rel > 0.5) side = "Turn right to";
+        else if (rel < -0.5) side = "Turn left to";
+        stepEl.textContent = `${side} ${tgt.label} · ${dNext.toFixed(0)} m`;
+      }
     }
 
     const atDest = state.chambers[state.navIndex]?.id === r.destId;
@@ -1293,7 +1321,7 @@
       <button type="button" class="ds-wf-pv-go" data-chamber="${ch.id}">➤ Directions</button>`;
     sheet.querySelector(".ds-wf-pv-go")?.addEventListener("click", () => {
       closeWayfindMenu();
-      teleportToChamber(ch, false);
+      beginGuidedRoute(ch);
     });
     sheet.querySelector("[data-action='preview-close']")?.addEventListener("click", closeDestPreview);
   }
@@ -1943,7 +1971,6 @@
       </div>
       <div class="ds-walk-xp-track"><div class="ds-walk-xp-bar" id="ds-walk-xp-bar"></div></div>
       <div class="ds-walk-hud-mid">
-        <button type="button" class="ds-walk-btn wayfind" data-action="wayfind-open" title="Find &amp; navigate to a device">◎ Where to?</button>
         <button type="button" class="ds-walk-btn" data-action="trace-av">Trace AV link</button>
         <button type="button" class="ds-walk-btn" data-action="trace-poe">Trace PoE link</button>
         <button type="button" class="ds-walk-btn" data-action="prev-dev" title="Previous device">‹ Prev</button>
@@ -1963,7 +1990,10 @@
   // compact, absolutely-positioned top bar) so it anchors to the bottom-center
   // of the full screen instead of floating over the HUD.
   function hudPanelsHtml() {
-    return `<div class="ds-walk-devices" id="ds-walk-devices"></div>`;
+    return `<button type="button" class="ds-wf-fab" data-action="wayfind-open" title="Where to? — get directions">
+        <span class="ds-wf-fab-ico">◎</span><span class="ds-wf-fab-txt">Where to?</span>
+      </button>
+      <div class="ds-walk-devices" id="ds-walk-devices"></div>`;
   }
 
   function bindDpad() {
