@@ -14,7 +14,7 @@
   import * as THREE from "three";
   window.__cpnWalkTHREE = THREE;
   </script>
-  <link rel="stylesheet" href="design-studio.css?v=2.74.2"/>
+  <link rel="stylesheet" href="design-studio.css?v=2.74.3"/>
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     @font-face{
@@ -1132,8 +1132,8 @@
 <div id="actionbar">
   <div class="actionbar-filters">
   <div class="vm-seg" id="vm-seg" role="group" aria-label="Visualization level">
-    <button type="button" data-vm="overview"     class="active" title="Overview — 5 category bubbles (default)">Overview</button>
-    <button type="button" data-vm="families"     title="Families — 53 product families">Families</button>
+    <button type="button" data-vm="overview"     class="active" title="Overview — One Cisco strategy (default)">Overview</button>
+    <button type="button" data-vm="families"     title="Families — full product-family graph">Families</button>
     <button type="button" data-vm="composition"  disabled title="Composition — pick a family first">Composition</button>
     <button type="button" data-vm="all-products" title="All Products — every family + product (dense; power-user view)">All</button>
     <button type="button" data-vm="spatial" title="Spatial — immersive 3D map of product families">Spatial</button>
@@ -9636,7 +9636,7 @@ document.addEventListener("keydown",ev=>{
    ══════════════════════════════════════════════════════════════════════════*/
 (function v2(){
 
-const APP_VERSION   = "2.74.2";
+const APP_VERSION   = "2.74.3";
 const DATA_UPDATED  = "2026-06-20";
 const STORAGE_KEYS  = {
   plans:    "cpn-plans-v2",
@@ -10625,6 +10625,38 @@ STYLE.textContent = `
   #v2-footer .sep{color:var(--border)}
   #tools{bottom:42px}
   #hint{bottom:42px}
+
+  /* Keyboard shortcuts modal */
+  #shortcuts-modal{position:fixed;inset:0;z-index:10060;display:none;
+    align-items:center;justify-content:center;padding:24px;
+    background:rgba(2,8,18,.62);backdrop-filter:blur(4px)}
+  #shortcuts-modal.show{display:flex}
+  #shortcuts-modal .sc-card{width:min(460px,94vw);max-height:84vh;overflow:auto;
+    background:var(--surface);border:1px solid var(--border);border-radius:14px;
+    box-shadow:0 18px 54px rgba(0,0,0,.55)}
+  #shortcuts-modal .sc-head{display:flex;align-items:center;justify-content:space-between;
+    padding:16px 18px 12px;border-bottom:1px solid var(--border);position:sticky;top:0;
+    background:var(--surface)}
+  #shortcuts-modal .sc-head strong{font-size:15px;color:var(--text);letter-spacing:.01em}
+  #shortcuts-modal .sc-close{width:28px;height:28px;border-radius:7px;border:1px solid var(--border);
+    background:var(--surface2);color:var(--subtle);font-size:17px;line-height:1;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;transition:border-color .15s,color .15s}
+  #shortcuts-modal .sc-close:hover{border-color:var(--accent);color:var(--text)}
+  #shortcuts-modal .sc-close:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  #shortcuts-modal .sc-body{padding:8px 18px 18px}
+  #shortcuts-modal .sc-group{margin-top:14px}
+  #shortcuts-modal .sc-group h4{margin:0 0 6px;font-size:9.5px;font-weight:800;
+    text-transform:uppercase;letter-spacing:.12em;color:var(--accent)}
+  #shortcuts-modal .sc-group ul{list-style:none;margin:0;padding:0}
+  #shortcuts-modal .sc-group li{display:flex;align-items:center;gap:12px;padding:5px 0;
+    border-bottom:1px solid color-mix(in srgb,var(--border) 55%,transparent)}
+  #shortcuts-modal .sc-group li:last-child{border-bottom:0}
+  #shortcuts-modal .sc-keys{flex:0 0 auto;display:flex;align-items:center;gap:5px;min-width:118px}
+  #shortcuts-modal .sc-or{font-size:9px;color:var(--subtle);margin:0 1px}
+  #shortcuts-modal .sc-desc{font-size:12px;color:var(--text);line-height:1.35}
+  #shortcuts-modal kbd{font-family:inherit;font-size:10.5px;font-weight:700;color:var(--text);
+    background:var(--surface2);border:1px solid var(--border);border-bottom-width:2px;
+    border-radius:5px;padding:2px 7px;white-space:nowrap}
 
   /* AI overlay loading spinner */
   .ai-loading{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:11px}
@@ -15244,21 +15276,86 @@ function buildFooter(){
   document.body.appendChild(f);
   $("#ft-shortcuts").addEventListener("click", () => openShortcuts());
 }
+const SHORTCUT_GROUPS = [
+  { title: "Search & navigation", items: [
+    [["⌘K", "Ctrl K"], "Focus search"],
+    [["/"], "Focus search"],
+    [["←", "→", "↑", "↓"], "Walk between connected nodes (when one is selected)"],
+    [["Enter"], "Open the focused node"],
+    [["Esc"], "Close the open panel or cancel"]
+  ]},
+  { title: "Open a workspace", items: [
+    [["P"], "Toggle the Account Planner"],
+    [["G"], "Open the Guided Plan wizard"],
+    [["T"], "Toggle the Refresh Timeline"],
+    [["A"], "Toggle the Ask AI assistant"],
+    [["?"], "Re-launch the guided tour"]
+  ]},
+  { title: "Graph", items: [
+    [["Double-click"], "Drill a family into Composition view"],
+    [["Right-click"], "Open the node context menu"]
+  ]}
+];
+
+function closeShortcuts(){
+  const m = $("#shortcuts-modal");
+  if (!m) return;
+  m.classList.remove("show");
+  document.removeEventListener("keydown", shortcutsKeyHandler, true);
+  const opener = window.__shortcutsOpener;
+  if (opener && document.contains(opener)) { try { opener.focus(); } catch (_) {} }
+}
+function shortcutsKeyHandler(e){
+  if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeShortcuts(); }
+}
 function openShortcuts(){
-  const lines = [
-    ["⌘K / Ctrl+K", "Focus search"],
-    ["/", "Focus search"],
-    ["P", "Toggle account planner"],
-    ["G", "Open Guided Plan wizard"],
-    ["T", "Toggle Refresh Timeline"],
-    ["A", "Toggle AI assistant"],
-    ["?", "Re-launch guided tour"],
-    ["Dbl-click family", "Drill into Composition view (graph)"],
-    ["←/→/↑/↓", "Walk between connected nodes (when one selected)"],
-    ["Enter / Space", "Open focused node"],
-    ["Esc", "Close panel / cancel"]
-  ];
-  alert("Keyboard shortcuts:\n\n" + lines.map(l => l[0].padEnd(18) + l[1]).join("\n"));
+  window.__shortcutsOpener = document.activeElement;
+  let m = $("#shortcuts-modal");
+  if (!m){
+    m = document.createElement("div");
+    m.id = "shortcuts-modal";
+    m.innerHTML = `
+      <div class="sc-card" role="dialog" aria-modal="true" aria-labelledby="sc-title">
+        <div class="sc-head">
+          <strong id="sc-title">Keyboard shortcuts</strong>
+          <button type="button" class="sc-close" id="sc-close" aria-label="Close keyboard shortcuts">×</button>
+        </div>
+        <div class="sc-body">
+          ${SHORTCUT_GROUPS.map(g => `
+            <section class="sc-group">
+              <h4>${escapeHtml(g.title)}</h4>
+              <ul>
+                ${g.items.map(([keys, desc]) => `
+                  <li>
+                    <span class="sc-keys">${keys.map(k => `<kbd>${escapeHtml(k)}</kbd>`).join('<span class="sc-or">or</span>')}</span>
+                    <span class="sc-desc">${escapeHtml(desc)}</span>
+                  </li>`).join("")}
+              </ul>
+            </section>`).join("")}
+        </div>
+      </div>`;
+    document.body.appendChild(m);
+    m.addEventListener("click", e => { if (e.target === m) closeShortcuts(); });
+    $("#sc-close").addEventListener("click", () => closeShortcuts());
+  }
+  m.classList.add("show");
+  document.addEventListener("keydown", shortcutsKeyHandler, true);
+  requestAnimationFrame(() => $("#sc-close")?.focus());
+}
+
+// Keep navigation affordances honest: derive counts from live data so the
+// labels never drift from the catalog (a detail users notice).
+function polishChrome(){
+  try {
+    const fam = document.querySelector('#vm-seg [data-vm="families"]');
+    if (fam && typeof NODES !== "undefined") {
+      fam.title = `Families — ${NODES.length} product families`;
+    }
+    const ov = document.querySelector('#vm-seg [data-vm="overview"]');
+    if (ov && typeof ONE_CISCO !== "undefined") {
+      ov.title = `Overview — One Cisco strategy (${ONE_CISCO.pillars.length} pillars + secure connectivity)`;
+    }
+  } catch (_) { /* non-fatal cosmetic step */ }
 }
 
 function initAmbientBackground(){
@@ -15446,6 +15543,7 @@ function boot(){
   buildFacets();
   buildAiAssistant();
   buildFooter();
+  polishChrome();
   wireRefArchToUC();
   wireSearchPulse();
   wireAdaptivePlaceholder();
@@ -15503,18 +15601,18 @@ window.__cpnV2 = {
 <script>window.__DS_ASSET_V="2.51.0";</script>
 <script src="design-studio-photos.js?v=2.58.2"></script>
 <script src="design-studio-stencils.js?v=2.58.2"></script>
-<script src="design-studio-templates.js?v=2.74.2"></script>
+<script src="design-studio-templates.js?v=2.74.3"></script>
 <script src="design-studio-rules.js?v=2.58.2"></script>
 <script src="design-studio-intent.js?v=2.58.2"></script>
 <script src="design-studio-explore.js?v=2.58.2"></script>
-<script src="design-studio-premium.js?v=2.74.2"></script>
+<script src="design-studio-premium.js?v=2.74.3"></script>
 <script src="design-studio-expert.js?v=2.58.2"></script>
-<script src="design-studio-walk-layout.js?v=2.74.2"></script>
-<script src="design-studio-walk-voxel.js?v=2.74.2"></script>
-<script src="design-studio-field-panel.js?v=2.74.2"></script>
-<script src="design-studio-walk-audio.js?v=2.74.2"></script>
-<script src="design-studio-walk-models.js?v=2.74.2"></script>
-<script src="design-studio-walk.js?v=2.74.2"></script>
-<script src="design-studio.js?v=2.74.2"></script>
+<script src="design-studio-walk-layout.js?v=2.74.3"></script>
+<script src="design-studio-walk-voxel.js?v=2.74.3"></script>
+<script src="design-studio-field-panel.js?v=2.74.3"></script>
+<script src="design-studio-walk-audio.js?v=2.74.3"></script>
+<script src="design-studio-walk-models.js?v=2.74.3"></script>
+<script src="design-studio-walk.js?v=2.74.3"></script>
+<script src="design-studio.js?v=2.74.3"></script>
 </body>
 </html>
