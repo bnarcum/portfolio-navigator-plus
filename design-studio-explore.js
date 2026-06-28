@@ -263,18 +263,20 @@
       </a>`
     ).join("");
   return `<section class="ds-explore" aria-label="Learn more">
-      <header class="ds-explore-head">
+      ${compact
+    ? `<header class="ds-explore-head ds-explore-head--compact"><span class="ds-explore-eyebrow">${esc(ctx.eyebrow || "Learn")}</span></header>`
+    : `<header class="ds-explore-head">
         <span class="ds-explore-eyebrow">${esc(ctx.eyebrow || "Want to know more?")}</span>
         <p>${esc(ctx.lede || "")}</p>
-      </header>
-      ${ctx.pathId ? renderPathStrip(ctx.pathId) : ""}
+      </header>`}
+      ${!compact && ctx.pathId ? renderPathStrip(ctx.pathId) : ""}
       ${compact ? "" : `<div class="ds-explore-ladder"><span>CVD</span><span>→</span><span>Skills</span><span>→</span><span>dCloud</span><span>→</span><span>BOM</span></div>`}
       <div class="ds-explore-grid">${docCards}${skillCards}${labCards}</div>
-      <footer class="ds-explore-foot">
+      ${compact ? "" : `<footer class="ds-explore-foot">
         <button type="button" class="ds-explore-browse" data-browse-query="${esc(ctx.browseQuery || "")}">Browse all matching dCloud labs</button>
         ${dcloudProgressHtml(labs)}
         <span class="ds-explore-note">RTP datacenter · Cisco.com login required</span>
-      </footer>
+      </footer>`}
     </section>`;
   }
 
@@ -320,16 +322,18 @@
   function refresh(studio) {
     if (!studio?.el) return;
     const ctx = resolveContext(studio);
-    const html = renderStrip(ctx, studio.tab === "intent");
+    const html = renderStrip(ctx, studio.tab === "intent" || studio.sidebarMode !== "learn");
     const intentEl = document.getElementById("ds-explore-intent");
     const dockEl = document.getElementById("ds-explore-dock");
+    const foldEl = document.getElementById("ds-explore-fold");
     if (intentEl) {
       intentEl.innerHTML = studio.tab === "intent" ? html : "";
       wireRoot(intentEl);
     }
     if (dockEl) {
       dockEl.innerHTML = studio.tab !== "intent" ? html : "";
-      dockEl.hidden = studio.tab === "intent";
+      const empty = !html || html.includes("ds-explore--empty");
+      if (foldEl) foldEl.hidden = studio.tab === "intent" || empty;
       wireRoot(dockEl);
     }
   }

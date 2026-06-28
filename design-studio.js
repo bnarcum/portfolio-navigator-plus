@@ -173,6 +173,17 @@
     return [...lines.values()].sort((a, b) => a.type.localeCompare(b.type));
   }
 
+  function bomDesignForScope(design, studio) {
+    if (studio.tab !== "room" || !studio.activeRoomId || studio.bomScope !== "room") return design;
+    const rid = studio.activeRoomId;
+    const roomNodeIds = new Set(design.nodes.filter(n => n.canvas === "room" && n.roomId === rid).map(n => n.id));
+    return {
+      ...design,
+      nodes: design.nodes.filter(n => n.canvas === "room" && n.roomId === rid),
+      links: design.links.filter(l => roomNodeIds.has(l.from) && roomNodeIds.has(l.to))
+    };
+  }
+
   function computeCables(design) {
     return design.links.map((l, i) => {
       const from = design.nodes.find(n => n.id === l.from);
@@ -622,6 +633,8 @@
       this.roomView = "diagram";
       this.highlightPid = null;
       this.staleBannerDismissed = null;
+      this.sidebarMode = "build";
+      this.bomScope = "room";
       this.history = new History(this); this.el = null;
       this._bgScrollY = 0;
     }
@@ -726,19 +739,41 @@
             </div>
           </div>
           <aside id="ds-sidebar">
-            <div id="ds-palette-head"><input id="ds-palette-search" type="search" placeholder="Search stencils…"/></div>
-            <div id="ds-palette"><div class="ds-stencil-grid" id="ds-stencil-grid"></div></div>
-            <div id="ds-inspector"></div>
-            <div id="ds-panel-tabs">
-              <button type="button" data-panel="bom" class="active">BOM</button>
-              <button type="button" data-panel="engineer">Engineer</button>
-              <button type="button" data-panel="cables">Cables</button>
-              <button type="button" data-panel="suggest">Suggest</button>
-              <button type="button" data-panel="validate">Validate</button>
-              <button type="button" data-panel="sites">Sites</button>
+            <div id="ds-sidebar-modes" class="ds-sidebar-modes" role="tablist" aria-label="Sidebar mode">
+              <button type="button" data-sidebar-mode="build" class="active" role="tab">Build</button>
+              <button type="button" data-sidebar-mode="quote" role="tab">Quote</button>
+              <button type="button" data-sidebar-mode="learn" role="tab">Learn</button>
             </div>
-            <div id="ds-panel-body"></div>
-            <div id="ds-explore-dock" hidden></div>
+            <div id="ds-sidebar-main" class="ds-sidebar-main">
+              <div id="ds-sidebar-build" class="ds-sidebar-pane">
+                <div id="ds-palette-head"><input id="ds-palette-search" type="search" placeholder="Search stencils…"/></div>
+                <div id="ds-palette"><div class="ds-stencil-grid" id="ds-stencil-grid"></div></div>
+                <div id="ds-inspector" hidden></div>
+              </div>
+              <div id="ds-sidebar-tools" class="ds-sidebar-pane">
+                <div id="ds-panel-tabs">
+                  <button type="button" data-panel="bom" data-sb-tier="quote" class="active">BOM</button>
+                  <button type="button" data-panel="validate" data-sb-tier="quote">Validate</button>
+                  <button type="button" data-panel="suggest" data-sb-tier="quote">Suggest</button>
+                  <button type="button" data-panel="cables" data-sb-tier="build">Cables</button>
+                  <button type="button" data-panel="engineer" data-sb-tier="more">Eng</button>
+                  <button type="button" data-panel="sites" data-sb-tier="more">Sites</button>
+                </div>
+                <details id="ds-panel-more-fold" class="ds-panel-more-fold">
+                  <summary>More panels</summary>
+                  <div class="ds-panel-more-btns">
+                    <button type="button" data-panel="engineer">Engineer</button>
+                    <button type="button" data-panel="sites">Sites</button>
+                    <button type="button" data-panel="cables">Cables</button>
+                  </div>
+                </details>
+                <div id="ds-panel-body"></div>
+              </div>
+              <details id="ds-explore-fold" class="ds-explore-fold">
+                <summary>Guides &amp; dCloud labs</summary>
+                <div id="ds-explore-dock"></div>
+              </details>
+            </div>
             <div id="ds-status">
               <div id="ds-stale-status" class="ds-stale-status" hidden></div>
               <div class="ds-status-row"><span id="ds-status-left"></span><span id="ds-status-right"></span></div>
@@ -813,13 +848,22 @@
       const $ = id => document.getElementById(id);
       $("ds-close").onclick = () => this.close();
       $("ds-tabs").onclick = e => { const b = e.target.closest("[data-tab]"); if (b) this.setTab(b.dataset.tab); };
-      $("ds-panel-tabs").onclick = e => {
-        const b = e.target.closest("[data-panel]");
-        if (!b) return;
+      $("ds-sidebar-modes")?.addEventListener("click", e => {
+        const b = e.target.closest("[data-sidebar-mode]");
+        if (b) this.setSidebarMode(b.dataset.sidebarMode);
+      });
+      const pickPanel = b => {
+        if (!b?.dataset?.panel) return;
         this.panelTab = b.dataset.panel;
-        $$("#ds-panel-tabs button").forEach(x => x.classList.toggle("active", x.dataset.panel === this.panelTab));
+        $$("#ds-panel-tabs button, .ds-panel-more-btns button").forEach(x =>
+          x.classList.toggle("active", x.dataset.panel === this.panelTab));
         this.renderPanel();
       };
+      $("ds-panel-tabs").onclick = e => { const b = e.target.closest("[data-panel]"); if (b) pickPanel(b); };
+      document.querySelector(".ds-panel-more-btns")?.addEventListener("click", e => {
+        const b = e.target.closest("[data-panel]");
+        if (b) pickPanel(b);
+      });
       $("ds-generate").onclick = () => this.runGenerate();
       const qs = $("ds-quickstart");
       if (qs) qs.onclick = () => this.quickstart();
@@ -1242,8 +1286,46 @@
       root?.classList.toggle("ds-tab-intent", tab === "intent");
       if (tab === "intent" && this.panelTab !== "bom") {
         this.panelTab = "bom";
-        $$("#ds-panel-tabs button").forEach(x => x.classList.toggle("active", x.dataset.panel === "bom"));
+        $$("#ds-panel-tabs button, .ds-panel-more-btns button").forEach(x =>
+          x.classList.toggle("active", x.dataset.panel === "bom"));
       }
+      if (tab === "intent") {
+        const side = document.getElementById("ds-sidebar");
+        side?.classList.remove("ds-side-build", "ds-side-learn");
+        side?.classList.add("ds-side-quote");
+        return;
+      }
+      if (!this.sidebarMode) this.sidebarMode = "build";
+      this.syncSidebarMode();
+    }
+
+    setSidebarMode(mode) {
+      if (!mode || mode === this.sidebarMode) return;
+      this.sidebarMode = mode;
+      if (mode === "quote" && ["cables"].includes(this.panelTab)) this.panelTab = "bom";
+      if (mode === "build" && ["bom", "validate", "engineer", "sites"].includes(this.panelTab)) this.panelTab = "suggest";
+      if (mode === "learn") this.refreshExplore();
+      this.syncSidebarMode();
+      this.renderPanel();
+    }
+
+    syncSidebarMode() {
+      const side = document.getElementById("ds-sidebar");
+      if (!side) return;
+      const mode = this.tab === "intent" ? "quote" : (this.sidebarMode || "build");
+      side.classList.remove("ds-side-build", "ds-side-quote", "ds-side-learn");
+      side.classList.add("ds-side-" + mode);
+      $$("#ds-sidebar-modes button").forEach(b =>
+        b.classList.toggle("active", b.dataset.sidebarMode === mode));
+      const fold = document.getElementById("ds-explore-fold");
+      if (fold) {
+        if (mode === "learn") fold.setAttribute("open", "");
+        else fold.removeAttribute("open");
+      }
+      const tools = document.getElementById("ds-sidebar-tools");
+      if (tools) tools.hidden = mode === "learn" && this.tab !== "intent";
+      $$("#ds-panel-tabs button, .ds-panel-more-btns button").forEach(x =>
+        x.classList.toggle("active", x.dataset.panel === this.panelTab));
     }
 
     setTab(tab) {
@@ -1273,6 +1355,7 @@
       }
       this.renderPanel();
       this.refreshExplore();
+      this.syncSidebarMode();
       window.__DS_PREMIUM?.refresh?.(this);
       if (walkOpen && wasWalkTab && (tab === "room" || tab === "network"))
         window.__DS_WALK?.rebuild?.(this);
@@ -2117,6 +2200,12 @@ Account: ${this.design.account}`;
       const box = document.getElementById("ds-inspector");
       const node = this.design.nodes.find(n => n.id === this.selectedNode);
       const link = this.design.links.find(l => l.id === this.selectedLink);
+      if (!node && !link) {
+        box.hidden = true;
+        box.innerHTML = "";
+        return;
+      }
+      box.hidden = false;
       if (node) {
         const mode = node.canvas === "room" ? "room" : "network";
         const ports = STN()?.getPorts?.(node.stencilId, mode) || [];
@@ -2162,7 +2251,6 @@ Account: ${this.design.account}`;
         });
         return;
       }
-      box.innerHTML = `<div class="ds-empty">Select device or link · L link · F fit · P present${this.tab === "room" ? " · [ ] switch rooms" : ""}</div>`;
     }
 
     renderPanel() {
@@ -2172,25 +2260,34 @@ Account: ${this.design.account}`;
         return;
       }
       if (this.panelTab === "bom") {
-        const bom = computeBom(this.design);
-        const deco = this.design.nodes.filter(n => {
+        const scoped = bomDesignForScope(this.design, this);
+        const bom = computeBom(scoped);
+        const fullBom = computeBom(this.design);
+        const deco = scoped.nodes.filter(n => {
           const def = STN()?.getDef?.(n.stencilId, n.canvas === "room" ? "room" : "network");
           const pid = n.pid || def?.pid;
           return def?.decorative || !STN()?.isCcwEligible?.(def, pid);
         });
+        const roomScope = this.tab === "room" && this.activeRoomId;
+        const room = roomScope ? this.design.rooms.find(r => r.id === this.activeRoomId) : null;
         body.innerHTML = `
           <div class="ds-bom-actions">
-            <button type="button" class="ds-btn ds-export-ccw ds-export-ccw-block" id="ds-export-ccw-panel"${bom.length ? "" : " disabled"}>Export to CCW</button>
+            <button type="button" class="ds-btn ds-export-ccw ds-export-ccw-block" id="ds-export-ccw-panel"${fullBom.length ? "" : " disabled"}>Export to CCW</button>
             <span class="ds-bom-actions-hint">CCW_Prep CSV · click a row to highlight on canvas</span>
+            ${roomScope ? `<label class="ds-bom-scope"><input type="checkbox" id="ds-bom-room-only"${this.bomScope === "room" ? " checked" : ""}/> This room only${room ? ` (${escapeHtml(room.name)})` : ""}</label>` : ""}
           </div>
           ${bom.length ? `
           <table class="ds-table ds-bom-table"><thead><tr><th>Item</th><th>PID</th><th>Qty</th><th></th></tr></thead>
           <tbody>${bom.map(b => `<tr class="ds-bom-row" data-pid="${escapeAttr(b.pid)}"><td title="${escapeAttr(b.pid)}">${escapeHtml((b.desc || b.pid).slice(0, 42))}</td><td class="ds-pid-cell">${escapeHtml(b.pid)}</td><td>${b.qty}</td><td>${window.__DS_EXPERT?.bomRowActions?.() || ""}</td></tr>`).join("")}</tbody></table>
-          <div class="ds-bom-total">${bom.length} CCW lines · ${bom.reduce((s, b) => s + b.qty, 0)} qty</div>
+          <div class="ds-bom-total">${bom.length} CCW lines · ${bom.reduce((s, b) => s + b.qty, 0)} qty${roomScope && this.bomScope === "room" && fullBom.length !== bom.length ? ` · ${fullBom.length} lines in full design` : ""}</div>
           ${deco.length ? `<div class="ds-bom-deco">${deco.length} layout-only item(s) on canvas (tables, generic displays, credenza) — not in CCW export.</div>` : ""}
           <div class="ds-bom-deco">Licenses, Smart Net, copper/AV cabling, and services — quote in CCW or use Manual BOM.</div>
           <div style="padding:8px 12px"><button type="button" class="ds-btn" id="ds-add-bom">+ Manual BOM</button></div>` : `<div class="ds-empty">Generate from Intent or Gallery, then export to CCW</div>`}`;
         document.getElementById("ds-export-ccw-panel")?.addEventListener("click", () => this.exportCcw());
+        document.getElementById("ds-bom-room-only")?.addEventListener("change", e => {
+          this.bomScope = e.target.checked ? "room" : "all";
+          this.renderPanel();
+        });
         body.querySelectorAll(".ds-bom-row").forEach(row => {
           row.addEventListener("click", () => window.__DS_PREMIUM?.highlightBomPid?.(this, row.dataset.pid));
         });
