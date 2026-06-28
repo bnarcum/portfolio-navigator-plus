@@ -332,6 +332,9 @@
   font-size:9px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent}
 #ds-panel-tabs button:not(.active):hover{color:#dce8f4}
 #ds-panel-tabs button.active{color:var(--accent);border-bottom-color:var(--accent)}
+#ds-panel-tabs button.ds-panel-tab--folded{color:var(--accent);border-bottom-color:rgba(2,200,255,.35);opacity:.8}
+#ds-sidebar-tools.ds-sidebar-tools--collapsed{flex:0 0 auto!important;min-height:0!important}
+#ds-sidebar-tools.ds-sidebar-tools--collapsed #ds-panel-more-fold{display:none}
 #ds-panel-body{flex:1 1 0;overflow-y:auto;padding:0;min-height:96px}
 
 .ds-table{width:100%;border-collapse:collapse;font-size:10px}

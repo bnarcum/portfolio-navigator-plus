@@ -637,6 +637,7 @@
       this.bomScope = "room";
       this.exploreFoldOpen = false;
       this.panelMoreOpen = false;
+      this.panelCollapsed = false;
       this.history = new History(this); this.el = null;
       this._bgScrollY = 0;
     }
@@ -856,16 +857,21 @@
       });
       const pickPanel = b => {
         if (!b?.dataset?.panel) return;
-        this.panelTab = b.dataset.panel;
+        const next = b.dataset.panel;
+        if (next === this.panelTab && this.sidebarMode !== "learn" && this.tab !== "intent") {
+          this.panelCollapsed = !this.panelCollapsed;
+        } else {
+          this.panelTab = next;
+          this.panelCollapsed = false;
+        }
         if (["engineer", "sites", "cables"].includes(this.panelTab)) {
           document.getElementById("ds-panel-more-fold")?.setAttribute("open", "");
           this.panelMoreOpen = true;
         }
-        $$("#ds-panel-tabs button, .ds-panel-more-btns button").forEach(x =>
-          x.classList.toggle("active", x.dataset.panel === this.panelTab));
         const tools = document.getElementById("ds-sidebar-tools");
         if (tools && this.sidebarMode !== "learn") tools.hidden = false;
-        this.renderPanel();
+        this.applyPanelCollapsed();
+        if (!this.panelCollapsed) this.renderPanel();
       };
       $("ds-panel-tabs").onclick = e => { const b = e.target.closest("[data-panel]"); if (b) pickPanel(b); };
       document.querySelector(".ds-panel-more-btns")?.addEventListener("click", e => {
@@ -1314,12 +1320,45 @@
       this.syncSidebarMode();
     }
 
+    normalizePanelTab() {
+      const mode = this.tab === "intent" ? "quote" : (this.sidebarMode || "build");
+      const buildPanels = ["cables", "suggest"];
+      const quotePanels = ["bom", "validate", "suggest", "engineer", "sites", "cables"];
+      if (this.tab === "intent") {
+        if (this.panelTab !== "bom") this.panelTab = "bom";
+        return;
+      }
+      if (mode === "learn") return;
+      if (mode === "build" && !buildPanels.includes(this.panelTab)) this.panelTab = "suggest";
+      if (mode === "quote" && !quotePanels.includes(this.panelTab)) this.panelTab = "bom";
+    }
+
+    applyPanelCollapsed() {
+      const tools = document.getElementById("ds-sidebar-tools");
+      const body = document.getElementById("ds-panel-body");
+      const collapsed = !!this.panelCollapsed && this.tab !== "intent" && this.sidebarMode !== "learn";
+      tools?.classList.toggle("ds-sidebar-tools--collapsed", collapsed);
+      if (body) body.hidden = collapsed;
+      $$("#ds-panel-tabs button, .ds-panel-more-btns button").forEach(x => {
+        const sel = x.dataset.panel === this.panelTab;
+        x.classList.toggle("active", !collapsed && sel);
+        x.classList.toggle("ds-panel-tab--folded", collapsed && sel);
+        x.setAttribute("aria-expanded", sel && !collapsed ? "true" : "false");
+      });
+    }
+
     setSidebarMode(mode) {
-      if (!mode || mode === this.sidebarMode) return;
+      if (!mode) return;
+      if (mode === this.sidebarMode) {
+        this.syncSidebarMode();
+        return;
+      }
       this.sidebarMode = mode;
+      this.panelCollapsed = false;
       if (mode === "quote" && ["cables"].includes(this.panelTab)) this.panelTab = "bom";
       if (mode === "build" && ["bom", "validate", "engineer", "sites"].includes(this.panelTab)) this.panelTab = "suggest";
       if (mode === "learn") this.refreshExplore();
+      this.normalizePanelTab();
       this.syncSidebarMode();
       this.renderPanel();
     }
@@ -1327,6 +1366,7 @@
     syncSidebarMode() {
       const side = document.getElementById("ds-sidebar");
       if (!side) return;
+      this.normalizePanelTab();
       const mode = this.tab === "intent" ? "quote" : (this.sidebarMode || "build");
       side.classList.remove("ds-side-build", "ds-side-quote", "ds-side-learn");
       side.classList.add("ds-side-" + mode);
@@ -1345,13 +1385,17 @@
       const tools = document.getElementById("ds-sidebar-tools");
       if (tools) tools.hidden = mode === "learn" && this.tab !== "intent";
       $$("#ds-panel-tabs button, .ds-panel-more-btns button").forEach(x =>
-        x.classList.toggle("active", x.dataset.panel === this.panelTab));
+        x.classList.toggle("active", !this.panelCollapsed && x.dataset.panel === this.panelTab));
+      this.applyPanelCollapsed();
     }
 
     setTab(tab) {
       const walkOpen = window.__DS_WALK?.isOpen?.();
       const wasWalkTab = this.tab === "room" || this.tab === "network";
+      const prevTab = this.tab;
       this.tab = tab;
+      if (tab === "room" || tab === "network") this.panelCollapsed = false;
+      if (prevTab === "intent" && (tab === "room" || tab === "network")) this.sidebarMode = "build";
       this.syncIntentChrome(tab);
       if (tab !== "room" && tab !== "network") window.__DS_WALK?.close?.();
       if (tab === "network" || tab === "room") this.design.mode = tab;
@@ -2375,6 +2419,7 @@ Account: ${this.design.account}`;
           ${val.tips.length ? `<ul class="ds-val-list tip">${val.tips.map(t => `<li>${escapeHtml(t.msg || t)}</li>`).join("")}</ul>` : ""}
           ${extras.ccwReady ? `<p class="ds-ccw-ready-note">✓ CCW-ready — export hardware PIDs from BOM tab.</p>` : ""}`;
       }
+      this.applyPanelCollapsed();
     }
 
     applyTransform() {
