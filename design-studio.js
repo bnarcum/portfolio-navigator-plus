@@ -1162,6 +1162,11 @@
       this.history.snapshot();
       this.el.classList.add("open");
       document.body.classList.add("design-studio-open");
+      document.body.style.overflow = "hidden";
+      document.getElementById("ds-intent")?.scrollTo(0, 0);
+      document.getElementById("ds-panel-body")?.scrollTo(0, 0);
+      document.getElementById("planner-scroll")?.scrollTo(0, 0);
+      window.scrollTo(0, 0);
       const ta = document.getElementById("ds-intent-text");
       if (ta) ta.value = this.design.requirements?.notes || "";
       this.previewIntent();
@@ -1192,6 +1197,7 @@
       this.el?.classList.remove("open");
       this.el?.classList.remove("ds-present-mode");
       document.body.classList.remove("design-studio-open");
+      document.body.style.overflow = "";
     }
 
     setTab(tab) {

@@ -60,7 +60,7 @@ try {
   if (conf.environmentTags?.["room-ceiling-grid"]) errors.push("conference should not render ceiling lattice");
   await page.evaluate(() => window.__DS_WALK?.close?.(true));
 
-  // Campus closet: 2 rack rows + back wall + tray (not per-layer dividers).
+  // Campus: floor-only decor (no rack rows, walls, or ceiling tray).
   await page.evaluate(() => {
     const s = window.DesignStudio.instance;
     s.design = { account: "test", rooms: [], nodes: [], links: [], bomOverrides: [], snapshots: [] };
@@ -73,11 +73,10 @@ try {
   await page.waitForTimeout(900);
   const campusStats = await page.evaluate(() => window.__DS_WALK?.debugStats?.() || {});
   const campusTags = campusStats.environmentTags || {};
-  if (campusTags["network-rack-row"] !== 2) errors.push(`campus walk expected 2 rack rows, got ${campusTags["network-rack-row"] || 0}`);
-  if (campusTags["network-patch-panel"] !== 1) errors.push(`campus walk expected 1 patch panel, got ${campusTags["network-patch-panel"] || 0}`);
-  if (!campusTags["network-cable-tray"]) errors.push("campus walk missing overhead cable tray");
-  if (!campusTags["network-closet-wall"]) errors.push("campus walk missing back demarc wall");
-  if (campusTags["network-closet-wall"] > 1) errors.push("campus walk should have only back wall");
+  if (campusTags["network-rack-row"]) errors.push(`campus walk should not render rack rows, got ${campusTags["network-rack-row"]}`);
+  if (campusTags["network-closet-wall"]) errors.push("campus walk should not render closet walls");
+  if (campusTags["network-patch-panel"]) errors.push("campus walk should not render patch panels");
+  if (campusTags["network-cable-tray"]) errors.push("campus walk should not render cable tray");
   await page.evaluate(() => window.__DS_WALK?.close?.(true));
 
   // Data center: floor-only decor (no rack rows or closet walls).

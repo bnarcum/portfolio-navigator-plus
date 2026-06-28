@@ -778,28 +778,7 @@
   }
 
   function addNetworkVenue(THREE, scene, bounds, graph) {
-    const frame = graph.semanticFrame || {};
-    if (frame.isDc) return;
-
-    const cx = (bounds.minX + bounds.maxX) / 2;
-    const cz = (bounds.minZ + bounds.maxZ) / 2;
-    const w = Math.max(bounds.maxX - bounds.minX + 10, 18);
-    const demarcZ = frame.demarcZ ?? bounds.minZ - 3.2;
-    const closetMat = new THREE.MeshStandardMaterial({ color: 0x17202b, roughness: 0.72, metalness: 0.25 });
-    box(THREE, scene, "network-closet-wall", [w, 3.8, 0.2], [cx, 1.9, demarcZ - 1.2], closetMat);
-
-    const rackMat = new THREE.MeshStandardMaterial({ color: 0x1a2430, roughness: 0.42, metalness: 0.75 });
-    const rackZ = [cz - 2.8, cz + 2.8];
-    rackZ.forEach((z, i) => {
-      box(THREE, scene, "network-rack-row", [w * 0.62, 2.5, 0.48], [cx, 1.25, z], rackMat);
-      if (i === 0) {
-        box(THREE, scene, "network-patch-panel", [w * 0.58, 0.1, 0.5], [cx, 2.15, z - 0.02],
-          new THREE.MeshStandardMaterial({ color: 0x02c8ff, emissive: 0x026f8f, emissiveIntensity: 0.22, roughness: 0.45 }));
-      }
-    });
-
-    const trayMat = new THREE.MeshStandardMaterial({ color: 0x7d8791, roughness: 0.5, metalness: 0.8 });
-    box(THREE, scene, "network-cable-tray", [w * 0.72, 0.1, 0.3], [cx, 3.1, cz], trayMat);
+    // Floor-only network walk — no closet walls, rack rows, or ceiling decor.
   }
 
   function addAdaptiveVenue(THREE, scene, bounds, graph) {
