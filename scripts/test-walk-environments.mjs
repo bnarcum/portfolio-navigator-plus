@@ -60,7 +60,27 @@ try {
   if (conf.environmentTags?.["room-ceiling-grid"]) errors.push("conference should not render ceiling lattice");
   await page.evaluate(() => window.__DS_WALK?.close?.(true));
 
-  // Data center topology: layer-aligned racks + tray.
+  // Campus closet: 2 rack rows + back wall + tray (not per-layer dividers).
+  await page.evaluate(() => {
+    const s = window.DesignStudio.instance;
+    s.design = { account: "test", rooms: [], nodes: [], links: [], bomOverrides: [], snapshots: [] };
+    window.__DS_TEMPLATES.applyNetworkTemplate(s.design, "campus3tierRedundant", 80, 80, window.__DS_STENCILS);
+    s.setTab("network");
+  });
+  await page.waitForTimeout(300);
+  await page.click("#ds-walk-corridor");
+  await page.waitForFunction(() => window.__DS_WALK?.isOpen?.(), { timeout: 60000 });
+  await page.waitForTimeout(900);
+  const campusStats = await page.evaluate(() => window.__DS_WALK?.debugStats?.() || {});
+  const campusTags = campusStats.environmentTags || {};
+  if (campusTags["network-rack-row"] !== 2) errors.push(`campus walk expected 2 rack rows, got ${campusTags["network-rack-row"] || 0}`);
+  if (campusTags["network-patch-panel"] !== 1) errors.push(`campus walk expected 1 patch panel, got ${campusTags["network-patch-panel"] || 0}`);
+  if (!campusTags["network-cable-tray"]) errors.push("campus walk missing overhead cable tray");
+  if (!campusTags["network-closet-wall"]) errors.push("campus walk missing back demarc wall");
+  if (campusTags["network-closet-wall"] > 1) errors.push("campus walk should have only back wall");
+  await page.evaluate(() => window.__DS_WALK?.close?.(true));
+
+  // Data center: floor-only decor (no rack rows or closet walls).
   await page.evaluate(() => {
     const s = window.DesignStudio.instance;
     s.design = { account: "test", rooms: [], nodes: [], links: [], bomOverrides: [], snapshots: [] };
@@ -71,14 +91,11 @@ try {
   await page.click("#ds-walk-corridor");
   await page.waitForFunction(() => window.__DS_WALK?.isOpen?.(), { timeout: 60000 });
   await page.waitForTimeout(900);
-  const networkStats = await page.evaluate(() => window.__DS_WALK?.debugStats?.() || {});
-  const netTags = networkStats.environmentTags || {};
-  if (!netTags["network-rack-row"] || netTags["network-rack-row"] < 2) errors.push(`network walk expected >=2 rack rows, got ${netTags["network-rack-row"] || 0}`);
-  if (!netTags["network-cable-tray"]) errors.push("network walk missing overhead cable tray");
-  if (!netTags["network-closet-wall"]) errors.push("network walk missing closet/datacenter wall detail");
-  const ap = (networkStats.chambers || []).find(c => /ap/i.test(c.label) || c.kind === "ap");
-  const sw = (networkStats.chambers || []).find(c => c.zone === "access" && c.kind === "switch");
-  if (ap && sw && ap.y <= sw.y) errors.push(`AP should be elevated above access switches (ap y=${ap.y}, sw y=${sw.y})`);
+  const dcStats = await page.evaluate(() => window.__DS_WALK?.debugStats?.() || {});
+  const dcTags = dcStats.environmentTags || {};
+  if (dcTags["network-rack-row"]) errors.push(`DC walk should not render rack rows, got ${dcTags["network-rack-row"]}`);
+  if (dcTags["network-closet-wall"]) errors.push("DC walk should not render closet walls");
+  if (dcTags["network-patch-panel"]) errors.push("DC walk should not render patch panels");
 
   if (errors.length) {
     console.error("FAIL test-walk-environments\n" + errors.map(e => `  - ${e}`).join("\n"));

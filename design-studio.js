@@ -1169,35 +1169,6 @@
       this.render();
       setTimeout(() => this.refreshExplore(), 500);
       this.highlightQuickstartOnce();
-      this.runDemoIfRequested();
-    }
-
-    runDemoIfRequested() {
-      if (this._demoRan) return;
-      const demo = new URLSearchParams(location.search).get("demo");
-      if (!demo) return;
-      this._demoRan = true;
-      const ta = document.getElementById("ds-intent-text");
-      if (demo === "hospital" || demo === "contest") {
-        if (ta) ta.value = demo === "hospital"
-          ? "Regional hospital: redundant campus core, secure healthcare segmentation, 1 boardroom and 2 conference rooms, Cisco Spaces occupancy."
-          : "Hybrid HQ: redundant 3-tier campus, SD-WAN, 1 boardroom and 3 conference rooms, Cisco Spaces wayfinding.";
-        document.querySelector("#ds-one-cisco-deck [data-pillar='workplaces']")?.click();
-      }
-      setTimeout(() => {
-        this.runGenerate();
-        const hasNet = this.design.nodes.some(n => n.canvas !== "room" && !n.roomId);
-        if (hasNet) {
-          this.setTab("network");
-          window.__cpnAutoTour = true;
-        } else if (this.design.rooms[0]) {
-          this.activeRoomId = this.design.rooms[0].id;
-          this.design.activeRoomId = this.activeRoomId;
-          this.setTab("room");
-          window.__cpnAutoTour = true;
-        }
-        setTimeout(() => this.openWalk?.(), 750);
-      }, 500);
     }
 
     // First-ever visit: gently spotlight the Quickstart CTA (no auto-generate,

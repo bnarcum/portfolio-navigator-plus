@@ -48,7 +48,7 @@
     reticleChamber: null, bobPhase: 0, viewmodel: null, worldBounds: null,
     dustParticles: null, footPhase: 0,
     topology: null, easyNav: true, route: null, environmentTags: {},
-    tour: null, traceCableId: null, semanticFrame: null
+    traceCableId: null, semanticFrame: null
   };
 
   function esc(s) {
@@ -778,34 +778,28 @@
   }
 
   function addNetworkVenue(THREE, scene, bounds, graph) {
+    const frame = graph.semanticFrame || {};
+    if (frame.isDc) return;
+
     const cx = (bounds.minX + bounds.maxX) / 2;
     const cz = (bounds.minZ + bounds.maxZ) / 2;
     const w = Math.max(bounds.maxX - bounds.minX + 10, 18);
-    const d = Math.max(bounds.maxZ - bounds.minZ + 10, 18);
-    const frame = graph.semanticFrame || {};
-    const isDc = frame.isDc;
-    const closetMat = new THREE.MeshStandardMaterial({ color: isDc ? 0x121820 : 0x17202b, roughness: 0.72, metalness: 0.25 });
     const demarcZ = frame.demarcZ ?? bounds.minZ - 3.2;
+    const closetMat = new THREE.MeshStandardMaterial({ color: 0x17202b, roughness: 0.72, metalness: 0.25 });
     box(THREE, scene, "network-closet-wall", [w, 3.8, 0.2], [cx, 1.9, demarcZ - 1.2], closetMat);
-    box(THREE, scene, "network-closet-wall", [0.2, 3.8, d], [bounds.minX - 3.2, 1.9, cz], closetMat);
-    const rackMat = new THREE.MeshStandardMaterial({ color: 0x111820, roughness: 0.38, metalness: 0.82 });
-    const layers = window.__DS_WALK_LAYOUT?.NET_LAYER_ORDER || ["wan", "security", "core", "distribution", "dc", "access", "mgmt", "collab"];
-    const activeLayers = layers.filter(l => (graph.chambers || []).some(ch => ch.zone === l));
-    const rackRows = activeLayers.length || (isDc ? 3 : 2);
-    activeLayers.forEach((layer, r) => {
-      const layerZ = frame.layerZ?.[layer] ?? bounds.minZ + 2.5 + r * 3;
-      box(THREE, scene, "network-rack-row", [w * 0.72, isDc ? 2.9 : 2.6, 0.52], [cx, isDc ? 1.45 : 1.3, layerZ], rackMat);
-      box(THREE, scene, "network-patch-panel", [w * 0.68, 0.12, 0.56], [cx, isDc ? 2.45 : 2.2, layerZ - 0.02], new THREE.MeshStandardMaterial({ color: 0x02c8ff, emissive: 0x026f8f, emissiveIntensity: 0.25, roughness: 0.45 }));
-    });
-    if (!activeLayers.length) {
-      for (let r = 0; r < (isDc ? 3 : 2); r++) {
-        const z = bounds.minZ + 2.5 + r * Math.max(2.5, d / (rackRows + 1));
-        box(THREE, scene, "network-rack-row", [w * 0.72, 2.6, 0.52], [cx, 1.3, z], rackMat);
+
+    const rackMat = new THREE.MeshStandardMaterial({ color: 0x1a2430, roughness: 0.42, metalness: 0.75 });
+    const rackZ = [cz - 2.8, cz + 2.8];
+    rackZ.forEach((z, i) => {
+      box(THREE, scene, "network-rack-row", [w * 0.62, 2.5, 0.48], [cx, 1.25, z], rackMat);
+      if (i === 0) {
+        box(THREE, scene, "network-patch-panel", [w * 0.58, 0.1, 0.5], [cx, 2.15, z - 0.02],
+          new THREE.MeshStandardMaterial({ color: 0x02c8ff, emissive: 0x026f8f, emissiveIntensity: 0.22, roughness: 0.45 }));
       }
-    }
+    });
+
     const trayMat = new THREE.MeshStandardMaterial({ color: 0x7d8791, roughness: 0.5, metalness: 0.8 });
-    box(THREE, scene, "network-cable-tray", [w * 0.82, 0.12, 0.34], [cx, 3.15, cz], trayMat);
-    box(THREE, scene, "network-office-door", [1.4, 2.4, 0.08], [bounds.maxX + 2.5, 1.2, bounds.maxZ - 2.5], new THREE.MeshStandardMaterial({ color: 0x395166, roughness: 0.65 }));
+    box(THREE, scene, "network-cable-tray", [w * 0.72, 0.1, 0.3], [cx, 3.1, cz], trayMat);
   }
 
   function addAdaptiveVenue(THREE, scene, bounds, graph) {
@@ -1064,10 +1058,6 @@
       if (window.__cpnFollowPoE) {
         window.__cpnFollowPoE = false;
         startTrace("poe");
-      }
-      if (window.__cpnAutoTour) {
-        window.__cpnAutoTour = false;
-        setTimeout(() => startGuidedTour(), 400);
       }
       if (state.mode) setStatus("Pick a device below or tap a connected link");
     });
@@ -2205,7 +2195,6 @@
     state.lastFrame = t;
     state.clock += dt;
     updatePlayer(dt);
-    updateTour(dt);
     animateCables(state.clock);
     animateDust(dt);
     updateReticleFocus();
@@ -2378,78 +2367,6 @@
     });
   }
 
-  function tourStepsFor(graph) {
-    const dwell = 5.5;
-    if (graph?.kind === "room") {
-      return [
-        { match: ch => /display/i.test(ch.stencilId || ""), caption: "Front wall display — primary video for the room" },
-        { match: ch => /quad|cam/i.test(`${ch.stencilId} ${ch.label}`), caption: "Wall camera — mounted above the display, aimed at the table" },
-        { match: ch => /touch/i.test(`${ch.stencilId} ${ch.label}`), caption: "Touch controller on the table — in-room control within reach" },
-        { match: ch => /mic/i.test(`${ch.stencilId} ${ch.label}`), caption: "Microphones — ceiling or table pickup for the codec" },
-        { match: ch => /9200|switch/i.test(`${ch.stencilId} ${ch.label}`), caption: "Collaboration PoE switch — powers room endpoints" },
-        { match: ch => /kit|codec|bar|board/i.test(ch.stencilId || ""), caption: "Codec in the credenza — terminates AV on the LAN" }
-      ].map(s => ({ ...s, dwell }));
-    }
-    return [
-      { match: ch => ch.zone === "wan" || /internet|8200|sdwan|dia/i.test(`${ch.stencilId} ${ch.label}`), caption: "WAN demarc — circuits and SD-WAN handoff at the closet door" },
-      { match: ch => ch.zone === "security" || /fpr|firewall|ise/i.test(`${ch.stencilId} ${ch.label}`), caption: "Security row — firewall, ISE, and policy services" },
-      { match: ch => ch.zone === "core", caption: "Core switches — redundant campus aggregation" },
-      { match: ch => ch.zone === "distribution", caption: "Distribution layer — connects access to core" },
-      { match: ch => ch.zone === "access" && !/9179|mr57|ap/i.test(ch.stencilId || ""), caption: "Access switches — PoE to APs and IDF endpoints" },
-      { match: ch => /9179|mr57|9120|ap/i.test(`${ch.stencilId} ${ch.label}`), caption: "Ceiling APs — wireless coverage powered from access" },
-      { match: ch => ch.zone === "collab" || /9200-collab/i.test(ch.stencilId || ""), caption: "Collaboration uplink — PoE path toward meeting rooms" }
-    ].map(s => ({ ...s, dwell }));
-  }
-
-  function setTourCaption(text) {
-    const el = document.getElementById("ds-walk-tour-caption");
-    if (!el) return;
-    if (!text) { el.hidden = true; el.textContent = ""; return; }
-    el.hidden = false;
-    el.textContent = text;
-  }
-
-  function stopTour() {
-    state.tour = null;
-    setTourCaption("");
-    state.overlay?.querySelector('[data-action="tour"]')?.classList.remove("active");
-  }
-
-  function startGuidedTour() {
-    if (!state.chambers?.length) return;
-    const steps = tourStepsFor(state.graph).map(s => {
-      const ch = state.chambers.find(s.match);
-      return ch ? { ...s, ch } : null;
-    }).filter(Boolean);
-    if (!steps.length) { setStatus("No tour stops in this design"); return; }
-    state.tour = { steps, i: 0, elapsed: 0 };
-    state.overlay?.querySelector('[data-action="tour"]')?.classList.add("active");
-    teleportToChamber(steps[0].ch, false);
-    highlightNavChip(steps[0].ch.id);
-    setTourCaption(steps[0].caption);
-    setStatus("Customer tour — Esc to stop");
-  }
-
-  function updateTour(dt) {
-    if (!state.tour) return;
-    state.tour.elapsed += dt;
-    const step = state.tour.steps[state.tour.i];
-    if (!step) { stopTour(); return; }
-    if (state.tour.elapsed >= step.dwell) {
-      state.tour.i += 1;
-      state.tour.elapsed = 0;
-      const next = state.tour.steps[state.tour.i];
-      if (!next) {
-        stopTour();
-        setStatus("Tour complete — inspect any device or trace a link");
-        return;
-      }
-      teleportToChamber(next.ch, false);
-      highlightNavChip(next.ch.id);
-      setTourCaption(next.caption);
-    }
-  }
-
   async function followPoEToRoom() {
     const studio = state.studio;
     const graph = state.graph;
@@ -2519,7 +2436,6 @@
         <button type="button" class="ds-walk-close" title="Exit walkthrough">✕</button>
       </div>
       <div class="ds-walk-hud-mid">
-        <button type="button" class="ds-walk-btn" data-action="tour" title="Guided customer tour of key devices">Customer tour</button>
         <button type="button" class="ds-walk-btn" data-action="follow-collab" title="Follow PoE path between network closet and collaboration room">Follow PoE</button>
         <button type="button" class="ds-walk-btn" data-action="trace-av">Trace AV link</button>
         <button type="button" class="ds-walk-btn" data-action="trace-poe">Trace PoE link</button>
@@ -2529,7 +2445,6 @@
         <button type="button" class="ds-walk-btn primary" data-action="inspect" title="Open device details">Inspect</button>
       </div>
       <div class="ds-walk-outcomes" id="ds-walk-outcomes" hidden></div>
-      <div class="ds-walk-tour-caption" id="ds-walk-tour-caption" hidden></div>
       <div class="ds-walk-wayfind" id="ds-walk-wayfind" hidden></div>
       <div class="ds-walk-links" id="ds-walk-links" hidden></div>
       <div class="ds-walk-legend" id="ds-walk-legend" hidden></div>
@@ -2570,7 +2485,6 @@
       if (!btn) return;
       const a = btn.dataset.action;
       if (a === "trace-av") startTrace("av");
-      else if (a === "tour") { state.tour ? stopTour() : startGuidedTour(); }
       else if (a === "follow-collab") followPoEToRoom();
       else if (a === "outcomes") toggleOutcomes();
       else if (a === "wayfind-open") openWayfindMenu();
@@ -2643,7 +2557,6 @@
       if (e.type === "keydown") {
         if (e.key === "Escape") {
           e.preventDefault();
-          if (state.tour) { stopTour(); return; }
           const panel = document.getElementById("ds-field-panel");
           if (panel && !panel.hidden) {
             window.__DS_FIELD_PANEL?.close?.();
@@ -2890,7 +2803,6 @@
   }
 
   function close(silent) {
-    stopTour();
     setTraceCable(null);
     cancelAnimationFrame(state.animId);
     state.animId = 0;
@@ -2940,6 +2852,6 @@
   window.__DS_WALK = {
     open, close, rebuild, toggle: s => state.mode ? close(true) : open(s),
     isOpen: () => !!state.mode, debugStats, hasRoute: () => !!state.route,
-    startGuidedTour, followPoEToRoom, startTrace
+    followPoEToRoom, startTrace
   };
 })();
