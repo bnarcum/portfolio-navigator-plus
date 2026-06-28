@@ -58,7 +58,7 @@
     playTone(220, 0.25, "sine", 0.1, 330);
   }
 
-  function sfxMissionStart() {
+  function sfxRouteStart() {
     playTone(110, 0.4, "sawtooth", 0.08, 220);
     setTimeout(() => playTone(164.81, 0.5, "sine", 0.12, 329.63), 120);
     setTimeout(() => playTone(220, 0.7, "triangle", 0.1), 280);
@@ -88,6 +88,6 @@
     setVolume,
     isMuted,
     isRunning,
-    sfx: { inspect: sfxInspect, waypoint: sfxWaypoint, missionStart: sfxMissionStart, footstep: sfxFootstep }
+    sfx: { inspect: sfxInspect, waypoint: sfxWaypoint, routeStart: sfxRouteStart, footstep: sfxFootstep }
   };
 })();

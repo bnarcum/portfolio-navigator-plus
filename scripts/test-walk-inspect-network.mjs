@@ -37,7 +37,6 @@ try {
   if (pre.pods < 5) errors.push(`expected network pods, got ${pre.pods}`);
   if (pre.retroBtn) errors.push("retro mode button should not exist");
 
-  await page.evaluate(() => document.getElementById("ds-mission-start")?.click());
   await page.waitForTimeout(400);
 
   const clicked = await page.evaluate(() => {

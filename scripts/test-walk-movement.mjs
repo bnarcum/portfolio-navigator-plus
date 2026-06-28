@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Walk — player can move with keyboard/dpad after mission start */
+/** Walk — player can move with keyboard/dpad immediately on entering the walk */
 import { chromium } from "playwright";
 
 const URL = "http://127.0.0.1:8765/cisco-portfolio-navigator.html";
@@ -20,15 +20,14 @@ try {
   await page.click('#ds-tabs [data-tab="room"]');
   await page.waitForTimeout(400);
   await page.click("#ds-walk-corridor");
-  await page.waitForSelector("#ds-mission-start", { timeout: 60000 });
-  await page.click("#ds-mission-start");
+  await page.waitForFunction(() => window.__DS_WALK?.isOpen?.(), { timeout: 60000 });
   await page.waitForTimeout(1200);
 
   const before = await page.evaluate(() => {
     const s = window.__DS_WALK?.debugStats?.() || {};
     return { x: s.pos?.x, z: s.pos?.z, mode: s.mode };
   });
-  if (!Number.isFinite(before.x)) errors.push("no player position after mission start");
+  if (!Number.isFinite(before.x)) errors.push("no player position after entering walk");
 
   await page.keyboard.down("w");
   await page.waitForTimeout(600);

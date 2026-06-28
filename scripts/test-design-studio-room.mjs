@@ -99,25 +99,20 @@ try {
   if (walk.navChips < 3) errors.push(`expected device nav chips, got ${walk.navChips}`);
   if (!walk.hasRenderer) errors.push("walk missing WebGL renderer");
   if (walk.hasError) errors.push(`walk error status: ${walk.status}`);
+  // Mission component removed — ensure no residual mission/briefing/XP UI.
   const mission = await page.evaluate(() => ({
     hasMissions: !!window.__DS_MISSIONS,
     briefing: !!document.getElementById("ds-walk-briefing"),
     missionPanel: !!document.getElementById("ds-walk-mission"),
     xpBar: !!document.getElementById("ds-walk-xp-bar"),
-    missionActive: window.__DS_WALK?.debugStats?.()?.mission,
-    objectiveCount: document.querySelectorAll(".ds-mission-list .ds-mobj, #ds-walk-briefing li").length
+    startBtn: !!document.getElementById("ds-mission-start")
   }));
-  if (!mission.hasMissions) errors.push("missions module not loaded");
-  if (!mission.briefing) errors.push("mission briefing overlay missing");
-  if (!mission.missionPanel) errors.push("mission HUD panel missing");
-  if (!mission.xpBar) errors.push("mission XP bar missing");
-  if (!mission.missionActive) errors.push("mission not started in walk state");
-  if (mission.objectiveCount < 2) errors.push(`expected mission objectives, got ${mission.objectiveCount}`);
+  if (mission.hasMissions) errors.push("missions module still loaded");
+  if (mission.briefing) errors.push("mission briefing overlay still present");
+  if (mission.missionPanel) errors.push("mission HUD panel still present");
+  if (mission.xpBar) errors.push("mission XP bar still present");
+  if (mission.startBtn) errors.push("mission start button still present");
 
-  await page.evaluate(() => {
-    document.getElementById("ds-mission-start")?.click();
-  });
-  await page.waitForTimeout(300);
   await page.evaluate(() => window.__DS_WALK?.close?.());
   await page.waitForTimeout(200);
 

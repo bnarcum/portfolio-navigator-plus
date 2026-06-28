@@ -46,6 +46,37 @@
     default: "General endpoint zone."
   };
 
+  const TEACH = {
+    switch: "PoE switches budget 30W per port — plan headroom for codecs and phones.",
+    codec: "Room codecs terminate AV and control on the LAN — keep on dedicated VLAN.",
+    camera: "Quad cams need HDMI/USB uplink to the codec — check cable length limits.",
+    mic: "Ceiling mics use PoE or USB — verify switch port PoE budget.",
+    display: "Displays receive HDMI from the codec — 4K needs certified HDMI length.",
+    touch: "Touch panels are control endpoints — PoE keeps install simple.",
+    default: "Every endpoint should map to a switch port in your as-built."
+  };
+
+  function tipFor(ch) {
+    const s = (ch.stencilId || ch.label || "").toLowerCase();
+    const def = window.__DS_STENCILS?.getDef?.(ch.stencilId, ch.canvas === "room" ? "room" : "network");
+    const role = def?.role || "";
+    if (/ise|pan|psn/i.test(s)) return "ISE nodes enforce 802.1X — PAN is admin, PSN handles policy decisions.";
+    if (/fpr|firewall/i.test(s)) return "Firewall inspects traffic between zones — verify inside/outside interfaces match the diagram.";
+    if (/8200|sd-?wan|mx\d|wan/i.test(s) || role === "wan-edge") return "WAN edge terminates VPN/SD-WAN tunnels — confirm circuit handoff and routing.";
+    if (/9500|9400|core/i.test(s) || role === "core") return "Core switches aggregate the campus — expect redundant supervisors and 40/100G uplinks.";
+    if (/9300|9200|ms250|switch/i.test(s) || role === "access") return TEACH.switch;
+    if (/9179|mr57|ap\b/i.test(s) || role === "ap") return "Access points need PoE+ and correct switchport VLAN/trunk config.";
+    if (/n9k|spine|leaf|apic|ucs/i.test(s)) return "Data center fabric device — verify VPC/EVPN peer links and LACP bundles.";
+    if (/umbrella/i.test(s)) return "DNS-layer security — forwarders should point through this virtual appliance.";
+    if (/internet|mpls|dia/i.test(s)) return "Logical WAN handoff — trace which router or firewall owns this circuit.";
+    if (/kit|codec|eq|pro|bar/i.test(s)) return TEACH.codec;
+    if (/cam|quad/i.test(s)) return TEACH.camera;
+    if (/mic/i.test(s)) return TEACH.mic;
+    if (/display/i.test(s)) return TEACH.display;
+    if (/touch/i.test(s)) return TEACH.touch;
+    return TEACH.default;
+  }
+
   function esc(s) {
     return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
   }
@@ -59,7 +90,7 @@
     const role = def?.role || ch.zone || "default";
     const roleInfo = ROLE_EDU[role] || ROLE_EDU.default;
     const zoneNote = ZONE_EDU[ch.zone] || ZONE_EDU.default;
-    const tip = window.__DS_MISSIONS?.tipFor?.(ch) || "";
+    const tip = tipFor(ch) || "";
     const layer = (ch.zone || def?.layer || "device").toUpperCase();
     const poe = def?.poeW ? `${def.poeW}W PoE budget` : null;
     const rack = def?.rackU ? `${def.rackU}U rack mount` : null;

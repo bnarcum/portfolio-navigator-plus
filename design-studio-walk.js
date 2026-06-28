@@ -44,7 +44,7 @@
     thirdPerson: true, avatar: null,
     chambers: [], devicePods: [], cables: [], colliders: [], bounds: null,
     trace: null, graph: null, texCache: new Map(), disposables: [],
-    focusId: null, navIndex: 0, mission: null, waypointGroup: null, nearChamber: null,
+    focusId: null, navIndex: 0, nearChamber: null,
     reticleChamber: null, bobPhase: 0, viewmodel: null, worldBounds: null,
     dustParticles: null, footPhase: 0,
     topology: null, easyNav: true, route: null
@@ -983,10 +983,6 @@
       state.vel = { x: 0, y: 0, z: 0 };
     }
     setStatus(`At ${ch.label}${ch.pid ? " · " + ch.pid : ""}`);
-    const ping = window.__DS_MISSIONS?.onVisit?.(state.mission, state.graph, ch.id, ch);
-    if (ping) window.__DS_MISSIONS?.toastObjective?.("Device inspected");
-    window.__DS_MISSIONS?.renderHud?.(state.mission);
-    window.__DS_MISSIONS?.syncWaypoints?.(state, state.mission, state.graph);
   }
 
   function cycleDevice(dir) {
@@ -1162,7 +1158,7 @@
     });
     startWayfinding(destCh, from);
     setStatus(`Follow the route to ${destCh.label}`);
-    window.__DS_WALK_AUDIO?.sfx?.missionStart?.();
+    window.__DS_WALK_AUDIO?.sfx?.routeStart?.();
   }
 
   function clearWayfinding() {
@@ -1564,9 +1560,6 @@
             buildConnectedNav(f.chamber);
             faceChamber(f.chamber);
             setStatus(`At ${f.chamber.label}${f.chamber.pid ? " · " + f.chamber.pid : ""}`);
-            window.__DS_MISSIONS?.onVisit?.(state.mission, state.graph, f.chamber.id, f.chamber);
-            window.__DS_MISSIONS?.renderHud?.(state.mission);
-            window.__DS_MISSIONS?.syncWaypoints?.(state, state.mission, state.graph);
           }
           state.fly = null;
         }
@@ -1695,27 +1688,16 @@
   function openFieldPanel(ch) {
     if (!ch) return;
     window.__DS_WALK_AUDIO?.sfx?.inspect?.();
-    window.__DS_MISSIONS?.onVisit?.(state.mission, state.graph, ch.id, ch);
     highlightNavChip(ch.id);
     window.__DS_FIELD_PANEL?.render?.(ch, state.studio, state.graph);
     state.overlay?.classList.add("ds-field-panel-open");
     document.getElementById("ds-walk-panel-backdrop")?.removeAttribute("hidden");
-    window.__DS_MISSIONS?.toastObjective?.("Inspected: " + ch.label);
-    window.__DS_MISSIONS?.renderHud?.(state.mission);
-    window.__DS_MISSIONS?.syncWaypoints?.(state, state.mission, state.graph);
-    if (state.mission?.complete) showMissionComplete();
   }
 
   function interactNearby() {
     const ch = state.reticleChamber;
     if (!ch) return;
     openFieldPanel(ch);
-  }
-
-  function showMissionComplete() {
-    state.overlay?.classList.add("ds-walk-victory");
-    window.__DS_MISSIONS?.renderHud?.(state.mission);
-    setStatus(`Certified ${state.mission.rank} — ${state.mission.xp} XP earned`);
   }
 
   function updateReticleFocus() {
@@ -1768,19 +1750,11 @@
     } catch (_) { /* denied or unsupported */ }
   }
 
-  function initMissionSystem(graph) {
-    if (!window.__DS_MISSIONS) return;
+  function initFieldSystems(graph) {
     state.chamberWorldPos = chamberWorldPos;
-    state.mission = window.__DS_MISSIONS.startCampaign(graph, state);
-    window.__DS_MISSIONS.renderHud(state.mission);
-    window.__DS_MISSIONS.syncWaypoints(state, state.mission, graph);
-    window.__DS_MISSIONS.renderBriefing(state.mission, () => {
-      window.__DS_MISSIONS.syncWaypoints(state, state.mission, graph);
-      setStatus("Pick a device below or tap a connected link to walk your diagram");
-      window.__DS_WALK_AUDIO?.sfx?.missionStart?.();
-      window.__DS_WALK_AUDIO?.start?.();
-    });
     window.__DS_FIELD_PANEL?.bindWalk?.(state);
+    setStatus("Pick a device below or tap a connected link to walk your diagram");
+    window.__DS_WALK_AUDIO?.start?.();
   }
 
   function applyCamera() {
@@ -2034,8 +2008,6 @@
     animateCables(state.clock);
     animateDust(dt);
     updateReticleFocus();
-    window.__DS_MISSIONS?.animateWaypoints?.(state, state.clock);
-    if (state.mission && !state.mission.complete) window.__DS_MISSIONS?.renderHud?.(state.mission);
     if (state.route) { animateRoute(state.clock); updateWayfind(); }
     if (state.outcomes) {
       animateOutcomes(state.clock);
@@ -2229,7 +2201,6 @@
         <span class="ds-walk-hint">WASD move · Space jump · Shift sprint · V camera · drag look</span>
         <button type="button" class="ds-walk-close" title="Exit walkthrough">✕</button>
       </div>
-      <div class="ds-walk-xp-track"><div class="ds-walk-xp-bar" id="ds-walk-xp-bar"></div></div>
       <div class="ds-walk-hud-mid">
         <button type="button" class="ds-walk-btn" data-action="trace-av">Trace AV link</button>
         <button type="button" class="ds-walk-btn" data-action="trace-poe">Trace PoE link</button>
@@ -2242,9 +2213,8 @@
       <div class="ds-walk-wayfind" id="ds-walk-wayfind" hidden></div>
       <div class="ds-walk-links" id="ds-walk-links" hidden></div>
       <div class="ds-walk-legend" id="ds-walk-legend" hidden></div>
-      <div class="ds-walk-mission" id="ds-walk-mission"></div>
       <div class="ds-walk-focus" id="ds-walk-focus" hidden></div>
-      <div class="ds-walk-status" id="ds-walk-status">Mission briefing loading…</div>
+      <div class="ds-walk-status" id="ds-walk-status">Pick a device below or tap a connected link to walk your diagram</div>
     </div>`;
   }
 
@@ -2288,26 +2258,6 @@
       else if (a === "prev-dev") cycleDevice(-1);
       else if (a === "next-dev") cycleDevice(1);
       else if (a === "inspect") interactNearby();
-      else if (a === "mission-start") {
-        e.preventDefault();
-        e.stopPropagation();
-        window.__DS_MISSIONS?.dismissBriefing?.(state.mission, state.mission?._briefingStart);
-        window.__DS_WALK_AUDIO?.sfx?.missionStart?.();
-        window.__DS_WALK_AUDIO?.start?.();
-        setStatus("Mission active — deploy to the floor");
-      }
-      else if (a === "mission-replay") {
-        if (state.graph) {
-          state.mission = window.__DS_MISSIONS?.startCampaign(state.graph, state);
-          state.overlay?.classList.remove("ds-walk-victory");
-          window.__DS_MISSIONS?.renderHud?.(state.mission);
-          window.__DS_MISSIONS?.syncWaypoints?.(state, state.mission, state.graph);
-          window.__DS_MISSIONS?.renderBriefing?.(state.mission, () => {
-            window.__DS_MISSIONS?.syncWaypoints?.(state, state.mission, state.graph);
-            setStatus("Mission active — follow the glowing waypoints");
-          });
-        }
-      }
       else if (a === "fp-close") window.__DS_FIELD_PANEL?.close?.();
       else if (a === "fp-fly") {
         const id = document.getElementById("ds-field-panel")?.dataset?.chamberId;
@@ -2317,13 +2267,6 @@
       else if (a === "fp-trace-poe") startTrace("poe");
       else if (a === "fp-trace-av") startTrace("av");
     });
-  }
-
-  function startMissionFromBriefing() {
-    if (!state.mission || state.mission.briefingSeen) return false;
-    window.__DS_MISSIONS?.dismissBriefing?.(state.mission, state.mission._briefingStart);
-    setStatus("Mission active — follow the glowing waypoints");
-    return true;
   }
 
   function setStatus(msg) {
@@ -2348,10 +2291,6 @@
       t: 0
     };
     setStatus(`Tracing: ${pick.label}`);
-    window.__DS_MISSIONS?.onTrace?.(state.mission, kind);
-    window.__DS_MISSIONS?.renderHud?.(state.mission);
-    window.__DS_MISSIONS?.syncWaypoints?.(state, state.mission, state.graph);
-    if (state.mission?.complete) showMissionComplete();
   }
 
   function pickDeviceAt(clientX, clientY, canvas) {
@@ -2401,7 +2340,6 @@
           return;
         }
         if (e.key === "v" || e.key === "V") { e.preventDefault(); toggleCameraMode(); return; }
-        if (e.key === "Enter" && startMissionFromBriefing()) { e.preventDefault(); return; }
       }
     };
     const onLook = (dx, dy) => {
@@ -2523,9 +2461,6 @@
     state.camera = null;
     state.topology = null;
     state.graph = null;
-    state.mission = null;
-    if (state.waypointGroup && state.scene) state.scene.remove(state.waypointGroup);
-    state.waypointGroup = null;
   }
 
   async function open(studio) {
@@ -2561,8 +2496,6 @@
         <div class="ds-walk-panel-backdrop" id="ds-walk-panel-backdrop" hidden data-action="fp-close" title="Click to keep walking" aria-label="Close panel"></div>
         <div class="ds-walk-crosshair ds-walk-crosshair-plus" aria-hidden="true"></div>
         <div class="ds-walk-prompt" id="ds-walk-prompt" hidden>Press E to inspect</div>
-        <div class="ds-walk-inspect" id="ds-walk-inspect" hidden></div>
-        <div class="ds-walk-toast" id="ds-walk-toast"></div>
         <div class="ds-walk-compass" id="ds-walk-compass" aria-hidden="true"><span>N</span></div>
         <canvas id="ds-walk-minimap" class="ds-walk-minimap" title="Click a device to jump there"></canvas>
         <div class="ds-walk-dpad" id="ds-walk-dpad" aria-label="Move">
@@ -2587,12 +2520,12 @@
     try {
       state.overlay?.classList.add("ds-walk-loading");
       await initCorridor(studio, canvas, graph);
-      initMissionSystem(graph);
+      initFieldSystems(graph);
       loop();
       state.overlay?.classList.remove("ds-walk-loading");
       studio.roomView = "walk";
       window.__DS_PREMIUM?.renderRoomViewToggle?.(studio);
-      setStatus("Accept the mission briefing to begin your certification run");
+      setStatus("Pick a device below or tap a connected link to walk your diagram");
     } catch (err) {
       console.error("[DS Walk]", err);
       showWalkError(err?.message === "three-load" ? "3D library failed to load — hard-refresh" : `Walkthrough failed: ${err.message}`);
@@ -2613,7 +2546,6 @@
     }
     const canvas = state.overlay?.querySelector("#ds-walk-canvas");
     if (!canvas) return;
-    const briefingSeen = !!state.mission?.briefingSeen;
     window.__DS_FIELD_PANEL?.close?.();
     cancelAnimationFrame(state.animId);
     state.animId = 0;
@@ -2622,23 +2554,9 @@
     state.mode = "walk";
     try {
       await initCorridor(studio, canvas, graph);
-      if (window.__DS_MISSIONS) {
-        state.mission = window.__DS_MISSIONS.startCampaign(graph, state);
-        if (briefingSeen) {
-          state.mission.briefingSeen = true;
-          window.__DS_MISSIONS.dismissBriefing?.(state.mission);
-        }
-        window.__DS_MISSIONS.renderHud(state.mission);
-        window.__DS_MISSIONS.syncWaypoints(state, state.mission, graph);
-        if (!briefingSeen) {
-          window.__DS_MISSIONS.renderBriefing(state.mission, () => {
-            window.__DS_MISSIONS.syncWaypoints(state, state.mission, graph);
-            setStatus("Mission active — follow the glowing waypoints");
-            safePointerLock(canvas);
-          });
-        } else setStatus(`Switched to ${graph.kind} layout`);
-      }
+      state.chamberWorldPos = chamberWorldPos;
       window.__DS_FIELD_PANEL?.bindWalk?.(state);
+      setStatus(`Switched to ${graph.kind} layout`);
       loop();
     } catch (err) {
       console.error("[DS Walk rebuild]", err);
@@ -2665,7 +2583,6 @@
       window.__DS_PREMIUM?.renderRoomViewToggle?.(state.studio);
       state.studio.scheduleFitView?.();
     }
-    window.__DS_MISSIONS?.cleanupBriefing?.();
     window.__DS_FIELD_PANEL?.close?.();
     window.__DS_WALK_AUDIO?.stop?.();
     state.mode = null;
@@ -2680,8 +2597,6 @@
       cables: state.cables.length,
       hasRenderer: !!state.renderer,
       photos: state.devicePods.filter(p => p.userData?.chamber?.photoUrl).length,
-      mission: !!state.mission,
-      missionComplete: !!state.mission?.complete,
       outcomes: !!state.outcomes,
       outcomeObjects: state.outcomeGroup?.children?.length || 0
     };
