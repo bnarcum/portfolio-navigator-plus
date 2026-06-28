@@ -669,8 +669,8 @@
 .ds-wf-progress>i{display:block;height:100%;width:0;border-radius:0 4px 4px 0;
   background:linear-gradient(90deg,#00BCEB,#16b35a);transition:width .25s ease}
 
-/* "Where to?" floating action button — lower-right, like a maps app. */
-.ds-wf-fab{position:absolute;right:18px;bottom:92px;z-index:32;display:flex;align-items:center;gap:8px;
+/* "Where to?" floating action button — stacked above the move d-pad (pad is ~140px tall). */
+.ds-wf-fab{position:absolute;right:12px;bottom:152px;z-index:32;display:flex;align-items:center;gap:8px;
   padding:12px 18px;border-radius:999px;border:0;cursor:pointer;font-family:inherit;font-size:14px;font-weight:800;color:#fff;
   background:linear-gradient(135deg,#00BCEB,#0A60FF);box-shadow:0 8px 26px rgba(10,96,255,.5);
   transition:transform .12s,filter .15s}
