@@ -498,13 +498,13 @@
     const modelTop = lift + (kind === "room" ? 1.2 : 0.95) * scale;
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(0.55 * scale, 0.62 * scale, 32),
-      new THREE.MeshBasicMaterial({ color: theme.accent, transparent: true, opacity: 0.25, side: THREE.DoubleSide })
+      new THREE.MeshBasicMaterial({ color: theme.accent, transparent: true, opacity: 0.1, side: THREE.DoubleSide })
     );
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.03 * scale;
     g.add(ring);
 
-    const glow = new THREE.PointLight(theme.light, 0.15 * scale, 4 * scale);
+    const glow = new THREE.PointLight(theme.light, 0.06 * scale, 3.2 * scale);
     glow.position.set(0, modelTop * 0.65, 0.15 * scale);
     glow.userData.podGlow = true;
     g.add(glow);
@@ -1925,12 +1925,12 @@
         pod.userData.labelSprite.material.opacity = focused ? 1 : 0.65;
       }
       if (pod.userData.zoneBadge) pod.userData.zoneBadge.visible = focused;
-      if (pod.userData.glowLight) pod.userData.glowLight.intensity = focused ? 1.4 : 0.55;
+      if (pod.userData.glowLight) pod.userData.glowLight.intensity = focused ? 0.28 : 0.04;
       if (pod.userData.ring) {
-        pod.userData.ring.material.opacity = focused ? 0.55 : 0.2;
+        pod.userData.ring.material.opacity = focused ? 0.32 : 0.06;
       }
       if (pod.userData.photoMesh?.material) {
-        pod.userData.photoMesh.material.emissiveIntensity = focused ? 0.22 : 0.1;
+        pod.userData.photoMesh.material.emissiveIntensity = focused ? 0.2 : 0.08;
       }
     });
   }

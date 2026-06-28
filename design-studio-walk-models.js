@@ -14,8 +14,40 @@
   const TEMPLATE_KEYS = [
     "switch", "switch-chassis", "router", "firewall", "nexus", "server", "ap",
     "codec", "camera", "touch", "display", "ceiling-mic", "table-mic",
-    "cloud", "user", "rack", "table", "generic"
+    "cloud", "user", "rack", "table", "generic", "photo-shell"
   ];
+
+  /** Room stencils with matrix photos — render photo-forward shells instead of chunky procedural bodies. */
+  const PHOTO_SHELL_STENCILS = new Set([
+    "room-kit-eq", "room-kit-pro", "room-bar", "board-pro", "desk-pro",
+    "quad-cam", "room-navigator", "touch-10", "ceiling-mic", "table-mic"
+  ]);
+
+  /** Per-stencil mount + proportions for photo shells. */
+  const PHOTO_SHELL_PROFILES = {
+    "room-bar": { mount: "shelf", aspect: 3.1, targetH: 0.26, depth: 0.12 },
+    "board-pro": { mount: "wall", aspect: 1.42, targetH: 1.05, depth: 0.07 },
+    "desk-pro": { mount: "desk", aspect: 1.15, targetH: 0.48, depth: 0.1, tilt: 0.18 },
+    "room-kit-eq": { mount: "rack", aspect: 1.55, targetH: 0.4, depth: 0.52 },
+    "room-kit-pro": { mount: "rack", aspect: 1.48, targetH: 0.46, depth: 0.55 },
+    "quad-cam": { mount: "wall", aspect: 2.0, targetH: 0.2, depth: 0.09 },
+    "room-navigator": { mount: "wall", aspect: 1.05, targetH: 0.32, depth: 0.07 },
+    "touch-10": { mount: "table", aspect: 0.72, targetH: 0.36, depth: 0.045, tilt: 0.24 },
+    "ceiling-mic": { mount: "ceiling", aspect: 1.0, targetH: 0.26, depth: 0.2 },
+    "table-mic": { mount: "table", aspect: 1.0, targetH: 0.3, depth: 0.11 }
+  };
+
+  const STENCIL_TEMPLATE = {
+    "board-pro": "display",
+    "desk-pro": "display",
+    "room-bar": "codec",
+    "room-kit-eq": "codec",
+    "room-kit-pro": "codec",
+    "quad-cam": "camera",
+    "room-navigator": "touch",
+    "display-75": "display",
+    "display-86": "display"
+  };
 
   function init(THREE) {
     if (THREE) _THREE = THREE;
@@ -26,6 +58,7 @@
     const role = (def?.role || "").toLowerCase();
     const sid = (ch?.stencilId || "").toLowerCase();
 
+    if (STENCIL_TEMPLATE[sid]) return STENCIL_TEMPLATE[sid];
     if (shape === "rack" || sid.includes("rack") || sid.includes("credenza")) return "rack";
     if (shape === "table" || sid.includes("table") || sid.includes("furn")) return "table";
     if (shape === "switch" || role === "collab-switch" || role === "access" || role === "core" || role === "distribution") {
@@ -137,8 +170,19 @@
     return group;
   }
 
-  function addPhotoInset(THREE, parent, photoTex, w, h, z, theme) {
+  function photoFaceMat(THREE, photoTex, intensity = 0.12) {
+    const mat = stdMat(THREE, 0xffffff, {
+      map: photoTex, metalness: 0.04, roughness: 0.36,
+      emissive: 0xffffff, emissiveIntensity: intensity
+    });
+    if (mat.emissiveMap !== undefined) mat.emissiveMap = photoTex;
+    return mat;
+  }
+
+  function addPhotoInset(THREE, parent, photoTex, w, h, z, theme, large = false) {
     if (!photoTex) return null;
+    const pw = large ? w * 0.88 : w * 0.78;
+    const ph = large ? h * 0.82 : h * 0.62;
     const bezel = new THREE.Mesh(
       new THREE.PlaneGeometry(w * 0.92, h * 0.88),
       stdMat(THREE, 0x0a1018, { metalness: 0.85, roughness: 0.2 })
@@ -146,17 +190,121 @@
     bezel.position.set(0, h * 0.08, z);
     parent.add(bezel);
     const photo = new THREE.Mesh(
-      new THREE.PlaneGeometry(w * 0.78, h * 0.62),
-      stdMat(THREE, 0xffffff, {
-        map: photoTex, metalness: 0.05, roughness: 0.38,
-        emissive: 0xffffff, emissiveIntensity: 0.1
-      })
+      new THREE.PlaneGeometry(pw, ph),
+      photoFaceMat(THREE, photoTex, large ? 0.14 : 0.1)
     );
     photo.position.set(0, h * 0.1, z + 0.004);
-    if (photo.material.emissiveMap !== undefined) photo.material.emissiveMap = photoTex;
     parent.add(photo);
     photo.userData.isPhotoFace = true;
     return photo;
+  }
+
+  function makeDisplayGlowTexture(THREE) {
+    const c = document.createElement("canvas");
+    c.width = 256; c.height = 144;
+    const ctx = c.getContext("2d");
+    const g = ctx.createLinearGradient(0, 0, 256, 144);
+    g.addColorStop(0, "#0c1a2e");
+    g.addColorStop(0.45, "#143050");
+    g.addColorStop(1, "#0a1628");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 256, 144);
+    ctx.fillStyle = "rgba(2,200,255,0.12)";
+    ctx.fillRect(18, 18, 220, 108);
+    ctx.strokeStyle = "rgba(2,200,255,0.35)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(18, 18, 220, 108);
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.font = "bold 22px system-ui,sans-serif";
+    ctx.fillText("Teams", 32, 52);
+    ctx.fillStyle = "rgba(180,210,240,0.7)";
+    ctx.font = "14px system-ui,sans-serif";
+    ctx.fillText("Ready to join", 32, 78);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace || THREE.sRGBEncoding;
+    return tex;
+  }
+
+  function buildPhotoShell(THREE, opts) {
+    const { photoTex, theme, scale, ch } = opts;
+    const profile = PHOTO_SHELL_PROFILES[ch?.stencilId] || { mount: "shelf", aspect: 1.4, targetH: 0.5, depth: 0.18 };
+    const g = new THREE.Group();
+    const h = profile.targetH * scale;
+    const w = h * profile.aspect;
+    const d = profile.depth * scale;
+    const frameMat = stdMat(THREE, 0x141c28, { metalness: 0.82, roughness: 0.28 });
+    const trimMat = stdMat(THREE, 0x0a1018, { metalness: 0.9, roughness: 0.18 });
+
+    if (profile.mount === "wall") {
+      const back = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), frameMat);
+      back.position.set(0, h / 2, -d * 0.35);
+      g.add(back);
+      const bezel = new THREE.Mesh(new THREE.BoxGeometry(w * 1.02, h * 1.02, d * 0.35), trimMat);
+      bezel.position.set(0, h / 2, d * 0.02);
+      g.add(bezel);
+    } else if (profile.mount === "ceiling") {
+      const plate = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.1 * scale, 0.1 * scale, 0.04 * scale, 16),
+        frameMat
+      );
+      plate.position.y = h + 0.55 * scale;
+      g.add(plate);
+      const stem = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.02 * scale, 0.025 * scale, 0.45 * scale, 8),
+        stdMat(THREE, 0x4a5565, { metalness: 0.8, roughness: 0.3 })
+      );
+      stem.position.y = h + 0.28 * scale;
+      g.add(stem);
+      const puck = new THREE.Mesh(
+        new THREE.CylinderGeometry(w * 0.48, w * 0.42, d, 24),
+        trimMat
+      );
+      puck.position.y = h / 2;
+      g.add(puck);
+    } else if (profile.mount === "table") {
+      const base = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.12 * scale, 0.14 * scale, 0.03 * scale, 18),
+        frameMat
+      );
+      base.position.y = 0.015;
+      g.add(base);
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.03 * scale, 0.04 * scale, h * 0.35, 10),
+        frameMat
+      );
+      post.position.y = h * 0.2;
+      g.add(post);
+      const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), trimMat);
+      body.position.set(0, h * 0.55, d * 0.15);
+      body.rotation.x = -(profile.tilt || 0.2);
+      g.add(body);
+    } else if (profile.mount === "rack") {
+      rackEars(THREE, g, h, d, theme);
+      const body = new THREE.Mesh(new THREE.BoxGeometry(w * 0.92, h * 0.92, d), frameMat);
+      body.position.set(0, h / 2, 0);
+      g.add(body);
+      statusLights(THREE, g, h * 0.82, d / 2 + 0.02, theme);
+    } else {
+      const shelf = new THREE.Mesh(new THREE.BoxGeometry(w, h * 0.85, d), frameMat);
+      shelf.position.set(0, h * 0.42, 0);
+      g.add(shelf);
+    }
+
+    const faceZ = profile.mount === "wall" ? d * 0.2 + 0.006
+      : profile.mount === "rack" ? d / 2 + 0.008
+      : profile.mount === "ceiling" ? d / 2 + 0.006
+      : d * 0.28 + 0.006;
+    const faceY = profile.mount === "table" ? h * 0.55 : h / 2;
+    const face = new THREE.Mesh(
+      new THREE.PlaneGeometry(w * 0.9, h * 0.9),
+      photoFaceMat(THREE, photoTex, 0.15)
+    );
+    face.position.set(0, faceY, faceZ);
+    if (profile.mount === "table") face.rotation.x = -(profile.tilt || 0.2);
+    face.userData.isPhotoFace = true;
+    g.add(face);
+    g.userData.photoMesh = face;
+    return fitGroup(g, Math.max(h, 0.35) * 1.05);
   }
 
   function portRow(THREE, parent, count, y, z, w, theme) {
@@ -204,7 +352,7 @@
   }
 
   function buildSwitch1u(THREE, opts) {
-    const { photoTex, theme, scale } = opts;
+    const { photoTex, theme, scale, kind } = opts;
     const g = new THREE.Group();
     const w = 1.0 * scale, h = 0.22 * scale, d = 0.72 * scale;
     const chassis = new THREE.Mesh(
@@ -222,7 +370,12 @@
     portRow(THREE, g, 12, h * 0.35, d / 2 + 0.025, w * 0.85, theme);
     rackEars(THREE, g, h, d * 0.9, theme);
     statusLights(THREE, g, h * 0.78, d / 2 + 0.03, theme);
-    const photo = addPhotoInset(THREE, g, photoTex, w * 0.35, h * 0.55, d / 2 + 0.022, theme);
+    const photo = photoTex
+      ? addPhotoInset(THREE, g, photoTex,
+        kind === "network" ? w * 0.5 : w * 0.35,
+        kind === "network" ? h * 0.82 : h * 0.55,
+        d / 2 + 0.022, theme, kind === "network")
+      : null;
     g.userData.photoMesh = photo;
     return fitGroup(g, 0.35 * scale);
   }
@@ -439,23 +592,38 @@
   }
 
   function buildDisplayPanel(THREE, opts) {
-    const { photoTex, theme, scale } = opts;
+    const { photoTex, theme, scale, ch } = opts;
     const g = new THREE.Group();
-    const w = 1.6 * scale, h = 0.95 * scale, d = 0.06 * scale;
+    const isLarge = /display-86|86/.test(ch?.stencilId || ch?.label || "");
+    const w = (isLarge ? 1.85 : 1.55) * scale;
+    const h = (isLarge ? 1.05 : 0.88) * scale;
+    const d = 0.06 * scale;
     const screen = new THREE.Mesh(
       new THREE.BoxGeometry(w, h, d),
       stdMat(THREE, 0x0a1420, { metalness: 0.85, roughness: 0.18 })
     );
-    screen.position.y = 0.95 * scale;
+    screen.position.y = h / 2 + 0.08 * scale;
     g.add(screen);
-    const face = new THREE.Mesh(
-      new THREE.PlaneGeometry(w * 0.94, h * 0.9),
-      photoTex
-        ? stdMat(THREE, 0xffffff, { map: photoTex, metalness: 0.05, roughness: 0.35, emissive: 0xffffff, emissiveIntensity: 0.15 })
-        : stdMat(THREE, 0x1a3050, { emissive: theme.accent, emissiveIntensity: 0.2 })
+    const bezel = new THREE.Mesh(
+      new THREE.BoxGeometry(w * 1.03, h * 1.03, d * 0.4),
+      stdMat(THREE, 0x080e18, { metalness: 0.92, roughness: 0.15 })
     );
-    face.position.set(0, 0.95 * scale, d / 2 + 0.005);
-    if (photoTex && face.material.emissiveMap !== undefined) face.material.emissiveMap = photoTex;
+    bezel.position.set(0, h / 2 + 0.08 * scale, -d * 0.15);
+    g.add(bezel);
+    let faceMat;
+    if (photoTex) {
+      faceMat = photoFaceMat(THREE, photoTex, 0.16);
+    } else {
+      const glowTex = makeDisplayGlowTexture(THREE);
+      faceMat = stdMat(THREE, 0xffffff, {
+        map: glowTex, metalness: 0.05, roughness: 0.35,
+        emissive: 0x1a4060, emissiveIntensity: 0.28
+      });
+      if (faceMat.emissiveMap !== undefined) faceMat.emissiveMap = glowTex;
+    }
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.94, h * 0.9), faceMat);
+    face.position.set(0, h / 2 + 0.08 * scale, d / 2 + 0.005);
+    face.userData.isPhotoFace = true;
     g.add(face);
     const neck = new THREE.Mesh(
       new THREE.BoxGeometry(0.12 * scale, 0.35 * scale, 0.1 * scale),
@@ -470,7 +638,7 @@
     base.position.set(0, 0.02, 0.05 * scale);
     g.add(base);
     g.userData.photoMesh = face;
-    return fitGroup(g, 1.75 * scale);
+    return fitGroup(g, (isLarge ? 1.95 : 1.65) * scale);
   }
 
   function buildCeilingMic(THREE, opts) {
@@ -665,7 +833,14 @@
     generic: buildGeneric
   };
 
-  function targetHeight(template, kind) {
+  function networkLayerScale(ch, def) {
+    const layer = (ch?.zone || def?.layer || "access").toLowerCase();
+    if (layer === "core" || layer === "distribution" || layer === "dc") return 1.12;
+    if (layer === "wan" || layer === "security") return 0.94;
+    return 1;
+  }
+
+  function networkLayerScale(ch, def) {
     const map = {
       switch: 0.35, "switch-chassis": 1.65, router: 0.4, firewall: 0.38, nexus: 0.45,
       server: 0.65, ap: 0.55, codec: 0.45, camera: 0.38, touch: 1.1, display: 1.75,
@@ -691,12 +866,20 @@
       scale = 1, theme = { accent: 0x02c8ff }, lift = 0
     } = opts;
     const template = resolveTemplate(ch, def);
-    const buildOpts = { photoTex, theme, scale, kind, lift, ch, def, template };
+    const sid = ch?.stencilId || "";
+    const layerScale = kind === "network" ? networkLayerScale(ch, def) : 1;
+    const buildOpts = {
+      photoTex, theme, scale: scale * layerScale, kind, lift, ch, def, template
+    };
 
-    let model = await tryLoadGltf(T, template, ch.stencilId, scale);
+    let model = await tryLoadGltf(T, template, sid, scale);
     if (!model) {
-      const fn = PROCEDURAL[template] || PROCEDURAL.generic;
-      model = fn(T, buildOpts);
+      if (kind === "room" && photoTex && PHOTO_SHELL_STENCILS.has(sid)) {
+        model = buildPhotoShell(T, buildOpts);
+      } else {
+        const fn = PROCEDURAL[template] || PROCEDURAL.generic;
+        model = fn(T, buildOpts);
+      }
     }
 
     const wrap = new T.Group();
