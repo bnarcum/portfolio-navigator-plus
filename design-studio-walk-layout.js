@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  const NET_SCALE = 0.042;
+  const NET_SCALE = 0.052;
   const ROOM_SCALE = 0.048;
   const NET_LAYER_Z = { wan: -16, security: -11, core: -5, distribution: 1, dc: 3, access: 9, mgmt: 5, collab: 13 };
   const NET_LAYER_ORDER = ["wan", "security", "core", "distribution", "dc", "access", "mgmt", "collab"];
@@ -133,11 +133,11 @@
       list.forEach((ch, i) => {
         const kind = deviceKind(ch.stencilId, ch.label, ch.zone);
         const baseZ = frame.layerZ[layer] ?? i * 2;
-        const spread = (i - (list.length - 1) / 2) * 2.4;
+        const spread = (i - (list.length - 1) / 2) * 3.0;
         ch.semantic = { kind, mode: "network", layer, why: placementWhy(kind, layer, layer, "network") };
         ch.anchored = true;
-        ch.pos.z = baseZ + spread * 0.35;
-        ch.pos.x = ch.pos.x * 0.92 + spread * 0.15;
+        ch.pos.z = baseZ + spread * 0.45;
+        ch.pos.x = ch.pos.x * 0.92 + spread * 0.2;
         if (kind === "ap") {
           ch.pos.y = 2.85;
           ch.mount = "ceiling";
@@ -157,7 +157,7 @@
   }
 
   function constrainedRelax(chambers, kind) {
-    const minSep = kind === "room" ? 3.6 : 2.8;
+    const minSep = kind === "room" ? 3.6 : 3.4;
     const maxStep = 0.22;
     const list = chambers.filter(c => c.pos && Number.isFinite(c.pos.x));
     for (let iter = 0; iter < 32; iter++) {
@@ -197,7 +197,7 @@
   }
 
   function relaxWorldPositions(positions, nodes, kind) {
-    const minSep = kind === "room" ? 3.95 : 3.15;
+    const minSep = kind === "room" ? 3.95 : 3.6;
     const maxStep = kind === "room" ? 0.28 : 0.22;
     const ids = nodes.map(n => n.id).filter(id => positions[id]);
     if (ids.length < 2) return;

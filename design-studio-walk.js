@@ -2536,6 +2536,7 @@
       if (e.type === "keydown") {
         if (e.key === "Escape") {
           e.preventDefault();
+          e.stopPropagation();
           const panel = document.getElementById("ds-field-panel");
           if (panel && !panel.hidden) {
             window.__DS_FIELD_PANEL?.close?.();

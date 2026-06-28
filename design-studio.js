@@ -936,6 +936,7 @@
         if (e.key === "]" && this.tab === "room") this.cycleRoom(1);
         if (e.key === "/") { e.preventDefault(); $("ds-palette-search")?.focus(); }
         if (e.key === "Escape") {
+          if (window.__DS_WALK?.isOpen?.()) return;
           if (document.getElementById("ds-gallery-modal")?.hidden === false) this.closeGallery();
           else if (this.selectedNodes.size || this.selectedNode || this.selectedLink) {
             this.selectedNodes.clear(); this.selectedNode = null; this.selectedLink = null;
