@@ -1,5 +1,5 @@
 /**
- * Design Studio premium — story chapters, tour, share, portfolio grid, validation UX
+ * Design Studio premium — tour, share, portfolio grid, validation UX
  */
 (function () {
   "use strict";
@@ -191,127 +191,6 @@
     });
   }
 
-  const STORY_CHAPTERS = [
-    { id: "executive", title: "Executive summary", short: "Executive", tab: "intent",
-      blurb: "The One Cisco vision, opportunity brief, and design rationale with cited CVD / CT guides.",
-      action: "Skim the brief and the validated designs it cites." },
-    { id: "architecture", title: "Network architecture", short: "Network", tab: "network",
-      blurb: "A validated campus, WAN, or data-center topology aligned to Cisco reference designs.",
-      action: "Trace the core → distribution → access path on the canvas." },
-    { id: "collaboration", title: "Collaboration spaces", short: "Rooms", tab: "room",
-      blurb: "Every meeting space — displays, codecs, PoE, and Cisco Tested room layouts.",
-      action: "Open a room and walk it in 3D to see how devices connect." },
-    { id: "commercial", title: "Commercial readiness", short: "Commercial", tab: "network", panel: "bom",
-      blurb: "Bill of materials, validation score, PoE budget, and one-click CCW export.",
-      action: "Check the validation score, then export the BOM to CCW." }
-  ];
-
-  function storyBarHost() {
-    let host = document.getElementById("ds-story-host");
-    if (!host) {
-      host = document.createElement("div");
-      host.id = "ds-story-host";
-      document.getElementById("ds-header")?.insertAdjacentElement("afterend", host);
-    }
-    return host;
-  }
-
-  function renderStoryBar(studio) {
-    const host = storyBarHost();
-    if (!studio.storyMode) {
-      host.innerHTML = "";
-      host.hidden = true;
-      return;
-    }
-    host.hidden = false;
-    const ch = STORY_CHAPTERS[studio.storyChapter] || STORY_CHAPTERS[0];
-    const isFirst = studio.storyChapter === 0;
-    const isLast = studio.storyChapter === STORY_CHAPTERS.length - 1;
-    const steps = STORY_CHAPTERS.map((c, i) => {
-      const done = i < studio.storyChapter;
-      const active = i === studio.storyChapter;
-      const cls = done ? " done" : active ? " active" : "";
-      return `<button type="button" class="ds-story-step${cls}" data-chapter="${i}" title="${esc(c.title)}" aria-current="${active ? "step" : "false"}">
-        <span class="ds-story-dot">${done ? "✓" : i + 1}</span>
-        <span class="ds-story-step-label">${esc(c.short || c.title)}</span>
-      </button>`;
-    }).join("");
-    host.innerHTML = `<div id="ds-story-bar" role="navigation" aria-label="Story mode">
-      <div class="ds-story-rail">
-        <span class="ds-story-label">Story</span>
-        <div class="ds-story-steps">${steps}</div>
-        <button type="button" class="ds-story-exit" title="Exit story mode">Exit ✕</button>
-      </div>
-      <div class="ds-story-detail">
-        <div class="ds-story-copy">
-          <strong class="ds-story-title">${esc(ch.title)}</strong>
-          <span class="ds-story-blurb">${esc(ch.blurb)}</span>
-          ${ch.action ? `<span class="ds-story-action"><b>Do this</b>${esc(ch.action)}</span>` : ""}
-        </div>
-        <div class="ds-story-nav">
-          <button type="button" class="ds-btn ds-story-back"${isFirst ? " disabled" : ""}>← Back</button>
-          <span class="ds-story-progress">${studio.storyChapter + 1} / ${STORY_CHAPTERS.length}</span>
-          <button type="button" class="ds-btn primary ds-story-next">${isLast ? "Finish ✓" : "Next →"}</button>
-        </div>
-      </div>
-    </div>`;
-    host.querySelector(".ds-story-exit")?.addEventListener("click", () => exitStory(studio));
-    host.querySelector(".ds-story-back")?.addEventListener("click", () => {
-      if (!isFirst) goStoryChapter(studio, studio.storyChapter - 1);
-    });
-    host.querySelector(".ds-story-next")?.addEventListener("click", () => {
-      if (isLast) exitStory(studio);
-      else goStoryChapter(studio, studio.storyChapter + 1);
-    });
-    host.querySelectorAll(".ds-story-step").forEach(btn => {
-      btn.addEventListener("click", () => goStoryChapter(studio, parseInt(btn.dataset.chapter, 10)));
-    });
-  }
-
-  function goStoryChapter(studio, idx) {
-    const n = STORY_CHAPTERS.length;
-    studio.storyChapter = ((idx % n) + n) % n;
-    const ch = STORY_CHAPTERS[studio.storyChapter];
-    studio.setTab(ch.tab);
-    if (ch.panel) {
-      studio.panelTab = ch.panel;
-      $$("#ds-panel-tabs button").forEach(b => b.classList.toggle("active", b.dataset.panel === ch.panel));
-      studio.renderPanel();
-    }
-    if (ch.tab === "room" && studio.design.rooms.length) {
-      const i = ch.id === "collaboration" ? Math.min(5, studio.design.rooms.length - 1) : 0;
-      studio.switchToRoom(studio.design.rooms[i]?.id);
-    }
-    studio.el?.classList.add("ds-present-mode");
-    renderStoryBar(studio);
-    requestAnimationFrame(() => studio.fitView());
-  }
-
-  function startStory(studio) {
-    studio.storyMode = true;
-    studio.storyChapter = 0;
-    studio.presentation = true;
-    studio.el?.classList.add("ds-present-mode");
-    document.getElementById("ds-present")?.classList.add("active");
-    goStoryChapter(studio, 0);
-    studio.toast?.("Use Next step → or arrow keys to walk the story");
-  }
-
-  function exitStory(studio) {
-    studio.storyMode = false;
-    studio.presentation = false;
-    studio.el?.classList.remove("ds-present-mode");
-    document.getElementById("ds-present")?.classList.remove("active");
-    const host = document.getElementById("ds-story-host");
-    if (host) { host.innerHTML = ""; host.hidden = true; }
-    studio.fitView();
-  }
-
-  function toggleStory(studio) {
-    if (studio.storyMode) exitStory(studio);
-    else startStory(studio);
-  }
-
   const TOUR_STEPS = [
     { sel: "[data-pillar='workplaces']", text: "Start with a One Cisco pillar — workplaces loads an 18-room hybrid campus brief." },
     { sel: "#ds-intent-chips", text: "Parsed signals show room mix and architecture before you generate." },
@@ -469,7 +348,6 @@
     if (INT?.parseIntent) renderRoomMixEditor(studio, INT.parseIntent(text));
     renderRoomViewToggle(studio);
     renderPortfolioOverlay(studio);
-    renderStoryBar(studio);
   }
 
   function $$ (sel, root) { return [...(root || document).querySelectorAll(sel)]; }
@@ -477,7 +355,7 @@
   window.__DS_PREMIUM = {
     scoreState, isDesignGenerated, staleState, refresh, renderStaleBanner, renderRoomMixEditor,
     renderRoomViewToggle, renderPortfolioOverlay,
-    startStory, exitStory, toggleStory, goStoryChapter, runTour,
+    runTour,
     validationPanelExtras, exportDesignBundle, importDesignBundle, exportCustomerSvg,
     plannerSyncHint, renderCompare, highlightBomPid, roomPortfolioGrid
   };

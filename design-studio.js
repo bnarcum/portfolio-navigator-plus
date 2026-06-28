@@ -599,8 +599,6 @@
       this.lastPillarId = null;
       this.customRoomMix = null;
       this.roomView = "diagram";
-      this.storyMode = false;
-      this.storyChapter = 0;
       this.highlightPid = null;
       this.staleBannerDismissed = null;
       this.history = new History(this); this.el = null;
@@ -624,7 +622,6 @@
           </div>
           <span class="ds-spacer"></span>
           <button type="button" class="ds-btn" id="ds-gallery" title="Template gallery">Gallery</button>
-          <button type="button" class="ds-btn" id="ds-present" title="Story walkthrough — use Next step or arrow keys">Story</button>
           <button type="button" class="ds-btn" id="ds-tour" title="Start guided tour (optional)">Tour</button>
           <button type="button" class="ds-btn" id="ds-share-design" title="Shareable .cpn-design bundle">Share</button>
           <button type="button" class="ds-btn" id="ds-customer-export" title="Customer-safe SVG export">Customer SVG</button>
@@ -862,10 +859,6 @@
         $$(".ds-gallery-tabs button").forEach(x => x.classList.toggle("active", x.dataset.gtab === b.dataset.gtab));
         this.renderGalleryGrid(b.dataset.gtab);
       });
-      $("ds-present").onclick = () => {
-        if (window.__DS_PREMIUM?.toggleStory) window.__DS_PREMIUM.toggleStory(this);
-        else this.togglePresentation();
-      };
       $("ds-tour")?.addEventListener("click", () => window.__DS_PREMIUM?.runTour?.(this, 0));
       $("ds-share-design")?.addEventListener("click", () => window.__DS_PREMIUM?.exportDesignBundle?.(this));
       $("ds-customer-export")?.addEventListener("click", () => window.__DS_PREMIUM?.exportCustomerSvg?.(this));
@@ -937,12 +930,6 @@
         if ((e.key === "z" && e.shiftKey && mod) || (e.key === "y" && e.ctrlKey)) { e.preventDefault(); this.history.redo(); }
         if (e.key === "l") this.toggleLinkMode();
         if (e.key === "f" && !(e.metaKey || e.ctrlKey)) this.fitView();
-        if (e.key === "p" && !(e.metaKey || e.ctrlKey)) {
-          if (window.__DS_PREMIUM?.toggleStory) window.__DS_PREMIUM.toggleStory(this);
-          else this.togglePresentation();
-        }
-        if (this.storyMode && e.key === "ArrowLeft") { e.preventDefault(); window.__DS_PREMIUM?.goStoryChapter?.(this, this.storyChapter - 1); }
-        if (this.storyMode && e.key === "ArrowRight") { e.preventDefault(); window.__DS_PREMIUM?.goStoryChapter?.(this, this.storyChapter + 1); }
         if (e.key === "[" && this.tab === "room") this.cycleRoom(-1);
         if (e.key === "]" && this.tab === "room") this.cycleRoom(1);
         if (e.key === "/") { e.preventDefault(); $("ds-palette-search")?.focus(); }
@@ -1135,14 +1122,6 @@
       this.switchToRoom(next.id);
     }
 
-    togglePresentation() {
-      this.presentation = !this.presentation;
-      this.el.classList.toggle("ds-present-mode", this.presentation);
-      document.getElementById("ds-present").classList.toggle("active", this.presentation);
-      this.renderCanvas();
-      if (this.presentation) this.fitView();
-    }
-
     saveSnapshot() {
       const name = prompt("Snapshot name:", "Review " + new Date().toLocaleDateString());
       if (!name) return;
@@ -1207,7 +1186,6 @@
     close() {
       saveDesign(this.design);
       window.__DS_PREMIUM?.plannerSyncHint?.(this);
-      if (this.storyMode) window.__DS_PREMIUM?.exitStory?.(this);
       this.el?.classList.remove("open");
       this.el?.classList.remove("ds-present-mode");
       document.body.classList.remove("design-studio-open");

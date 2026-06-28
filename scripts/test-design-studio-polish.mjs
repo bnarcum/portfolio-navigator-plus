@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** Visual/data polish checks: button styling, textarea font, label spacing,
- *  Board Pro network uplink (2D + 3D walk), story stepper. Saves screenshots. */
+ *  Board Pro network uplink (2D + 3D walk). Saves screenshots. */
 import { chromium } from "playwright";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -18,7 +18,7 @@ try {
   await page.goto("http://127.0.0.1:8765/cisco-portfolio-navigator.html", { waitUntil: "load", timeout: 60000 });
   await page.waitForFunction(() => window.__cpnV2?.APP_VERSION, { timeout: 60000 });
   const version = await page.evaluate(() => window.__cpnV2.APP_VERSION);
-  if (version !== "2.73.2") errors.push(`version ${version} != 2.73.2`);
+  if (version !== "2.74.0") errors.push(`version ${version} != 2.74.0`);
 
   await page.click("#design-studio-btn");
   await page.waitForSelector("#design-studio.open", { timeout: 8000 });
@@ -124,17 +124,15 @@ try {
   await page.waitForTimeout(400);
   await page.screenshot({ path: path.join(out, "polish-room.png") });
 
-  // Story stepper present with dots.
-  await page.evaluate(() => window.__DS_PREMIUM?.toggleStory?.(window.DesignStudio.instance));
-  await page.waitForTimeout(400);
+  // Story mode removed — ensure no residual Story button / stepper remains.
   const story = await page.evaluate(() => ({
+    btn: !!document.getElementById("ds-present"),
     dots: document.querySelectorAll(".ds-story-step .ds-story-dot").length,
-    active: document.querySelectorAll(".ds-story-step.active").length
+    leak: typeof window.__DS_PREMIUM?.toggleStory
   }));
-  if (story.dots < 3) errors.push(`story stepper dots ${story.dots}`);
-  await page.screenshot({ path: path.join(out, "polish-story.png") });
-  await page.evaluate(() => window.__DS_PREMIUM?.exitStory?.(window.DesignStudio.instance) || document.querySelector(".ds-story-exit")?.click());
-  await page.waitForTimeout(300);
+  if (story.btn) errors.push("Story button still present");
+  if (story.dots > 0) errors.push(`story stepper still renders ${story.dots} dots`);
+  if (story.leak !== "undefined") errors.push("toggleStory still exported");
 
   // 3D walk in the boardroom — open via API (toolbar button hides between tab states).
   await page.evaluate(() => window.DesignStudio.instance.setTab("room"));
@@ -206,7 +204,7 @@ try {
     process.exit(1);
   }
   console.log("Design Studio polish test OK");
-  console.log(`  codec uplinks: ${wiring.boardWithUplink}/${wiring.boardTotal} · story dots: ${story.dots} · walk pods: ${walk.pods}`);
+  console.log(`  codec uplinks: ${wiring.boardWithUplink}/${wiring.boardTotal} · walk pods: ${walk.pods}`);
 } finally {
   await browser.close();
 }
