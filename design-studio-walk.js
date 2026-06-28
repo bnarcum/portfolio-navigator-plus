@@ -40,6 +40,7 @@
   const FLY_DUR_MAX = 6.0;
   const FLY_DIST_SCALE = 0.52;
   const WALK_ONBOARD_KEY = "cpn-ds-walk-onboarded";
+  const WALK_INSIGHTS_OFF_KEY = "cpn-ds-walk-insights-off";
 
   const MOVE_KEYS = new Set(["w", "a", "s", "d", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 
@@ -637,17 +638,17 @@
     }
 
     // Packets flow from source → target along the curve (data direction).
-    const pktR = roomWalk ? 0.08 : 0.12;
-    const haloR = roomWalk ? 0.14 : 0.22;
+    const pktR = roomWalk ? 0.16 : 0.12;
+    const haloR = roomWalk ? 0.3 : 0.22;
     const packetCount = Math.max(2, Math.min(5, Math.round(len / 5)));
     for (let i = 0; i < packetCount; i++) {
       const pkt = new THREE.Mesh(
-        new THREE.SphereGeometry(pktR, 10, 10),
+        new THREE.SphereGeometry(pktR, 12, 12),
         new THREE.MeshBasicMaterial({ color: 0xffffff })
       );
       const halo = new THREE.Mesh(
-        new THREE.SphereGeometry(haloR, 10, 10),
-        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: roomWalk ? 0.28 : 0.35 })
+        new THREE.SphereGeometry(haloR, 12, 12),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35 })
       );
       pkt.add(halo);
       pkt.userData = { packet: true, t: i / packetCount };
@@ -1058,7 +1059,7 @@
     setStatus("Loading devices…");
     loadDevicePods(THREE, graph, 1).then(() => {
       applySceneShadows();
-      if (window.__cpnAutoOutcomes && !state.outcomes && graph.kind === "room") {
+      if (window.__cpnAutoOutcomes && !state.outcomes && graph.kind === "room" && !insightsUserDismissed()) {
         window.__cpnAutoOutcomes = false;
         toggleOutcomes();
       }
@@ -2306,8 +2307,8 @@
     const people = [];
     const n = Math.max(3, Math.round(st.seats * 0.55));
     for (let i = 0; i < n; i++) {
-      const dot = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 10), new THREE.MeshBasicMaterial({ color: 0x02c8ff }));
-      const halo = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.42, 18), new THREE.MeshBasicMaterial({ color: 0x02c8ff, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false }));
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 10), new THREE.MeshBasicMaterial({ color: 0x02c8ff, transparent: true, opacity: 0.82 }));
+      const halo = new THREE.Mesh(new THREE.RingGeometry(0.18, 0.26, 18), new THREE.MeshBasicMaterial({ color: 0x02c8ff, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
       halo.rotation.x = -Math.PI / 2; halo.position.y = -0.8; dot.add(halo);
       g.add(dot);
       people.push({ mesh: dot, ang0: Math.random() * Math.PI * 2, baseR: (0.25 + Math.random() * 0.6) * radius, speed: 0.15 + Math.random() * 0.35, phase: Math.random() * 6 });
@@ -2367,28 +2368,42 @@
     if (g.userData.central) g.userData.central.position.y = 3.4 + Math.sin(t * 0.8) * 0.08;
   }
 
+  function insightsUserDismissed() {
+    try { return sessionStorage.getItem(WALK_INSIGHTS_OFF_KEY) === "1"; } catch (e) { return false; }
+  }
+
+  function syncOutcomesHud() {
+    const btn = state.overlay?.querySelector('[data-action="outcomes"]');
+    const panel = document.getElementById("ds-walk-outcomes");
+    if (!btn) return;
+    if (state.outcomes) {
+      btn.classList.add("active");
+      btn.textContent = "Insights: on";
+      panel?.removeAttribute("hidden");
+    } else {
+      btn.classList.remove("active");
+      btn.textContent = "Insights";
+      panel?.setAttribute("hidden", "");
+    }
+  }
+
   function toggleOutcomes() {
     if (state.graph?.kind !== "room") {
       setStatus("Insights overlay is available in room walk only");
       return;
     }
     state.outcomes = !state.outcomes;
-    const btn = state.overlay?.querySelector('[data-action="outcomes"]');
-    const panel = document.getElementById("ds-walk-outcomes");
     if (state.outcomes) {
+      try { sessionStorage.removeItem(WALK_INSIGHTS_OFF_KEY); } catch (e) { /* ignore */ }
       if (!state.outcomeGroup) buildOutcomeOverlay(state.THREE);
-      btn?.classList.add("active");
-      if (btn) btn.textContent = "Insights: on";
-      panel?.removeAttribute("hidden");
       renderOutcomeReadout();
       setStatus("Simulated occupancy, Detect & Locate, IoT");
     } else {
+      try { sessionStorage.setItem(WALK_INSIGHTS_OFF_KEY, "1"); } catch (e) { /* ignore */ }
       removeOutcomeOverlay();
-      btn?.classList.remove("active");
-      if (btn) btn.textContent = "Insights";
-      panel?.setAttribute("hidden", "");
       setStatus("Insights off");
     }
+    syncOutcomesHud();
   }
 
   function layerFilterHtml(tab) {
@@ -2483,7 +2498,7 @@
       const btn = e.target.closest("[data-action]");
       if (!btn) return;
       const a = btn.dataset.action;
-      if (a === "outcomes") toggleOutcomes();
+      if (a === "outcomes") { e.preventDefault(); e.stopPropagation(); toggleOutcomes(); }
       else if (a === "wayfind-open") openWayfindMenu();
       else if (a === "wayfind-close") closeWayfindMenu();
       else if (a === "wayfind-stop") { clearWayfinding(); setStatus("Wayfinding stopped"); }
@@ -2654,6 +2669,7 @@
     removeOutcomeOverlay();
     state.outcomes = false;
     state.outcomeStats = null;
+    syncOutcomesHud();
     state._qualityDropped = false;
     state._fpsAcc = 0; state._fpsN = 0; state._miniT = 0; state._outcomeT = 0;
     if (state.envRT) { state.envRT.dispose?.(); state.envRT = null; }
@@ -2737,6 +2753,7 @@
       </div>
       ${hudPanelsHtml()}`;
     bindHud();
+    syncOutcomesHud();
 
     const canvas = overlay.querySelector("#ds-walk-canvas");
     bindInput(canvas);
@@ -2785,6 +2802,7 @@
       await initCorridor(studio, canvas, graph);
       state.chamberWorldPos = chamberWorldPos;
       window.__DS_FIELD_PANEL?.bindWalk?.(state);
+      syncOutcomesHud();
       setStatus(`Switched to ${graph.kind} layout`);
       loop();
     } catch (err) {
