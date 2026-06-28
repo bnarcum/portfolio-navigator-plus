@@ -18,7 +18,7 @@ try {
   await page.goto("http://127.0.0.1:8765/cisco-portfolio-navigator.html", { waitUntil: "load", timeout: 60000 });
   await page.waitForFunction(() => window.__cpnV2?.APP_VERSION, { timeout: 60000 });
   const version = await page.evaluate(() => window.__cpnV2.APP_VERSION);
-  if (version !== "2.72.2") errors.push(`version ${version} != 2.72.2`);
+  if (version !== "2.73.0") errors.push(`version ${version} != 2.73.0`);
 
   await page.click("#design-studio-btn");
   await page.waitForSelector("#design-studio.open", { timeout: 8000 });
@@ -177,6 +177,23 @@ try {
   if (!wayfind.cardShown) errors.push("wayfinding card did not appear after picking a destination");
   if (!wayfind.hasStep || !wayfind.hasArrow) errors.push("wayfinding card missing step/arrow");
   await page.screenshot({ path: path.join(out, "polish-wayfind.png") });
+
+  // Cisco Spaces outcome overlay: toggling shows a live readout + a 3D group.
+  await page.evaluate(() => document.querySelector('#ds-walk-overlay [data-action="outcomes"]')?.click());
+  await page.waitForTimeout(700);
+  const outcome = await page.evaluate(() => {
+    const el = document.getElementById("ds-walk-outcomes");
+    const st = window.__DS_WALK?.debugStats?.() || {};
+    return {
+      shown: !!el && !el.hasAttribute("hidden"),
+      hasOccupancy: /occupancy/i.test(el?.textContent || ""),
+      objects: st.outcomeObjects || 0,
+      on: !!st.outcomes
+    };
+  });
+  if (!outcome.shown || !outcome.hasOccupancy) errors.push("Spaces outcome readout did not appear");
+  if (!outcome.on || outcome.objects < 3) errors.push(`Spaces outcome 3D overlay missing (objects=${outcome.objects})`);
+  await page.screenshot({ path: path.join(out, "polish-outcomes.png") });
   await page.evaluate(() => window.__DS_WALK?.close?.());
 
   if (errors.length) {

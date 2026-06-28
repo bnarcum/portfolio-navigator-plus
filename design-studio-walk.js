@@ -2033,9 +2033,171 @@
     window.__DS_MISSIONS?.animateWaypoints?.(state, state.clock);
     if (state.mission && !state.mission.complete) window.__DS_MISSIONS?.renderHud?.(state.mission);
     if (state.route) { animateRoute(state.clock); updateWayfind(); }
+    if (state.outcomes) {
+      animateOutcomes(state.clock);
+      if (state.clock - (state._outcomeT || 0) > 0.5) { state._outcomeT = state.clock; renderOutcomeReadout(); }
+    }
     drawMinimap();
     state.renderer.render(state.scene, state.camera);
     state.animId = requestAnimationFrame(loop);
+  }
+
+  // ---- Cisco Spaces outcome overlay ---------------------------------------
+  // Turns the walk into a live "what this space does" demo: occupancy heat field,
+  // wandering people, Detect-and-Locate + IoT cards floating over the real devices.
+  function outcomeStats() {
+    const chambers = state.chambers || [];
+    const cat = c => poiCategory(c)?.label;
+    const aps = chambers.filter(c => cat(c) === "Access Point");
+    const mics = chambers.filter(c => cat(c) === "Microphone");
+    const collab = chambers.filter(c => cat(c) === "Collaboration");
+    let seats = 0;
+    const room = state.studio?.design?.rooms?.find(r => r.id === state.studio.activeRoomId);
+    const m = String(room?.name || room?.template || "").match(/(\d+)\D+(\d+)?\s*seat/i);
+    if (m) seats = m[2] ? Math.round((+m[1] + +m[2]) / 2) : +m[1];
+    if (!seats) seats = Math.max(6, collab.length * 4 || chambers.length || 10);
+    return { seats, aps, mics, collab, deviceCount: chambers.length };
+  }
+
+  function makeOutcomeCard(THREE, title, value, sub, accent) {
+    const tex = makeCanvasTexture(THREE, (ctx, w, h) => {
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "rgba(8,20,34,0.92)";
+      roundRect(ctx, 6, 6, w - 12, h - 12, 22); ctx.fill();
+      ctx.strokeStyle = accent; ctx.lineWidth = 3; ctx.stroke();
+      ctx.fillStyle = accent;
+      ctx.font = "bold 22px system-ui,sans-serif"; ctx.textAlign = "left";
+      ctx.fillText(title.toUpperCase().slice(0, 22), 26, 40);
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 58px system-ui,sans-serif";
+      ctx.fillText(value, 26, 108);
+      if (sub) { ctx.fillStyle = "#9fc6e8"; ctx.font = "22px system-ui,sans-serif"; ctx.fillText(sub.slice(0, 28), 26, 144); }
+    }, 360, 172);
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+    const sp = new THREE.Sprite(mat);
+    sp.renderOrder = 20;
+    state.disposables.push(mat);
+    return sp;
+  }
+
+  function buildOutcomeOverlay(THREE) {
+    if (!THREE || !state.scene || !state.bounds) return;
+    const b = state.bounds;
+    const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
+    const radius = Math.max(6, Math.min(b.maxX - b.minX, b.maxZ - b.minZ) * 0.5 + 2);
+    const st = outcomeStats();
+    const g = new THREE.Group();
+    g.userData.noShadow = true;
+
+    const disc = new THREE.Mesh(
+      new THREE.CircleGeometry(radius, 48),
+      new THREE.MeshBasicMaterial({ color: 0x16b35a, transparent: true, opacity: 0.14, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending })
+    );
+    disc.rotation.x = -Math.PI / 2; disc.position.set(cx, 0.06, cz);
+    g.add(disc); g.userData.disc = disc;
+
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(radius * 0.93, radius, 48),
+      new THREE.MeshBasicMaterial({ color: 0x44e08c, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false })
+    );
+    ring.rotation.x = -Math.PI / 2; ring.position.set(cx, 0.07, cz);
+    g.add(ring); g.userData.ring = ring;
+
+    const people = [];
+    const n = Math.max(3, Math.round(st.seats * 0.55));
+    for (let i = 0; i < n; i++) {
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 10), new THREE.MeshBasicMaterial({ color: 0x02c8ff }));
+      const halo = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.42, 18), new THREE.MeshBasicMaterial({ color: 0x02c8ff, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false }));
+      halo.rotation.x = -Math.PI / 2; halo.position.y = -0.8; dot.add(halo);
+      g.add(dot);
+      people.push({ mesh: dot, ang0: Math.random() * Math.PI * 2, baseR: (0.25 + Math.random() * 0.6) * radius, speed: 0.15 + Math.random() * 0.35, phase: Math.random() * 6 });
+    }
+    g.userData.people = people;
+
+    const central = makeOutcomeCard(THREE, "Live Occupancy", "55%", `${n} of ${st.seats} seats`, "#16b35a");
+    central.position.set(cx, 3.4, cz); central.scale.set(3.8, 1.8, 1);
+    g.add(central); g.userData.central = central;
+
+    st.aps.slice(0, 3).forEach((ap, i) => {
+      const card = makeOutcomeCard(THREE, "Detect & Locate", String(n + 2 + i * 2), "Wi-Fi clients located", "#0A60FF");
+      const p = chamberWorldPos(ap); card.position.set(p.x, 2.7, p.z); card.scale.set(3.0, 1.45, 1);
+      g.add(card);
+    });
+    const envHost = st.mics[0] || st.collab[0];
+    if (envHost) {
+      const card = makeOutcomeCard(THREE, "Environment", "23°C", "CO₂ 540ppm · 41% RH", "#6F42C1");
+      const p = chamberWorldPos(envHost); card.position.set(p.x, 2.7, p.z); card.scale.set(3.0, 1.45, 1);
+      g.add(card);
+    }
+
+    state.scene.add(g);
+    state.outcomeGroup = g;
+    state.outcomeStats = st;
+  }
+
+  function removeOutcomeOverlay() {
+    const g = state.outcomeGroup;
+    if (!g) return;
+    state.scene?.remove(g);
+    g.traverse(o => {
+      o.geometry?.dispose?.();
+      const m = o.material;
+      if (Array.isArray(m)) m.forEach(x => x?.dispose?.()); else m?.dispose?.();
+    });
+    state.outcomeGroup = null;
+  }
+
+  function animateOutcomes(t) {
+    const g = state.outcomeGroup;
+    if (!g) return;
+    const b = state.bounds;
+    const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
+    const pulse = 0.5 + 0.5 * Math.sin(t * 1.6);
+    const occ = 0.55 + 0.12 * Math.sin(t * 0.4);
+    if (g.userData.ring) { g.userData.ring.material.opacity = 0.3 + 0.3 * pulse; g.userData.ring.scale.setScalar(1 + 0.02 * pulse); }
+    if (g.userData.disc) {
+      g.userData.disc.material.opacity = 0.10 + 0.06 * pulse;
+      g.userData.disc.material.color.setHSL(0.33 - occ * 0.18, 0.7, 0.45); // green→amber as it fills
+    }
+    (g.userData.people || []).forEach(p => {
+      const ang = p.ang0 + t * p.speed * 0.3;
+      const r = p.baseR + Math.sin(t * 0.5 + p.phase) * 0.7;
+      p.mesh.position.set(cx + Math.cos(ang) * r, 0.9 + Math.sin(t * 2 + p.phase) * 0.05, cz + Math.sin(ang) * r);
+    });
+    if (g.userData.central) g.userData.central.position.y = 3.4 + Math.sin(t * 0.8) * 0.08;
+  }
+
+  function renderOutcomeReadout() {
+    const el = document.getElementById("ds-walk-outcomes");
+    if (!el || !state.outcomeStats) return;
+    const st = state.outcomeStats, t = state.clock;
+    const occ = Math.round((0.55 + 0.12 * Math.sin(t * 0.4)) * 100);
+    const people = Math.max(0, Math.round(st.seats * occ / 100));
+    const clients = people + st.deviceCount + 2;
+    el.innerHTML = `<div class="ds-oc-head">CISCO SPACES · LIVE</div>
+      <div class="ds-oc-row"><span class="ds-oc-dot" style="background:#16b35a"></span><strong>${occ}%</strong> occupancy · ${people}/${st.seats} seats</div>
+      <div class="ds-oc-row"><span class="ds-oc-dot" style="background:#0A60FF"></span>Detect &amp; Locate · ${clients} Wi-Fi clients</div>
+      <div class="ds-oc-row"><span class="ds-oc-dot" style="background:#6F42C1"></span>IoT · 23°C · CO₂ 540ppm${st.mics.length ? ` · ${st.mics.length} mic${st.mics.length > 1 ? "s" : ""}` : ""}</div>`;
+  }
+
+  function toggleOutcomes() {
+    state.outcomes = !state.outcomes;
+    const btn = state.overlay?.querySelector('[data-action="outcomes"]');
+    const panel = document.getElementById("ds-walk-outcomes");
+    if (state.outcomes) {
+      if (!state.outcomeGroup) buildOutcomeOverlay(state.THREE);
+      btn?.classList.add("active");
+      if (btn) btn.textContent = "Outcomes: on";
+      panel?.removeAttribute("hidden");
+      renderOutcomeReadout();
+      setStatus("Cisco Spaces outcomes — live occupancy, Detect & Locate, IoT");
+    } else {
+      removeOutcomeOverlay();
+      btn?.classList.remove("active");
+      if (btn) btn.textContent = "Outcomes";
+      panel?.setAttribute("hidden", "");
+      setStatus("Outcomes overlay off");
+    }
   }
 
   function hudHtml(tab) {
@@ -2051,8 +2213,10 @@
         <button type="button" class="ds-walk-btn" data-action="trace-poe">Trace PoE link</button>
         <button type="button" class="ds-walk-btn" data-action="prev-dev" title="Previous device">‹ Prev</button>
         <button type="button" class="ds-walk-btn" data-action="next-dev" title="Next device">Next ›</button>
+        <button type="button" class="ds-walk-btn ds-walk-btn-spaces" data-action="outcomes" title="Cisco Spaces outcomes overlay — occupancy, Detect &amp; Locate, IoT">Outcomes</button>
         <button type="button" class="ds-walk-btn primary" data-action="inspect" title="Open device details">Inspect</button>
       </div>
+      <div class="ds-walk-outcomes" id="ds-walk-outcomes" hidden></div>
       <div class="ds-walk-wayfind" id="ds-walk-wayfind" hidden></div>
       <div class="ds-walk-links" id="ds-walk-links" hidden></div>
       <div class="ds-walk-legend" id="ds-walk-legend" hidden></div>
@@ -2094,6 +2258,7 @@
       if (!btn) return;
       const a = btn.dataset.action;
       if (a === "trace-av") startTrace("av");
+      else if (a === "outcomes") toggleOutcomes();
       else if (a === "wayfind-open") openWayfindMenu();
       else if (a === "wayfind-close") closeWayfindMenu();
       else if (a === "wayfind-stop") { clearWayfinding(); setStatus("Wayfinding stopped"); }
@@ -2300,6 +2465,9 @@
 
   function disposeScene() {
     clearWayfinding();
+    removeOutcomeOverlay();
+    state.outcomes = false;
+    state.outcomeStats = null;
     if (state.envRT) { state.envRT.dispose?.(); state.envRT = null; }
     if (state.scene) state.scene.environment = null;
     if (state.viewmodel && state.camera) state.camera.remove(state.viewmodel);
@@ -2489,7 +2657,9 @@
       hasRenderer: !!state.renderer,
       photos: state.devicePods.filter(p => p.userData?.chamber?.photoUrl).length,
       mission: !!state.mission,
-      missionComplete: !!state.mission?.complete
+      missionComplete: !!state.mission?.complete,
+      outcomes: !!state.outcomes,
+      outcomeObjects: state.outcomeGroup?.children?.length || 0
     };
   }
 
