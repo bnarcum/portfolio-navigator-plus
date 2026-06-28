@@ -8,7 +8,11 @@
   const ROOM_TYPE_LABELS = {
     boardroom: "Boardroom", conference: "Conference", huddle: "Huddle", training: "Training",
     executive: "Executive", teamsRoom: "Teams", zoomRoom: "Zoom", ctMediumDualDisplay: "Dual display",
-    ctSmallCollab: "Small collab", divisible: "Divisible"
+    ctSmallCollab: "Small collab", divisible: "Divisible",
+    smallRoom: "Small room", largeRoom: "Large room", largeRoomConfidence: "Large + confidence",
+    auditorium: "Auditorium", focusRoom: "Focus", openDesk: "Open desk",
+    deskEssentials: "Desk essentials", deskVoice: "Desk voice", deskHybrid: "Desk hybrid",
+    deskAllInOne: "Desk all-in-one", huddleByod: "Huddle BYOD"
   };
 
   function esc(s) {

@@ -105,6 +105,17 @@
 
   function mapRoomTypePhrase(phrase) {
     const p = phrase.toLowerCase();
+    if (/auditorium|town\s*hall/.test(p)) return "auditorium";
+    if (/focus(?:\s+room)?/.test(p)) return "focusRoom";
+    if (/open\s+desk/.test(p)) return "openDesk";
+    if (/huddle\s+byod|byod\s+huddle/.test(p)) return "huddleByod";
+    if (/confidence\s+monitor|large\s+room\s+\+/.test(p)) return "largeRoomConfidence";
+    if (/large\s+room/.test(p)) return "largeRoom";
+    if (/small\s+room/.test(p)) return "smallRoom";
+    if (/desk\s+essentials?/.test(p)) return "deskEssentials";
+    if (/desk\s+voice|voice[\s-]optimized/.test(p)) return "deskVoice";
+    if (/desk\s+hybrid|hybrid\s+desk/.test(p)) return "deskHybrid";
+    if (/all[\s-]in[\s-]one\s+desk|desk\s+all[\s-]in[\s-]one/.test(p)) return "deskAllInOne";
     if (/boardroom/.test(p)) return "boardroom";
     if (/huddle/.test(p)) return "huddle";
     if (/training|classroom/.test(p)) return "training";
@@ -148,7 +159,7 @@
   function parseRoomMix(raw) {
     const t = raw.toLowerCase();
     const mix = [];
-    const typeRe = /(\d+)\s*(boardrooms?|conferences?(?:\s+rooms?)?|huddles?|training(?:\s+rooms?)?|executive(?:\s+offices?)?|teams(?:\s+rooms?)?|zoom(?:\s+rooms?)?)/gi;
+    const typeRe = /(\d+)\s*(auditoriums?|town\s*halls?|focus(?:\s+rooms?)?|open\s+desks?|large\s+rooms?|small\s+rooms?|boardrooms?|conferences?(?:\s+rooms?)?|huddles?|training(?:\s+rooms?)?|executive(?:\s+offices?)?|teams(?:\s+rooms?)?|zoom(?:\s+rooms?)?|desk\s+essentials?|desk\s+voice|desk\s+hybrid|all[\s-]in[\s-]one\s+desks?)/gi;
     let m;
     while ((m = typeRe.exec(raw)) !== null) {
       mix.push({ key: mapRoomTypePhrase(m[2]), count: Math.min(parseInt(m[1], 10), 24) });
@@ -167,7 +178,17 @@
     if (!hasCollab && total === 0) return [];
 
     let singleKey = "conference";
-    if (/room bar|\bhuddle/i.test(t)) singleKey = "huddle";
+    if (/auditorium|town\s*hall/i.test(t)) singleKey = "auditorium";
+    else if (/focus\s+room/i.test(t)) singleKey = "focusRoom";
+    else if (/open\s+desk/i.test(t)) singleKey = "openDesk";
+    else if (/huddle\s+byod|byod/i.test(t)) singleKey = "huddleByod";
+    else if (/large\s+room/i.test(t)) singleKey = "largeRoom";
+    else if (/small\s+room/i.test(t)) singleKey = "smallRoom";
+    else if (/desk\s+essentials/i.test(t)) singleKey = "deskEssentials";
+    else if (/desk\s+voice/i.test(t)) singleKey = "deskVoice";
+    else if (/desk\s+hybrid/i.test(t)) singleKey = "deskHybrid";
+    else if (/all[\s-]in[\s-]one\s+desk/i.test(t)) singleKey = "deskAllInOne";
+    else if (/room bar|\bhuddle/i.test(t)) singleKey = "huddle";
     else if (/room kit eq/i.test(t)) singleKey = "conference";
     else if (/board pro|boardroom/i.test(t)) singleKey = "boardroom";
     const count = total || (hasCollab ? 1 : 0);
@@ -387,7 +408,12 @@
     });
 
     if (design.rooms.length) {
-      const priority = ["conference", "boardroom", "training", "ctMediumDualDisplay", "ctSmallCollab", "huddle", "executive", "teamsRoom", "zoomRoom", "divisible"];
+      const priority = [
+        "auditorium", "largeRoomConfidence", "largeRoom", "boardroom", "conference", "smallRoom",
+        "training", "ctMediumDualDisplay", "ctSmallCollab", "huddle", "huddleByod", "focusRoom",
+        "openDesk", "deskAllInOne", "deskHybrid", "deskVoice", "deskEssentials",
+        "executive", "teamsRoom", "zoomRoom", "divisible"
+      ];
       const pick = priority.map(k => design.rooms.find(r => r.template === k)).find(Boolean);
       design.activeRoomId = pick?.id || design.rooms[0].id;
     }

@@ -73,6 +73,12 @@ const mix = await gen("12 conference rooms and 6 huddles", [
 ]);
 if (mix.rooms !== "conferencex2,huddlex20") errors.push(`room-mix override ignored: got ${mix.rooms}`);
 
+// 5. Workspace Designer briefs map to new archetypes
+const aud = await gen("1 auditorium for town hall events");
+if (aud.rooms !== "auditoriumx1") errors.push(`auditorium brief → ${aud.rooms}, expected auditoriumx1`);
+const desks = await gen("1 open desk for hot-desking floor");
+if (!desks.rooms.includes("openDesk")) errors.push(`open desk brief → ${desks.rooms}`);
+
 await browser.close();
 
 if (errors.length) { console.error("FAIL test-intent-generation\n" + errors.join("\n")); process.exit(1); }

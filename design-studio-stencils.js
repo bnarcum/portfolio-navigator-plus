@@ -139,6 +139,7 @@
     "cam-hdmi": [{ id: "HDMI", x: 0.5, y: 1, side: "bottom", type: "hdmi" }],
     "mic-poe": [{ id: "ETH", x: 0.5, y: 1, side: "bottom", type: "copper", poe: true }],
     "touch-lan": [{ id: "LAN", x: 0.5, y: 1, side: "bottom", type: "copper", poe: true }],
+    "phone-lan": [{ id: "LAN", x: 0.5, y: 1, side: "bottom", type: "copper", poe: true }],
     "generic": [
       { id: "Port1", x: 0.3, y: 1, side: "bottom", type: "copper" },
       { id: "Port2", x: 0.7, y: 1, side: "bottom", type: "copper" }
@@ -192,8 +193,11 @@
     "room-kit-eq": { label: "Room Kit EQ", pid: "CS-KIT-EQ-K9", shape: "codec", ports: "codec-av", w: 92, h: 52, poeW: 60 },
     "room-kit-pro": { label: "Room Kit Pro G2", pid: "CS-KITPRO-K9", shape: "codec", ports: "codec-av", w: 92, h: 52, poeW: 60 },
     "room-bar": { label: "Room Bar", pid: "CS-BAR-K9", shape: "codec", ports: "codec-av", w: 84, h: 48, poeW: 45 },
-    "board-pro": { label: "Board Pro 75", pid: "CS-BRD-75-K9", shape: "display", ports: "display-hdmi", w: 104, h: 60, poeW: 0 },
+    "board-pro": { label: "Board Pro 75", pid: "CS-BRD-75-K9", shape: "display", ports: "codec-av", w: 104, h: 60, poeW: 45 },
     "desk-pro": { label: "Desk Pro", pid: "CS-DESKPRO-K9", shape: "codec", ports: "codec-av", w: 76, h: 48, poeW: 30 },
+    "desk-mini": { label: "Desk Mini", pid: "CS-DESKMINI-K9", shape: "codec", ports: "codec-av", w: 64, h: 44, poeW: 25 },
+    "desk-phone": { label: "Desk Phone 9841", pid: "CP-9841-K9", shape: "phone", ports: "phone-lan", w: 52, h: 40, poeW: 8 },
+    "room-vision-ptz": { label: "Room Vision PTZ", pid: "CS-RoomVisionPTZ", shape: "camera", ports: "cam-hdmi", w: 56, h: 52, poeW: 0 },
     "quad-cam": { label: "Quad Camera", pid: "CS-QUADCAM-K9", shape: "camera", ports: "cam-hdmi", w: 56, h: 52 },
     "ceiling-mic": { label: "Ceiling Mic Pro", pid: "CS-MIC-CLGPRO", shape: "ceiling-mic", ports: "mic-poe", w: 52, h: 36, poeW: 15 },
     "table-mic": { label: "Table Mic Pro", pid: "CS-MIC-TBLPRO", shape: "table-mic", ports: "mic-poe", w: 48, h: 40, poeW: 10 },

@@ -184,6 +184,14 @@ if (INT?.generateFromIntent) {
   });
 }
 
+// Workspace Designer archetypes must be present (webex.com/workspaces parity)
+const WS_ROOMS = ["smallRoom", "largeRoom", "auditorium", "focusRoom", "openDesk",
+  "deskEssentials", "deskVoice", "deskHybrid", "deskAllInOne", "huddleByod", "largeRoomConfidence"];
+for (const key of WS_ROOMS) {
+  if (!TPL.ROOM_TEMPLATES[key])
+    issues.push(`Missing Workspace Designer room template: ${key}`);
+}
+
 if (issues.length) {
   console.error("Design Studio validation FAILED (" + issues.length + " issues):\n");
   issues.forEach(i => console.error("  -", i));

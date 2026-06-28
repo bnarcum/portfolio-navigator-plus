@@ -977,6 +977,14 @@
           "Boardroom 14 seats Board Pro 75, aux display, Quad Camera, ceiling mics",
           "24 huddle rooms Room Bar, PoE switch per room",
           "Conference room Room Kit EQ, 75in display, ceiling mics"
+        ]},
+        { title: "Workspace Designer (Webex)", items: [
+          "1 auditorium for town hall with Room Kit Pro G2 and dual PTZ cameras",
+          "2 large rooms and 4 small rooms for hybrid campus",
+          "1 focus room and 1 open desk area with 7 Desk Mini stations",
+          "Huddle BYOD — Room Bar USB-C for laptop join in 6 spaces",
+          "Desk all-in-one — Desk Pro G2 with Room Navigator per executive office",
+          "Large room with confidence monitors on side walls, Room Kit Pro G2"
         ]}
       ];
       const box = document.getElementById("ds-templates");

@@ -568,7 +568,7 @@
         { fi: 4, ti: 7, media: "cat6", label: "PoE-Mic2", fromPort: "Gi1/0/4", toPort: "ETH" },
         { fi: 4, ti: 8, media: "cat6", label: "PoE-Mic3", fromPort: "Gi1/0/5", toPort: "ETH" },
         { fi: 0, ti: 1, media: "hdmi", label: "Aux Video", fromPort: "HDMI1", toPort: "HDMI1" },
-        { fi: 2, ti: 0, media: "hdmi", label: "Camera", fromPort: "HDMI", toPort: "HDMI-In" }
+        { fi: 2, ti: 0, media: "hdmi", label: "Camera", fromPort: "HDMI", toPort: "HDMI2" }
       ]
     },
     training: {
@@ -743,6 +743,293 @@
         { fi: 5, ti: 7, media: "cat6", label: "PoE-Mic-R", fromPort: "Gi1/0/4", toPort: "ETH" },
         { fi: 3, ti: 0, media: "hdmi", label: "People", fromPort: "HDMI1", toPort: "HDMI1" },
         { fi: 3, ti: 1, media: "hdmi", label: "Content", fromPort: "HDMI2", toPort: "HDMI1" }
+      ]
+    },
+
+    // ── Cisco Workspace Designer archetypes (webex.com/workspaces) ───────────
+    smallRoom: {
+      name: "Small Room (4–6 seats)",
+      category: "Small",
+      ct: "Cisco Workspace Designer — Small Room",
+      ctUrl: "https://www.webex.com/workspaces",
+      w: 540, h: 400,
+      zones: {
+        display: { x: 80, y: 12, w: 380, h: 100 },
+        table: { x: 80, y: 124, w: 380, h: 120 },
+        rack: { x: 80, y: 256, w: 380, h: 88 }
+      },
+      items: [
+        { stencilId: "room-kit-eq", zone: "display", relX: 0.28, relY: 0.55, label: "Room Kit EQ" },
+        { stencilId: "display-75", zone: "display", relX: 0.72, relY: 0.55, label: "Display" },
+        { stencilId: "quad-cam", zone: "display", relX: 0.5, relY: 0.18, label: "Quad Cam" },
+        { stencilId: "touch-10", zone: "rack", relX: 0.35, relY: 0.45, label: "Touch 10" },
+        { stencilId: "c9200-collab", zone: "rack", relX: 0.72, relY: 0.45, label: "C9200-24P" },
+        { stencilId: "table-mic", zone: "table", relX: 0.5, relY: 0.25, label: "Table Mic" },
+        { stencilId: "conf-table-8", zone: "table", relX: 0.5, relY: 0.72, label: "Table" }
+      ],
+      links: [
+        { fi: 4, ti: 0, media: "cat6", label: "PoE-Codec", fromPort: "Gi1/0/1", toPort: "LAN" },
+        { fi: 4, ti: 3, media: "cat6", label: "PoE-Touch", fromPort: "Gi1/0/2", toPort: "LAN" },
+        { fi: 4, ti: 5, media: "cat6", label: "PoE-Mic", fromPort: "Gi1/0/3", toPort: "ETH" },
+        { fi: 0, ti: 1, media: "hdmi", label: "Video", fromPort: "HDMI1", toPort: "HDMI1" },
+        { fi: 0, ti: 2, media: "hdmi", label: "Camera", fromPort: "HDMI2", toPort: "HDMI" }
+      ]
+    },
+    largeRoom: {
+      name: "Large Room (11–24 seats)",
+      category: "Large",
+      ct: "Cisco Workspace Designer — Large Room",
+      ctUrl: "https://www.webex.com/workspaces",
+      w: 620, h: 480,
+      zones: {
+        display: { x: 70, y: 10, w: 480, h: 120 },
+        ceiling: { x: 70, y: 140, w: 480, h: 60 },
+        table: { x: 70, y: 210, w: 480, h: 150 },
+        rack: { x: 70, y: 372, w: 480, h: 96 }
+      },
+      items: [
+        { stencilId: "room-kit-pro", zone: "rack", relX: 0.2, relY: 0.42, label: "Room Kit Pro G2" },
+        { stencilId: "display-86", zone: "display", relX: 0.5, relY: 0.62, label: "Main Display" },
+        { stencilId: "quad-cam", zone: "display", relX: 0.5, relY: 0.2, label: "Quad Camera" },
+        { stencilId: "touch-10", zone: "rack", relX: 0.48, relY: 0.42, label: "Touch 10" },
+        { stencilId: "c9200-collab", zone: "rack", relX: 0.78, relY: 0.42, label: "C9200-24P" },
+        { stencilId: "ceiling-mic", zone: "ceiling", relX: 0.25, relY: 0.5, label: "Mic-1" },
+        { stencilId: "ceiling-mic", zone: "ceiling", relX: 0.5, relY: 0.5, label: "Mic-2" },
+        { stencilId: "ceiling-mic", zone: "ceiling", relX: 0.75, relY: 0.5, label: "Mic-3" },
+        { stencilId: "ceiling-mic", zone: "table", relX: 0.5, relY: 0.2, label: "Mic-4" },
+        { stencilId: "conf-table-12", zone: "table", relX: 0.5, relY: 0.65, label: "Conference Table" }
+      ],
+      links: [
+        { fi: 4, ti: 0, media: "cat6", label: "PoE-Codec", fromPort: "Gi1/0/1", toPort: "LAN" },
+        { fi: 4, ti: 3, media: "cat6", label: "PoE-Touch", fromPort: "Gi1/0/2", toPort: "LAN" },
+        { fi: 4, ti: 5, media: "cat6", label: "PoE-Mic1", fromPort: "Gi1/0/3", toPort: "ETH" },
+        { fi: 4, ti: 6, media: "cat6", label: "PoE-Mic2", fromPort: "Gi1/0/4", toPort: "ETH" },
+        { fi: 4, ti: 7, media: "cat6", label: "PoE-Mic3", fromPort: "Gi1/0/5", toPort: "ETH" },
+        { fi: 4, ti: 8, media: "cat6", label: "PoE-Mic4", fromPort: "Gi1/0/6", toPort: "ETH" },
+        { fi: 0, ti: 1, media: "hdmi", label: "Primary Video", fromPort: "HDMI1", toPort: "HDMI1" },
+        { fi: 0, ti: 2, media: "hdmi", label: "Camera", fromPort: "HDMI2", toPort: "HDMI" }
+      ]
+    },
+    largeRoomConfidence: {
+      name: "Large Room + Confidence Monitors",
+      category: "Large",
+      ct: "Workspace Designer — side-wall confidence monitors",
+      ctUrl: "https://blog.webex.com/workspaces/whats-new-cisco-workspace-designer-fall-2025/",
+      w: 680, h: 500,
+      zones: {
+        display: { x: 60, y: 8, w: 560, h: 130 },
+        table: { x: 60, y: 150, w: 560, h: 160 },
+        rack: { x: 60, y: 324, w: 560, h: 96 }
+      },
+      items: [
+        { stencilId: "room-kit-pro", zone: "rack", relX: 0.18, relY: 0.42, label: "Room Kit Pro G2" },
+        { stencilId: "display-86", zone: "display", relX: 0.5, relY: 0.55, label: "Front Display" },
+        { stencilId: "display-75", zone: "display", relX: 0.12, relY: 0.55, label: "Confidence L" },
+        { stencilId: "display-75", zone: "display", relX: 0.88, relY: 0.55, label: "Confidence R" },
+        { stencilId: "quad-cam", zone: "display", relX: 0.5, relY: 0.15, label: "Quad Camera" },
+        { stencilId: "touch-10", zone: "rack", relX: 0.45, relY: 0.42, label: "Touch 10" },
+        { stencilId: "c9200-collab", zone: "rack", relX: 0.75, relY: 0.42, label: "C9200-24P" },
+        { stencilId: "ceiling-mic", zone: "table", relX: 0.3, relY: 0.15, label: "Mic-1" },
+        { stencilId: "ceiling-mic", zone: "table", relX: 0.7, relY: 0.15, label: "Mic-2" },
+        { stencilId: "conf-table-12", zone: "table", relX: 0.5, relY: 0.62, label: "Board Table" }
+      ],
+      links: [
+        { fi: 6, ti: 0, media: "cat6", label: "PoE-Codec", fromPort: "Gi1/0/1", toPort: "LAN" },
+        { fi: 6, ti: 5, media: "cat6", label: "PoE-Touch", fromPort: "Gi1/0/2", toPort: "LAN" },
+        { fi: 6, ti: 7, media: "cat6", label: "PoE-Mic1", fromPort: "Gi1/0/3", toPort: "ETH" },
+        { fi: 6, ti: 8, media: "cat6", label: "PoE-Mic2", fromPort: "Gi1/0/4", toPort: "ETH" },
+        { fi: 0, ti: 1, media: "hdmi", label: "Front Video", fromPort: "HDMI1", toPort: "HDMI1" },
+        { fi: 0, ti: 2, media: "hdmi", label: "Confidence L", fromPort: "HDMI2", toPort: "HDMI1" },
+        { fi: 4, ti: 0, media: "hdmi", label: "Camera", fromPort: "HDMI", toPort: "HDMI2" }
+      ]
+    },
+    auditorium: {
+      name: "Auditorium (20–150 seats)",
+      category: "Large",
+      ct: "Cisco Workspace Designer — Auditorium",
+      ctUrl: "https://www.webex.com/workspaces",
+      w: 760, h: 560,
+      zones: {
+        display: { x: 80, y: 16, w: 600, h: 140 },
+        ceiling: { x: 80, y: 168, w: 600, h: 72 },
+        floor: { x: 80, y: 252, w: 600, h: 180 },
+        rack: { x: 80, y: 448, w: 280, h: 100 }
+      },
+      items: [
+        { stencilId: "room-kit-pro", zone: "rack", relX: 0.35, relY: 0.45, label: "Room Kit Pro G2" },
+        { stencilId: "display-86", zone: "display", relX: 0.3, relY: 0.55, label: "Display L" },
+        { stencilId: "display-86", zone: "display", relX: 0.7, relY: 0.55, label: "Display R" },
+        { stencilId: "room-vision-ptz", zone: "display", relX: 0.2, relY: 0.2, label: "PTZ L" },
+        { stencilId: "room-vision-ptz", zone: "display", relX: 0.8, relY: 0.2, label: "PTZ R" },
+        { stencilId: "touch-10", zone: "rack", relX: 0.72, relY: 0.45, label: "Touch 10" },
+        { stencilId: "c9200-collab", zone: "rack", relX: 0.35, relY: 0.82, label: "C9200-24P" },
+        { stencilId: "ceiling-mic", zone: "ceiling", relX: 0.2, relY: 0.5, label: "Mic-1" },
+        { stencilId: "ceiling-mic", zone: "ceiling", relX: 0.4, relY: 0.5, label: "Mic-2" },
+        { stencilId: "ceiling-mic", zone: "ceiling", relX: 0.6, relY: 0.5, label: "Mic-3" },
+        { stencilId: "ceiling-mic", zone: "ceiling", relX: 0.8, relY: 0.5, label: "Mic-4" },
+        { stencilId: "conf-table-12", zone: "floor", relX: 0.5, relY: 0.35, label: "Presenter Area" }
+      ],
+      links: [
+        { fi: 6, ti: 0, media: "cat6", label: "PoE-Codec", fromPort: "Gi1/0/1", toPort: "LAN" },
+        { fi: 6, ti: 5, media: "cat6", label: "PoE-Touch", fromPort: "Gi1/0/2", toPort: "LAN" },
+        { fi: 6, ti: 7, media: "cat6", label: "PoE-Mic1", fromPort: "Gi1/0/3", toPort: "ETH" },
+        { fi: 6, ti: 8, media: "cat6", label: "PoE-Mic2", fromPort: "Gi1/0/4", toPort: "ETH" },
+        { fi: 6, ti: 9, media: "cat6", label: "PoE-Mic3", fromPort: "Gi1/0/5", toPort: "ETH" },
+        { fi: 6, ti: 10, media: "cat6", label: "PoE-Mic4", fromPort: "Gi1/0/6", toPort: "ETH" },
+        { fi: 0, ti: 1, media: "hdmi", label: "Display L", fromPort: "HDMI1", toPort: "HDMI1" },
+        { fi: 0, ti: 2, media: "hdmi", label: "Display R", fromPort: "HDMI2", toPort: "HDMI1" },
+        { fi: 3, ti: 0, media: "hdmi", label: "PTZ L", fromPort: "HDMI", toPort: "USB" },
+        { fi: 4, ti: 0, media: "hdmi", label: "PTZ R", fromPort: "HDMI", toPort: "USB" }
+      ]
+    },
+    focusRoom: {
+      name: "Focus Room",
+      category: "Individual",
+      ct: "Workspace Designer — focus / ad-hoc rooms",
+      ctUrl: "https://blog.webex.com/workspaces/six-new-ways-to-transform-workspace-reservation/",
+      w: 440, h: 360,
+      zones: {
+        wall: { x: 60, y: 20, w: 320, h: 100 },
+        table: { x: 60, y: 132, w: 320, h: 120 },
+        rack: { x: 60, y: 264, w: 320, h: 72 }
+      },
+      items: [
+        { stencilId: "room-bar", zone: "wall", relX: 0.35, relY: 0.55, label: "Room Bar" },
+        { stencilId: "display-75", zone: "wall", relX: 0.72, relY: 0.55, label: "Display" },
+        { stencilId: "room-navigator", zone: "rack", relX: 0.3, relY: 0.5, label: "Room Navigator" },
+        { stencilId: "c9200-collab", zone: "rack", relX: 0.72, relY: 0.5, label: "PoE Switch" },
+        { stencilId: "conf-table-8", zone: "table", relX: 0.5, relY: 0.55, label: "Table" }
+      ],
+      links: [
+        { fi: 3, ti: 0, media: "cat6", label: "PoE-Bar", fromPort: "Gi1/0/1", toPort: "LAN" },
+        { fi: 3, ti: 2, media: "cat6", label: "PoE-Nav", fromPort: "Gi1/0/2", toPort: "LAN" },
+        { fi: 0, ti: 1, media: "hdmi", label: "Video", fromPort: "HDMI1", toPort: "HDMI1" }
+      ]
+    },
+    openDesk: {
+      name: "Open Desk Area",
+      category: "Individual",
+      ct: "Workspace Designer — open desk scenarios",
+      ctUrl: "https://blog.webex.com/workspaces/whats-new-cisco-workspace-designer-fall-2025/",
+      w: 720, h: 420,
+      zones: {
+        row1: { x: 40, y: 40, w: 640, h: 140 },
+        row2: { x: 40, y: 200, w: 640, h: 140 },
+        rack: { x: 40, y: 352, w: 200, h: 56 }
+      },
+      items: [
+        { stencilId: "desk-mini", zone: "row1", relX: 0.15, relY: 0.5, label: "Desk 1" },
+        { stencilId: "desk-mini", zone: "row1", relX: 0.38, relY: 0.5, label: "Desk 2" },
+        { stencilId: "desk-mini", zone: "row1", relX: 0.62, relY: 0.5, label: "Desk 3" },
+        { stencilId: "desk-mini", zone: "row1", relX: 0.85, relY: 0.5, label: "Desk 4" },
+        { stencilId: "desk-mini", zone: "row2", relX: 0.25, relY: 0.5, label: "Desk 5" },
+        { stencilId: "desk-mini", zone: "row2", relX: 0.5, relY: 0.5, label: "Desk 6" },
+        { stencilId: "desk-mini", zone: "row2", relX: 0.75, relY: 0.5, label: "Desk 7" },
+        { stencilId: "c9200-collab", zone: "rack", relX: 0.5, relY: 0.5, label: "C9200-24P" }
+      ],
+      links: [
+        { fi: 7, ti: 0, media: "cat6", label: "PoE-D1", fromPort: "Gi1/0/1", toPort: "LAN" },
+        { fi: 7, ti: 1, media: "cat6", label: "PoE-D2", fromPort: "Gi1/0/2", toPort: "LAN" },
+        { fi: 7, ti: 2, media: "cat6", label: "PoE-D3", fromPort: "Gi1/0/3", toPort: "LAN" },
+        { fi: 7, ti: 3, media: "cat6", label: "PoE-D4", fromPort: "Gi1/0/4", toPort: "LAN" },
+        { fi: 7, ti: 4, media: "cat6", label: "PoE-D5", fromPort: "Gi1/0/5", toPort: "LAN" },
+        { fi: 7, ti: 5, media: "cat6", label: "PoE-D6", fromPort: "Gi1/0/6", toPort: "LAN" },
+        { fi: 7, ti: 6, media: "cat6", label: "PoE-D7", fromPort: "Gi1/0/7", toPort: "LAN" }
+      ]
+    },
+    deskEssentials: {
+      name: "Desk — Essentials",
+      category: "Individual",
+      ct: "Workspace Designer — desk essentials preset",
+      ctUrl: "https://www.webex.com/workspaces",
+      w: 400, h: 320,
+      zones: { desk: { x: 80, y: 80, w: 240, h: 160 } },
+      items: [
+        { stencilId: "desk-phone", zone: "desk", relX: 0.4, relY: 0.45, label: "Desk Phone" },
+        { stencilId: "c9200-collab", zone: "desk", relX: 0.75, relY: 0.85, label: "PoE SW" }
+      ],
+      links: [
+        { fi: 1, ti: 0, media: "cat6", label: "PoE-Phone", fromPort: "Gi1/0/1", toPort: "LAN" }
+      ]
+    },
+    deskVoice: {
+      name: "Desk — Voice Optimized",
+      category: "Individual",
+      ct: "Workspace Designer — voice-optimized desk",
+      ctUrl: "https://www.webex.com/workspaces",
+      w: 420, h: 340,
+      zones: { desk: { x: 70, y: 70, w: 280, h: 180 } },
+      items: [
+        { stencilId: "desk-phone", zone: "desk", relX: 0.35, relY: 0.4, label: "Desk Phone 9841" },
+        { stencilId: "desk-mini", zone: "desk", relX: 0.65, relY: 0.4, label: "Desk Mini" },
+        { stencilId: "c9200-collab", zone: "desk", relX: 0.5, relY: 0.88, label: "PoE SW" }
+      ],
+      links: [
+        { fi: 2, ti: 0, media: "cat6", label: "PoE-Phone", fromPort: "Gi1/0/1", toPort: "LAN" },
+        { fi: 2, ti: 1, media: "cat6", label: "PoE-Mini", fromPort: "Gi1/0/2", toPort: "LAN" }
+      ]
+    },
+    deskHybrid: {
+      name: "Desk — Hybrid Video",
+      category: "Individual",
+      ct: "Workspace Designer — hybrid desk preset",
+      ctUrl: "https://www.webex.com/workspaces",
+      w: 480, h: 380,
+      zones: {
+        desk: { x: 60, y: 100, w: 360, h: 160 },
+        wall: { x: 120, y: 24, w: 240, h: 64 }
+      },
+      items: [
+        { stencilId: "desk-pro", zone: "desk", relX: 0.4, relY: 0.5, label: "Desk Pro" },
+        { stencilId: "display-75", zone: "wall", relX: 0.5, relY: 0.55, label: "Secondary Display" },
+        { stencilId: "desk-phone", zone: "desk", relX: 0.72, relY: 0.5, label: "Desk Phone" },
+        { stencilId: "c9200-collab", zone: "desk", relX: 0.5, relY: 0.92, label: "PoE SW" }
+      ],
+      links: [
+        { fi: 3, ti: 0, media: "cat6", label: "PoE-DeskPro", fromPort: "Gi1/0/1", toPort: "LAN" },
+        { fi: 3, ti: 2, media: "cat6", label: "PoE-Phone", fromPort: "Gi1/0/2", toPort: "LAN" },
+        { fi: 0, ti: 1, media: "hdmi", label: "Secondary Screen", fromPort: "HDMI1", toPort: "HDMI1" }
+      ]
+    },
+    deskAllInOne: {
+      name: "Desk — All-in-One Video",
+      category: "Individual",
+      ct: "Workspace Designer — all-in-one desk (Desk Pro G2)",
+      ctUrl: "https://blog.webex.com/workspaces/whats-new-in-cisco-workspace-designer-winter-spring-2026/",
+      w: 440, h: 360,
+      zones: { desk: { x: 80, y: 60, w: 280, h: 200 } },
+      items: [
+        { stencilId: "desk-pro", zone: "desk", relX: 0.45, relY: 0.45, label: "Desk Pro" },
+        { stencilId: "room-navigator", zone: "desk", relX: 0.75, relY: 0.75, label: "Room Navigator" },
+        { stencilId: "c9200-collab", zone: "desk", relX: 0.45, relY: 0.9, label: "PoE SW" }
+      ],
+      links: [
+        { fi: 2, ti: 0, media: "cat6", label: "PoE-DeskPro", fromPort: "Gi1/0/1", toPort: "LAN" },
+        { fi: 2, ti: 1, media: "cat6", label: "PoE-Nav", fromPort: "Gi1/0/2", toPort: "LAN" }
+      ]
+    },
+    huddleByod: {
+      name: "Huddle — BYOD (Room Bar)",
+      category: "Small",
+      ct: "Workspace Designer — BYOD huddle (Room Bar USB-C)",
+      ctUrl: "https://blog.webex.com/workspaces/whats-new-in-cisco-workspace-designer-winter-spring-2026/",
+      w: 520, h: 380,
+      zones: {
+        display: { x: 70, y: 12, w: 380, h: 110 },
+        table: { x: 70, y: 132, w: 380, h: 120 },
+        rack: { x: 70, y: 264, w: 380, h: 80 }
+      },
+      items: [
+        { stencilId: "room-bar", zone: "display", relX: 0.5, relY: 0.35, label: "Room Bar BYOD" },
+        { stencilId: "display-75", zone: "display", relX: 0.5, relY: 0.78, label: "Display" },
+        { stencilId: "room-navigator", zone: "rack", relX: 0.32, relY: 0.5, label: "Room Navigator" },
+        { stencilId: "c9200-collab", zone: "rack", relX: 0.72, relY: 0.5, label: "C9200-24P" },
+        { stencilId: "conf-table-8", zone: "table", relX: 0.5, relY: 0.55, label: "Huddle Table" }
+      ],
+      links: [
+        { fi: 3, ti: 0, media: "cat6", label: "PoE-Bar", fromPort: "Gi1/0/1", toPort: "LAN" },
+        { fi: 3, ti: 2, media: "cat6", label: "PoE-Nav", fromPort: "Gi1/0/2", toPort: "LAN" },
+        { fi: 0, ti: 1, media: "hdmi", label: "BYOD Video", fromPort: "HDMI1", toPort: "HDMI1" }
       ]
     }
   };
