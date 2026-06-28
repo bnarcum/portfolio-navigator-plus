@@ -316,6 +316,26 @@
 .ds-val-list.tip li{color:var(--muted);opacity:.95}
 
 #ds-intent{padding:20px 28px 24px;overflow-y:auto;flex:1;max-width:1040px;margin:0 auto;width:100%}
+.ds-intent-work{margin-bottom:4px}
+.ds-intent-starters{margin-top:14px}
+.ds-intent-more-hint{margin:10px 0 0;font-size:10px;color:var(--muted);text-align:center}
+.ds-intent-link{font:inherit;font-size:10px;font-weight:700;color:var(--accent);background:none;border:none;padding:0;cursor:pointer;text-decoration:underline}
+.ds-intent-fold{margin-top:12px;border-radius:10px;border:1px solid var(--border);background:rgba(7,24,45,.45);overflow:hidden}
+.ds-intent-fold summary{padding:10px 14px;font-size:12px;font-weight:700;color:var(--text);cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px}
+.ds-intent-fold summary::-webkit-details-marker{display:none}
+.ds-intent-fold summary::before{content:'▸';color:var(--muted);font-size:11px;transition:transform .15s;flex-shrink:0}
+.ds-intent-fold[open] summary::before{transform:rotate(90deg)}
+.ds-intent-fold-hint{margin-left:auto;font-size:10px;font-weight:500;color:var(--muted)}
+.ds-intent-fold-body{padding:0 14px 14px}
+.ds-intent-fold-body .ds-one-cisco{margin-bottom:0}
+#ds-explore-intent{margin:0}
+#design-studio.ds-tab-intent #ds-palette-head,
+#design-studio.ds-tab-intent #ds-palette,
+#design-studio.ds-tab-intent #ds-inspector{display:none}
+#design-studio.ds-tab-intent #ds-panel-tabs button:not([data-panel="bom"]){display:none}
+#design-studio.ds-tab-intent #ds-export-ccw,
+#design-studio.ds-tab-intent #ds-undo,
+#design-studio.ds-tab-intent #ds-redo{display:none}
 .ds-one-cisco{margin-bottom:22px}
 .ds-oc-eyebrow{margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--accent)}
 .ds-oc-headline{margin:0 0 8px;font-size:clamp(20px,2.5vw,27px);font-weight:700;line-height:1.2;
@@ -390,11 +410,9 @@
 .ds-intent-section-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:10px}
 .ds-intent-section-head strong{font-size:12px;color:var(--text)}
 .ds-intent-section-head span{font-size:10px;color:var(--muted)}
-.ds-intent-actions{display:flex;gap:10px;margin:18px 0 0;flex-wrap:wrap;align-items:center}
+.ds-intent-actions{display:flex;gap:10px;margin:16px 0 0;flex-wrap:wrap;align-items:center}
 .ds-intent-actions .ds-btn{padding:11px 22px;font-size:13.5px;border-radius:10px;font-weight:700}
-.ds-intent-actions .ds-btn.primary{letter-spacing:.01em}
-.ds-intent-actions #ds-clear{background:transparent;color:var(--muted);border-color:var(--border)}
-.ds-intent-actions #ds-clear:hover{color:#ffb4b4;border-color:rgba(255,100,100,.45);background:rgba(255,100,100,.06)}
+.ds-intent-actions .ds-btn.primary{letter-spacing:.01em;order:-1}
 .ds-btn-quickstart{background:linear-gradient(135deg,#6F42C1 0%,#02C8FF 100%);color:#fff;border-color:transparent;
   box-shadow:0 4px 18px rgba(111,66,193,.34);position:relative}
 .ds-btn-quickstart:hover{color:#fff;filter:brightness(1.07);box-shadow:0 7px 26px rgba(111,66,193,.5)}
@@ -479,7 +497,6 @@
 .ds-gallery-explore-hint{margin:0;padding:10px 18px 14px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);line-height:1.45}
 
 #ds-explore-dock{margin:0 10px 8px;max-height:42vh;overflow-y:auto}
-#ds-explore-intent{margin:14px 0 0}
 .ds-explore{margin:0;padding:12px 14px;border-radius:10px;border:1px solid rgba(0,212,255,.22);
   background:linear-gradient(145deg,rgba(0,212,255,.06),rgba(7,24,45,.92))}
 #ds-explore-dock .ds-explore{padding:10px 12px;font-size:11px}

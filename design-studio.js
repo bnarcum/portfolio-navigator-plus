@@ -655,28 +655,35 @@
         <div id="ds-body">
           <div id="ds-main">
             <div id="ds-intent" hidden>
-              ${buildOneCiscoHeroHtml()}
-              <label class="ds-intent-label" for="ds-intent-text">Opportunity brief</label>
-              <div id="ds-intent-chips"></div>
-              <div id="ds-room-mix-editor" hidden></div>
-              <div id="ds-stale-hint" class="ds-stale-hint" hidden></div>
-              <textarea id="ds-intent-text" placeholder="e.g. SNRA campus + 12 conference rooms and 6 huddles — or AI-ready DC spine-leaf with GPU compute…"></textarea>
-              <div id="ds-intent-rationale" hidden></div>
-              <div id="ds-explore-intent"></div>
-              <div class="ds-intent-section">
-                <div class="ds-intent-section-head"><strong>Quick start</strong><span>Click to fill the brief</span></div>
-                <div class="ds-templates" id="ds-templates"></div>
+              <div class="ds-intent-work">
+                <label class="ds-intent-label" for="ds-intent-text">Opportunity brief</label>
+                <div id="ds-intent-chips"></div>
+                <div id="ds-room-mix-editor" hidden></div>
+                <div id="ds-stale-hint" class="ds-stale-hint" hidden></div>
+                <textarea id="ds-intent-text" placeholder="e.g. SNRA campus + 12 conference rooms and 6 huddles — or AI-ready DC spine-leaf with GPU compute…"></textarea>
+                <div class="ds-intent-section ds-intent-starters">
+                  <div class="ds-intent-section-head"><strong>Start from a phrase</strong><span>Click to fill the brief</span></div>
+                  <div class="ds-templates" id="ds-templates"></div>
+                </div>
+                <div class="ds-intent-actions">
+                  <button type="button" class="ds-btn primary" id="ds-generate">Generate Draft</button>
+                  <button type="button" class="ds-btn ds-btn-quickstart" id="ds-quickstart" title="Generate a sample workspace and step straight into the live 3D walk">✨ Quickstart — 3D walk</button>
+                </div>
+                <div id="ds-intent-rationale" hidden></div>
               </div>
-              <div class="ds-intent-section">
-                <div class="ds-intent-section-head"><strong>Reference architectures</strong><span>Or open <em>Gallery</em> for full library</span></div>
-                <div class="ds-arch-row" id="ds-arch-presets"></div>
-              </div>
+              <details class="ds-intent-fold" id="ds-intent-ref-fold">
+                <summary>Reference architectures <span class="ds-intent-fold-hint">or open Gallery</span></summary>
+                <div class="ds-intent-fold-body"><div class="ds-arch-row" id="ds-arch-presets"></div></div>
+              </details>
               <div id="ds-compare" class="ds-compare-wrap"></div>
-              <div class="ds-intent-actions">
-                <button type="button" class="ds-btn ds-btn-quickstart" id="ds-quickstart" title="Generate a sample workspace and step straight into the live 3D walk">✨ Quickstart — sample workspace + 3D walk</button>
-                <button type="button" class="ds-btn primary" id="ds-generate">Generate Draft</button>
-                <button type="button" class="ds-btn" id="ds-clear">Start Over</button>
-              </div>
+              <details class="ds-intent-fold" id="ds-intent-explore-fold">
+                <summary>Guides &amp; dCloud labs <span class="ds-intent-fold-hint">matched to your brief</span></summary>
+                <div class="ds-intent-fold-body"><div id="ds-explore-intent"></div></div>
+              </details>
+              <details class="ds-intent-fold" id="ds-intent-hero-fold">
+                <summary>One Cisco story</summary>
+                <div class="ds-intent-fold-body">${buildOneCiscoHeroHtml()}</div>
+              </details>
             </div>
             <div id="ds-canvas-wrap" class="network-mode">
               <div id="ds-walk-overlay" hidden aria-hidden="true"></div>
@@ -821,7 +828,6 @@
         clearTimeout(intentPreviewTimer);
         intentPreviewTimer = setTimeout(() => this.previewIntent(), 180);
       });
-      $("ds-clear").onclick = () => this.startOver();
       $("ds-start-over").onclick = () => this.startOver();
       $("ds-export-ccw").onclick = () => this.exportCcw();
       $("ds-ai-design").onclick = () => this.askAi();
@@ -1003,13 +1009,15 @@
         ]}
       ];
       const box = document.getElementById("ds-templates");
-      box.innerHTML = groups.map(g => `
+      const visibleGroups = groups.slice(0, 2).map(g => ({ ...g, items: g.items.slice(0, 4) }));
+      box.innerHTML = visibleGroups.map(g => `
         <div class="ds-tpl-group">
           <div class="ds-tpl-group-title">${escapeHtml(g.title)}</div>
           <div class="ds-tpl-group-grid">${g.items.map(t =>
             `<button type="button" class="ds-tpl" data-tpl="${escapeAttr(t)}">${escapeHtml(t)}</button>`
           ).join("")}</div>
-        </div>`).join("");
+        </div>`).join("") + `<p class="ds-intent-more-hint">More phrases in <button type="button" class="ds-intent-link" id="ds-templates-gallery">Gallery</button></p>`;
+      document.getElementById("ds-templates-gallery")?.addEventListener("click", () => this.openGallery());
       box.querySelectorAll(".ds-tpl").forEach(b => {
         b.onclick = () => { document.getElementById("ds-intent-text").value = b.dataset.tpl; this.previewIntent(); };
       });
@@ -1022,7 +1030,7 @@
       const nets = TPL()?.NETWORK_TEMPLATES || {};
       const featured = ["snraCampus", "unifiedBranchMed", "campus3tierRedundant", "sdwanFull", "healthcareCampus", "dcAiMlFabric"];
       const keys = [...new Set([...featured, ...Object.keys(nets)])].filter(k => nets[k]);
-      keys.slice(0, 10).forEach(key => {
+      keys.slice(0, 6).forEach(key => {
         const preset = nets[key];
         const b = document.createElement("button");
         b.type = "button";
@@ -1229,10 +1237,20 @@
       this.unlockBackgroundScroll();
     }
 
+    syncIntentChrome(tab) {
+      const root = this.el || document.getElementById("design-studio");
+      root?.classList.toggle("ds-tab-intent", tab === "intent");
+      if (tab === "intent" && this.panelTab !== "bom") {
+        this.panelTab = "bom";
+        $$("#ds-panel-tabs button").forEach(x => x.classList.toggle("active", x.dataset.panel === "bom"));
+      }
+    }
+
     setTab(tab) {
       const walkOpen = window.__DS_WALK?.isOpen?.();
       const wasWalkTab = this.tab === "room" || this.tab === "network";
       this.tab = tab;
+      this.syncIntentChrome(tab);
       if (tab !== "room" && tab !== "network") window.__DS_WALK?.close?.();
       if (tab === "network" || tab === "room") this.design.mode = tab;
       if (tab === "room" && !this.activeRoomId && this.design.rooms.length)
@@ -1354,6 +1372,7 @@
         rat.hidden = false;
         rat.innerHTML = INT.renderRationaleHtml(plan, score, fixes);
       }
+      document.getElementById("ds-intent-explore-fold")?.setAttribute("open", "");
       this.previewIntent();
       const roomTotal = plan.roomPlan.reduce((s, r) => s + r.count, 0);
       this.toast(roomTotal

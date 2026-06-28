@@ -226,11 +226,11 @@
     </div>`;
   }
 
-  function renderStrip(ctx) {
+  function renderStrip(ctx, compact) {
     if (!ctx) return "";
-    const docs = ctx.docs || [];
-    const labs = ctx.labs || [];
-    const skills = ctx.skills || [];
+    const docs = (ctx.docs || []).slice(0, compact ? 1 : undefined);
+    const labs = (ctx.labs || []).slice(0, compact ? 1 : undefined);
+    const skills = (ctx.skills || []).slice(0, compact ? 1 : undefined);
     if (!docs.length && !labs.length && !skills.length && !ctx.pathId) {
       return `<section class="ds-explore ds-explore--empty" hidden></section>`;
     }
@@ -268,7 +268,7 @@
         <p>${esc(ctx.lede || "")}</p>
       </header>
       ${ctx.pathId ? renderPathStrip(ctx.pathId) : ""}
-      <div class="ds-explore-ladder"><span>CVD</span><span>→</span><span>Skills</span><span>→</span><span>dCloud</span><span>→</span><span>BOM</span></div>
+      ${compact ? "" : `<div class="ds-explore-ladder"><span>CVD</span><span>→</span><span>Skills</span><span>→</span><span>dCloud</span><span>→</span><span>BOM</span></div>`}
       <div class="ds-explore-grid">${docCards}${skillCards}${labCards}</div>
       <footer class="ds-explore-foot">
         <button type="button" class="ds-explore-browse" data-browse-query="${esc(ctx.browseQuery || "")}">Browse all matching dCloud labs</button>
@@ -320,7 +320,7 @@
   function refresh(studio) {
     if (!studio?.el) return;
     const ctx = resolveContext(studio);
-    const html = renderStrip(ctx);
+    const html = renderStrip(ctx, studio.tab === "intent");
     const intentEl = document.getElementById("ds-explore-intent");
     const dockEl = document.getElementById("ds-explore-dock");
     if (intentEl) {
