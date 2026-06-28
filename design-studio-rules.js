@@ -284,7 +284,38 @@
     if (design.nodes.length >= 3 && design.links.length === 0)
       suggestions.push({ id: "auto-wire", label: "Auto-wire all devices (layer-based)", action: "autoWireAll", payload: {} });
 
+    rooms(design).filter(n => /kit|bar|board|desk/i.test(n.stencilId || "")).forEach(dev => {
+      const hasNet = design.links.some(l => {
+        if (l.from !== dev.id && l.to !== dev.id) return false;
+        const other = design.nodes.find(n => n.id === (l.from === dev.id ? l.to : l.from));
+        return other && /switch|9200|9300|collab|c9200/i.test(other.stencilId || "");
+      });
+      if (hasNet) return;
+      const roomSwitches = design.nodes.filter(n =>
+        n.roomId === dev.roomId && /switch|9200|9300|collab|c9200/i.test(n.stencilId || ""));
+      if (roomSwitches.length) {
+        const sw = roomSwitches[0];
+        suggestions.push({
+          id: "room-link-" + dev.id,
+          label: `PoE link ${dev.label} → ${sw.label}`,
+          action: "addLink",
+          payload: { from: sw.id, to: dev.id, media: "cat6", fromPort: "Gi1/0/1", toPort: "LAN", label: "PoE-Collab" }
+        });
+      } else {
+        suggestions.push({
+          id: "room-add-sw-" + dev.id,
+          label: `Add collab switch for ${dev.label}`,
+          action: "addRoomSwitchAndLink",
+          payload: { deviceId: dev.id }
+        });
+      }
+    });
+
     return suggestions.slice(0, 12);
+  }
+
+  function linkExists(design, from, to) {
+    return design.links.some(l => (l.from === from && l.to === to) || (l.from === to && l.to === from));
   }
 
   function applyFix(design, suggestion, uid, STN) {
@@ -304,6 +335,8 @@
     if (suggestion.action === "addNode") { addNode(p, 300, 180); return true; }
     if (suggestion.action === "addNodes") { (p.nodes || []).forEach((n, i) => addNode(n, 280, 180 + i * 100)); return true; }
     if (suggestion.action === "addLink" && p.from && p.to) {
+      if (linkExists(design, p.from, p.to)) return false;
+      if (!design.nodes.some(n => n.id === p.from) || !design.nodes.some(n => n.id === p.to)) return false;
       design.links.push({ id: uid(), from: p.from, to: p.to, media: p.media || "cat6", label: p.label || "Link", length: "5m", fromPort: p.fromPort || "", toPort: p.toPort || "" });
       return true;
     }
@@ -311,7 +344,22 @@
       const ap = design.nodes.find(n => n.id === p.apId);
       if (!ap) return false;
       const swId = addNode({ stencilId: "c9200-access", label: "Access SW", layer: "access" }, ap.x - 120, ap.y);
+      if (linkExists(design, swId, ap.id)) return true;
       design.links.push({ id: uid(), from: swId, to: ap.id, media: "cat6", label: "PoE", length: "3m", fromPort: "Gi1/0/1", toPort: "ETH0" });
+      return true;
+    }
+    if (suggestion.action === "addRoomSwitchAndLink") {
+      const dev = design.nodes.find(n => n.id === p.deviceId);
+      if (!dev || dev.canvas !== "room") return false;
+      const def = STN?.getDef?.("c9200-collab", "room");
+      const swId = uid();
+      design.nodes.push({
+        id: swId, stencilId: "c9200-collab", label: "Collab SW", pid: def?.pid,
+        layer: "collab", x: (dev.x || 0) - 100, y: dev.y || 0, canvas: "room", roomId: dev.roomId,
+        w: def?.w || 96, h: def?.h || 50, qty: 1
+      });
+      if (!linkExists(design, swId, dev.id))
+        design.links.push({ id: uid(), from: swId, to: dev.id, media: "cat6", label: "PoE-Collab", length: "3m", fromPort: "Gi1/0/1", toPort: "LAN" });
       return true;
     }
     if (suggestion.action === "autoConnect") {
@@ -319,10 +367,9 @@
       if (!node) return false;
       const others = design.nodes.filter(n => n.id !== node.id && n.canvas === node.canvas);
       const target = others.find(n => /core|dist|switch|9200|9300/i.test(n.stencilId)) || others[0];
-      if (target) {
-        const media = STN?.suggestMedia?.(target, node, "Te1/1/1", "Gi1/0/1") || "cat6a";
-        design.links.push({ id: uid(), from: target.id, to: node.id, media, label: "Auto-" + node.label, length: "5m", fromPort: "Te1/1/1", toPort: "Gi1/0/1" });
-      }
+      if (!target || linkExists(design, target.id, node.id)) return false;
+      const media = STN?.suggestMedia?.(target, node, "Te1/1/1", "Gi1/0/1") || "cat6a";
+      design.links.push({ id: uid(), from: target.id, to: node.id, media, label: "Auto-" + node.label, length: "5m", fromPort: "Te1/1/1", toPort: "Gi1/0/1" });
       return true;
     }
     if (suggestion.action === "autoWireAll") { autoWireLayerBased(design, uid, STN); return true; }

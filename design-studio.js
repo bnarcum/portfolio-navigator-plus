@@ -1842,6 +1842,75 @@ Account: ${this.design.account}`;
       if (sug.length) this.toast(`Tip: ${sug[0].label} — see Suggest panel`);
     }
 
+    suggestionTargetTab(suggestion) {
+      if (!suggestion) return null;
+      const p = suggestion.payload || {};
+      if (suggestion.action === "addRoomSwitchAndLink") return "room";
+      if (suggestion.action === "addLink") {
+        const from = this.design.nodes.find(n => n.id === p.from);
+        const to = this.design.nodes.find(n => n.id === p.to);
+        if (from?.canvas === "room" || to?.canvas === "room") return "room";
+      }
+      if (["addNode", "addNodes", "addAndLinkAp", "autoConnect", "autoWireAll"].includes(suggestion.action)) return "network";
+      return "network";
+    }
+
+    applySuggestion(suggestion, opts = {}) {
+      const { silent = false, batch = false } = opts;
+      if (!suggestion) {
+        if (!silent) this.toast("Suggestion expired — reopen Suggest panel");
+        return false;
+      }
+      const nodesBefore = this.design.nodes.length;
+      const linksBefore = this.design.links.length;
+      const ok = RULES()?.applyFix?.(this.design, suggestion, uid, STN());
+      if (!ok) {
+        if (!silent) this.toast(/link|connect|uplink|poe/i.test(suggestion.label || "") ? "Already linked or nothing to add" : "Couldn't apply — try Network tab");
+        return false;
+      }
+      const addedNodes = this.design.nodes.length - nodesBefore;
+      const addedLinks = this.design.links.length - linksBefore;
+      const targetTab = this.suggestionTargetTab(suggestion);
+      const layoutNetwork = targetTab === "network" && (addedNodes > 0 || ["autoWireAll", "addNodes", "addNode", "addAndLinkAp"].includes(suggestion.action));
+      if (layoutNetwork && !batch) autoLayoutNetwork(this.design);
+      if (!batch) {
+        this.pushHistory();
+        if (targetTab && this.tab !== targetTab && this.tab !== "intent") this.setTab(targetTab);
+        else this.render();
+        if (targetTab === "network") this.scheduleFitView();
+        if (!silent) {
+          const what = addedLinks ? `${addedLinks} link${addedLinks === 1 ? "" : "s"}` : addedNodes ? `${addedNodes} device${addedNodes === 1 ? "" : "s"}` : "change";
+          const where = targetTab === "room" ? "Room" : "Network";
+          this.toast(`Applied on ${where} canvas (${what})${addedLinks ? " — see Cables" : ""}`);
+        }
+        if (window.__DS_WALK?.isOpen?.()) window.__DS_WALK.rebuild(this);
+      }
+      return { ok: true, targetTab, layoutNetwork, addedNodes, addedLinks };
+    }
+
+    applyAllSuggestions() {
+      let n = 0;
+      let targetTab = null;
+      let layoutNetwork = false;
+      getSuggestions(this.design).forEach(s => {
+        const res = this.applySuggestion(s, { silent: true, batch: true });
+        if (res?.ok) {
+          n++;
+          if (res.targetTab === "network") targetTab = "network";
+          else if (!targetTab) targetTab = res.targetTab;
+          layoutNetwork = layoutNetwork || res.layoutNetwork;
+        }
+      });
+      if (!n) { this.toast("No changes applied — items may already be in place"); return; }
+      if (layoutNetwork) autoLayoutNetwork(this.design);
+      this.pushHistory();
+      if (targetTab && this.tab !== targetTab && this.tab !== "intent") this.setTab(targetTab);
+      else this.render();
+      if (targetTab === "network") this.scheduleFitView();
+      this.toast(`Applied ${n} suggestion${n === 1 ? "" : "s"} — see Cables tab`);
+      if (window.__DS_WALK?.isOpen?.()) window.__DS_WALK.rebuild(this);
+    }
+
     renderRoomZones() {
       const zoneLayer = document.getElementById("ds-room-zones");
       if (!zoneLayer || this.tab !== "room") { if (zoneLayer) zoneLayer.innerHTML = ""; return; }
@@ -2362,19 +2431,11 @@ Account: ${this.design.account}`;
         });
         body.querySelectorAll(".ds-suggest-btn").forEach(btn => {
           btn.onclick = () => {
-            const s = suggestions.find(x => x.id === btn.dataset.sid);
-            if (RULES()?.applyFix?.(this.design, s, uid, STN())) {
-              this.pushHistory(); this.render(); this.toast("Applied — see Quote → Cables for links");
-              if (window.__DS_WALK?.isOpen?.()) window.__DS_WALK.rebuild(this);
-            }
+            const s = getSuggestions(this.design).find(x => x.id === btn.dataset.sid);
+            this.applySuggestion(s);
           };
         });
-        document.getElementById("ds-apply-all-sug")?.addEventListener("click", () => {
-          let n = 0;
-          getSuggestions(this.design).forEach(s => { if (RULES()?.applyFix?.(this.design, s, uid, STN())) n++; });
-          if (n) { this.pushHistory(); this.render(); this.toast(`Applied ${n} suggestion${n === 1 ? "" : "s"} — see Cables tab`); }
-          if (n && window.__DS_WALK?.isOpen?.()) window.__DS_WALK.rebuild(this);
-        });
+        document.getElementById("ds-apply-all-sug")?.addEventListener("click", () => this.applyAllSuggestions());
       } else if (this.panelTab === "sites") {
         body.innerHTML = `<div style="padding:12px;font-size:11px">
           ${this.design.sites.map(s => `<div style="margin-bottom:8px"><strong>${escapeHtml(s.name)}</strong> (${s.type})</div>`).join("")}
