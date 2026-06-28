@@ -175,9 +175,12 @@
     return mix;
   }
 
-  function intentNeedsNetwork(t, roomMix, nums) {
+  function intentNeedsNetwork(t, roomMix, nums, pillar) {
     const totalRooms = roomMix.reduce((s, r) => s + r.count, 0);
-    return /campus|sd-wan|sdwan|hospital|healthcare|k-12|k12|data center|datacenter|branch|retail|zero trust|sase|firewall|core|distrib|nexus|spine|hyperflex|aci|meraki|vmanage|gpu|fabric|snra|manufacturing|university/i.test(t)
+    // A detected One Cisco pillar already implies an infrastructure intent —
+    // never leave such a brief with an empty canvas.
+    if (pillar) return true;
+    return /campus|sd-wan|sdwan|hospital|healthcare|k-12|k12|data center|datacenter|branch|retail|zero trust|sase|firewall|core|distrib|nexus|spine|hyperflex|aci|meraki|vmanage|gpu|fabric|snra|manufacturing|university|office|headquarters|\bhq\b|wi-?fi|wireless|\bswitch(es)?\b|\blan\b|\bwan\b|\bnetwork\b|small business|\bsmb\b|enterprise|infrastructure/i.test(t)
       || nums.branches > 1 || nums.stores > 1 || totalRooms > 1
       || /ai-?ready data center|digital resilience|future-?proofed/i.test(t);
   }
@@ -201,7 +204,7 @@
 
     return {
       raw, t, pillar, nums, roomMix,
-      wantsNetwork: intentNeedsNetwork(t, roomMix, nums),
+      wantsNetwork: intentNeedsNetwork(t, roomMix, nums, pillar),
       signals
     };
   }
@@ -248,10 +251,14 @@
     if (!parsed.wantsNetwork) return null;
     const top = ranked[0];
     if (top && top.score >= 5) return top.key;
-    if (parsed.pillar && PILLAR_DEFAULT_NET[parsed.pillar]) return PILLAR_DEFAULT_NET[parsed.pillar];
+    // Explicit venue / scale cues from plain-language briefs win over the
+    // generic pillar default so the topology still reflects what was asked.
+    if (/small business|small office|home office|\bsoho\b|\bsmb\b/i.test(parsed.t)) return "campusCollapsed";
     if (/retail|store|meraki/i.test(parsed.t)) return "retailMeraki";
     if (parsed.nums.branches > 0) return parsed.nums.branches >= 3 ? "sdwanFull" : "branchStandard";
-    return "campus3tierRedundant";
+    if (parsed.pillar && PILLAR_DEFAULT_NET[parsed.pillar]) return PILLAR_DEFAULT_NET[parsed.pillar];
+    if (/office|headquarters|\bhq\b|campus|workplace|wi-?fi|wireless/i.test(parsed.t)) return "campus3tierRedundant";
+    return "campusCollapsed";
   }
 
   function buildPlan(parsed) {
