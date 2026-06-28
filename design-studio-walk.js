@@ -47,7 +47,7 @@
     focusId: null, navIndex: 0, nearChamber: null,
     reticleChamber: null, bobPhase: 0, viewmodel: null, worldBounds: null,
     dustParticles: null, footPhase: 0,
-    topology: null, easyNav: true, route: null
+    topology: null, easyNav: true, route: null, environmentTags: {}
   };
 
   function esc(s) {
@@ -244,9 +244,11 @@
   function setupDiagramWorld(THREE, scene, bounds, graph) {
     const VOX = window.__DS_WALK_VOXEL;
     if (!VOX || !bounds) return;
+    state.environmentTags = {};
     const sky = VOX.setBlockSky(THREE, scene);
     state.disposables.push(sky);
     VOX.addDiagramWorld(THREE, scene, bounds, graph, state.disposables);
+    addAdaptiveVenue(THREE, scene, bounds, graph);
   }
 
   function setupAvatar(THREE, scene) {
@@ -636,6 +638,117 @@
     );
     rack.position.set(cx + 4.5, 1.1, cz - 2.5);
     scene.add(rack);
+  }
+
+  function envTag(tag) {
+    state.environmentTags[tag] = (state.environmentTags[tag] || 0) + 1;
+  }
+
+  function addTagged(scene, obj, tag) {
+    obj.userData = { ...(obj.userData || {}), environmentTag: tag };
+    envTag(tag);
+    scene.add(obj);
+    return obj;
+  }
+
+  function box(THREE, scene, tag, size, pos, mat) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(size[0], size[1], size[2]), mat);
+    m.position.set(pos[0], pos[1], pos[2]);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    return addTagged(scene, m, tag);
+  }
+
+  function addCeilingGrid(THREE, scene, bounds, h = 3.15) {
+    const mat = new THREE.MeshStandardMaterial({ color: 0xd8e1e8, metalness: 0.2, roughness: 0.55, transparent: true, opacity: 0.55 });
+    const cx = (bounds.minX + bounds.maxX) / 2;
+    const cz = (bounds.minZ + bounds.maxZ) / 2;
+    const w = bounds.maxX - bounds.minX + 8;
+    const d = bounds.maxZ - bounds.minZ + 8;
+    for (let x = bounds.minX - 4; x <= bounds.maxX + 4; x += 4) {
+      box(THREE, scene, "room-ceiling-grid", [0.035, 0.035, d], [x, h, cz], mat);
+    }
+    for (let z = bounds.minZ - 4; z <= bounds.maxZ + 4; z += 4) {
+      box(THREE, scene, "room-ceiling-grid", [w, 0.035, 0.035], [cx, h, z], mat);
+    }
+  }
+
+  function addSeatRows(THREE, scene, bounds, rows = 4) {
+    const seatMat = new THREE.MeshStandardMaterial({ color: 0x28303a, roughness: 0.75, metalness: 0.15 });
+    const cx = (bounds.minX + bounds.maxX) / 2;
+    const width = Math.max(bounds.maxX - bounds.minX - 5, 10);
+    for (let r = 0; r < rows; r++) {
+      const z = bounds.minZ + 6 + r * 2.2;
+      box(THREE, scene, "room-seat-row", [width, 0.18, 0.55], [cx, 0.45, z], seatMat);
+      box(THREE, scene, "room-seat-row", [width, 0.65, 0.08], [cx, 0.82, z + 0.32], seatMat);
+    }
+  }
+
+  function addConferenceFurniture(THREE, scene, bounds, graph) {
+    const wood = new THREE.MeshStandardMaterial({ color: 0x4a3c30, roughness: 0.62, metalness: 0.08 });
+    const chairMat = new THREE.MeshStandardMaterial({ color: 0x2a3238, roughness: 0.7, metalness: 0.2 });
+    const tableChambers = (graph.chambers || []).filter(ch => /table|mic/i.test(ch.zone || "") || /table/i.test(ch.label || ""));
+    const xs = tableChambers.length ? tableChambers.map(ch => ch.pos.x) : [bounds.minX + 4, bounds.maxX - 4];
+    const zs = tableChambers.length ? tableChambers.map(ch => ch.pos.z) : [bounds.minZ + 5, bounds.maxZ - 5];
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const cz = (Math.min(...zs) + Math.max(...zs)) / 2;
+    const tw = Math.max(4.8, Math.min(12, Math.max(...xs) - Math.min(...xs) + 4));
+    const td = Math.max(2.0, Math.min(4.2, Math.max(...zs) - Math.min(...zs) + 2.2));
+    box(THREE, scene, "room-table", [tw, 0.12, td], [cx, 0.38, cz], wood);
+    const seats = Math.max(4, Math.min(12, Math.round(tw / 1.2) * 2));
+    for (let i = 0; i < seats / 2; i++) {
+      const x = cx - tw / 2 + 0.75 + i * ((tw - 1.5) / Math.max(1, seats / 2 - 1));
+      [-1, 1].forEach(side => {
+        box(THREE, scene, "room-chair", [0.55, 0.1, 0.55], [x, 0.42, cz + side * (td / 2 + 0.55)], chairMat);
+        box(THREE, scene, "room-chair", [0.55, 0.48, 0.08], [x, 0.72, cz + side * (td / 2 + 0.86)], chairMat);
+      });
+    }
+  }
+
+  function addRoomVenue(THREE, scene, bounds, graph) {
+    const template = String(graph.room?.template || "");
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x2a323c, roughness: 0.78, metalness: 0.15 });
+    const displayMat = new THREE.MeshStandardMaterial({ color: 0x05070a, emissive: 0x143448, emissiveIntensity: 0.22, metalness: 0.35, roughness: 0.45 });
+    const cx = (bounds.minX + bounds.maxX) / 2;
+    const frontZ = bounds.minZ - 2.5;
+    box(THREE, scene, "room-front-wall", [Math.max(bounds.maxX - bounds.minX + 8, 16), 3.2, 0.18], [cx, 1.6, frontZ], wallMat);
+    box(THREE, scene, "room-stage", [Math.max(bounds.maxX - bounds.minX - 4, 8), 0.22, 1.8], [cx, 0.13, bounds.minZ + 1.8], new THREE.MeshStandardMaterial({ color: 0x40362b, roughness: 0.7 }));
+    box(THREE, scene, "room-display-wall", [4.8, 2.1, 0.12], [cx, 2.0, frontZ + 0.12], displayMat);
+    addCeilingGrid(THREE, scene, bounds, /auditorium|training/i.test(template) ? 3.7 : 3.25);
+    if (/auditorium|training/i.test(template)) addSeatRows(THREE, scene, bounds, /auditorium/i.test(template) ? 5 : 3);
+    else addConferenceFurniture(THREE, scene, bounds, graph);
+    if (/openDesk|desk/i.test(template)) {
+      const dividerMat = new THREE.MeshStandardMaterial({ color: 0x51616e, roughness: 0.8, transparent: true, opacity: 0.75 });
+      for (let z = bounds.minZ + 3; z < bounds.maxZ - 2; z += 4) {
+        box(THREE, scene, "room-desk-divider", [Math.max(bounds.maxX - bounds.minX - 5, 8), 1.1, 0.08], [cx, 0.8, z], dividerMat);
+      }
+    }
+  }
+
+  function addNetworkVenue(THREE, scene, bounds, graph) {
+    const cx = (bounds.minX + bounds.maxX) / 2;
+    const cz = (bounds.minZ + bounds.maxZ) / 2;
+    const w = Math.max(bounds.maxX - bounds.minX + 10, 18);
+    const d = Math.max(bounds.maxZ - bounds.minZ + 10, 18);
+    const closetMat = new THREE.MeshStandardMaterial({ color: 0x17202b, roughness: 0.72, metalness: 0.25 });
+    box(THREE, scene, "network-closet-wall", [w, 3.8, 0.2], [cx, 1.9, bounds.minZ - 3.2], closetMat);
+    box(THREE, scene, "network-closet-wall", [0.2, 3.8, d], [bounds.minX - 3.2, 1.9, cz], closetMat);
+    const rackMat = new THREE.MeshStandardMaterial({ color: 0x111820, roughness: 0.38, metalness: 0.82 });
+    const rackRows = /n9k|spine|leaf|ucs|apic|aci|data center/i.test((graph.chambers || []).map(ch => `${ch.label} ${ch.stencilId}`).join(" ")) ? 3 : 2;
+    for (let r = 0; r < rackRows; r++) {
+      const z = bounds.minZ + 2.5 + r * Math.max(2.5, d / (rackRows + 1));
+      box(THREE, scene, "network-rack-row", [w * 0.72, 2.6, 0.52], [cx, 1.3, z], rackMat);
+      box(THREE, scene, "network-patch-panel", [w * 0.68, 0.12, 0.56], [cx, 2.2, z - 0.02], new THREE.MeshStandardMaterial({ color: 0x02c8ff, emissive: 0x026f8f, emissiveIntensity: 0.25, roughness: 0.45 }));
+    }
+    const trayMat = new THREE.MeshStandardMaterial({ color: 0x7d8791, roughness: 0.5, metalness: 0.8 });
+    box(THREE, scene, "network-cable-tray", [w * 0.82, 0.12, 0.34], [cx, 3.15, cz], trayMat);
+    box(THREE, scene, "network-office-door", [1.4, 2.4, 0.08], [bounds.maxX + 2.5, 1.2, bounds.maxZ - 2.5], new THREE.MeshStandardMaterial({ color: 0x395166, roughness: 0.65 }));
+  }
+
+  function addAdaptiveVenue(THREE, scene, bounds, graph) {
+    if (!bounds || !graph) return;
+    if (graph.kind === "room") addRoomVenue(THREE, scene, bounds, graph);
+    else addNetworkVenue(THREE, scene, bounds, graph);
   }
 
   function makeCarpetTexture(THREE) {
@@ -2613,7 +2726,8 @@
       hasRenderer: !!state.renderer,
       photos: state.devicePods.filter(p => p.userData?.chamber?.photoUrl).length,
       outcomes: !!state.outcomes,
-      outcomeObjects: state.outcomeGroup?.children?.length || 0
+      outcomeObjects: state.outcomeGroup?.children?.length || 0,
+      environmentTags: { ...(state.environmentTags || {}) }
     };
   }
 
