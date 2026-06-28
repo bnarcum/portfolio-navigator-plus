@@ -457,34 +457,55 @@
     const pad = ROOM_ZONE_PAD;
     const labelHead = 24;
     if (!entries.length) return;
-    const innerW = Math.max(zone.w - pad * 2, 96);
-    const innerH = Math.max(zone.h - pad * 2 - labelHead, 64);
-    entries.sort((a, b) => a.item.relX - b.item.relX);
-    entries.forEach(e => {
+    const gap = 22;
+    const rowGap = 18;
+    const rowThreshold = 0.18;
+    const meta = entries.map(e => {
       const def = STN()?.getDef?.(e.n.stencilId, "room");
-      const nw = e.n.w || def?.w || 76;
-      const visualH = roomNodeVisualH(e.n, def);
-      const cx = zone.x + pad + e.item.relX * innerW;
-      const cy = zone.y + pad + labelHead + e.item.relY * innerH;
-      let x = cx - nw / 2;
-      let y = cy - visualH / 2;
-      x = Math.max(zone.x + pad, Math.min(x, zone.x + zone.w - pad - nw));
-      y = Math.max(zone.y + pad + labelHead, Math.min(y, zone.y + zone.h - pad - visualH));
-      e.n.x = snapGrid ? snap(baseX + x) : baseX + x;
-      e.n.y = snapGrid ? snap(baseY + y) : baseY + y;
-    });
-    for (let i = 1; i < entries.length; i++) {
-      const prev = entries[i - 1];
-      const cur = entries[i];
-      const pdef = STN()?.getDef?.(prev.n.stencilId, "room");
-      const cdef = STN()?.getDef?.(cur.n.stencilId, "room");
-      const gap = 12;
-      const prevRight = prev.n.x + (prev.n.w || pdef?.w || 76) + gap;
-      const curW = cur.n.w || cdef?.w || 76;
-      if (cur.n.x < prevRight) {
-        cur.n.x = Math.min(prevRight, zone.x + zone.w - pad - curW);
+      const w = e.n.w || def?.w || 76;
+      const h = roomNodeVisualH(e.n, def);
+      return { ...e, def, w, h };
+    }).sort((a, b) => (a.item.relY - b.item.relY) || (a.item.relX - b.item.relX));
+    const rows = [];
+    meta.forEach(e => {
+      const row = rows.find(r => Math.abs(r.relY - e.item.relY) <= rowThreshold);
+      if (row) {
+        row.items.push(e);
+        row.relY = row.items.reduce((s, x) => s + x.item.relY, 0) / row.items.length;
+      } else {
+        rows.push({ relY: e.item.relY, items: [e] });
       }
-    }
+    });
+
+    const minInnerW = Math.max(zone.w - pad * 2, 96);
+    const rowWidths = rows.map(r => r.items.reduce((s, e) => s + e.w, 0) + gap * Math.max(0, r.items.length - 1));
+    const neededW = Math.max(minInnerW, ...rowWidths);
+    const innerW = neededW;
+    if (neededW + pad * 2 > zone.w) zone.w = neededW + pad * 2;
+
+    const baseTop = zone.y + pad + labelHead;
+    let cursorY = baseTop;
+    rows.sort((a, b) => a.relY - b.relY).forEach(row => {
+      row.items.sort((a, b) => a.item.relX - b.item.relX);
+      const rowH = Math.max(...row.items.map(e => e.h));
+      const idealY = zone.y + pad + labelHead + row.relY * Math.max(zone.h - pad * 2 - labelHead, 64) - rowH / 2;
+      const y = Math.max(cursorY, idealY);
+      const totalW = row.items.reduce((s, e) => s + e.w, 0) + gap * Math.max(0, row.items.length - 1);
+      const minX = zone.x + pad;
+      const maxX = zone.x + pad + innerW - totalW;
+      let x = row.items.length === 1
+        ? zone.x + pad + row.items[0].item.relX * innerW - row.items[0].w / 2
+        : minX + (innerW - totalW) / 2;
+      x = Math.max(minX, Math.min(x, maxX));
+      row.items.forEach(e => {
+        e.n.x = snapGrid ? snap(baseX + x) : baseX + x;
+        e.n.y = snapGrid ? snap(baseY + y) : baseY + y;
+        x += e.w + gap;
+      });
+      cursorY = y + rowH + rowGap;
+    });
+    const neededH = cursorY - zone.y + pad - rowGap;
+    if (neededH > zone.h) zone.h = neededH;
   }
 
   function autoLayoutRoom(design, roomId) {
