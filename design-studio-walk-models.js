@@ -840,7 +840,7 @@
     return 1;
   }
 
-  function networkLayerScale(ch, def) {
+  function targetHeight(template, kind) {
     const map = {
       switch: 0.35, "switch-chassis": 1.65, router: 0.4, firewall: 0.38, nexus: 0.45,
       server: 0.65, ap: 0.55, codec: 0.45, camera: 0.38, touch: 1.1, display: 1.75,
