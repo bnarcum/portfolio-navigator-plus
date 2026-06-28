@@ -167,13 +167,78 @@
 
 
   function addVoxelEnvironment(THREE, scene, bright = true) {
-    scene.add(new THREE.AmbientLight(0xffffff, bright ? 0.72 : 0.45));
-    const sun = new THREE.DirectionalLight(0xfff4d0, bright ? 0.95 : 0.65);
-    sun.position.set(18, 42, 12);
+    // Image-based lighting (added separately) carries most of the ambient now,
+    // so the punch-in lights are tuned for ACES tone mapping.
+    scene.add(new THREE.AmbientLight(0xffffff, bright ? 0.42 : 0.3));
+    const sun = new THREE.DirectionalLight(0xfff4d0, bright ? 1.25 : 0.85);
+    sun.position.set(22, 46, 16);
+    if (THREE.PCFSoftShadowMap !== undefined) {
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(2048, 2048);
+      const c = sun.shadow.camera;
+      c.near = 1; c.far = 160;
+      c.left = -55; c.right = 55; c.top = 55; c.bottom = -55;
+      sun.shadow.bias = -0.0004;
+      sun.shadow.normalBias = 0.02;
+      c.updateProjectionMatrix?.();
+    }
     scene.add(sun);
-    const fill = new THREE.DirectionalLight(0x8ec8f8, 0.35);
-    fill.position.set(-14, 20, -10);
+    state.sun = sun;
+    const fill = new THREE.DirectionalLight(0x8ec8f8, 0.4);
+    fill.position.set(-16, 22, -12);
     scene.add(fill);
+  }
+
+  // Procedural image-based lighting: a soft sky/ground "room" with a couple of
+  // bright panels, prefiltered via PMREM. Gives all PBR (MeshStandard) device
+  // models real reflections + ambient so metals read as metal, not flat paint.
+  function addImageBasedLighting(THREE, scene, renderer) {
+    if (!THREE.PMREMGenerator || !renderer) return;
+    try {
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      pmrem.compileEquirectangularShader?.();
+      const env = new THREE.Scene();
+      const boxGeo = new THREE.BoxGeometry(24, 24, 24);
+      const pos = boxGeo.attributes.position;
+      const cols = [];
+      const top = new THREE.Color(0xcfe7ff), bot = new THREE.Color(0x223040);
+      for (let i = 0; i < pos.count; i++) {
+        const t = (pos.getY(i) + 12) / 24;
+        const c = bot.clone().lerp(top, Math.max(0, Math.min(1, t)));
+        cols.push(c.r, c.g, c.b);
+      }
+      boxGeo.setAttribute("color", new THREE.Float32BufferAttribute(cols, 3));
+      const room = new THREE.Mesh(boxGeo, new THREE.MeshBasicMaterial({ side: THREE.BackSide, vertexColors: true }));
+      env.add(room);
+      const ceil = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      ceil.position.set(0, 11.8, 0); ceil.rotation.x = Math.PI / 2; env.add(ceil);
+      const side = new THREE.Mesh(new THREE.PlaneGeometry(7, 4), new THREE.MeshBasicMaterial({ color: 0xaee0ff }));
+      side.position.set(-11.8, 4, 0); side.rotation.y = Math.PI / 2; env.add(side);
+      const rt = pmrem.fromScene(env, 0.04);
+      scene.environment = rt.texture;
+      state.envRT = rt;
+      boxGeo.dispose();
+      room.material.dispose();
+      ceil.geometry.dispose(); ceil.material.dispose();
+      side.geometry.dispose(); side.material.dispose();
+      pmrem.dispose();
+    } catch (e) {
+      console.warn("[DS Walk] IBL skipped:", e);
+    }
+  }
+
+  // Turn on shadow casting/receiving across the (small) static + device meshes.
+  // Skips overlays, sprites, fake-AO blobs, hitboxes, and the route ribbon.
+  function applySceneShadows() {
+    const scene = state.scene;
+    if (!scene) return;
+    scene.traverse(o => {
+      if (!o.isMesh || o.userData?.noShadow) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      if (mats.some(m => m && (m.visible === false || (m.transparent && m.depthWrite === false)))) return;
+      o.castShadow = true;
+      o.receiveShadow = true;
+    });
   }
 
   function setupDiagramWorld(THREE, scene, bounds, graph) {
@@ -752,15 +817,24 @@
     state.cables = [];
     state.colliders = [];
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: "high-performance" });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(0x8ec8f8, 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace || renderer.outputEncoding;
+    if (THREE.ACESFilmicToneMapping) {
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.12;
+    }
+    if (THREE.PCFSoftShadowMap !== undefined) {
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    }
     state.renderer = renderer;
 
     const scene = new THREE.Scene();
     state.scene = scene;
     addVoxelEnvironment(THREE, scene, true);
+    addImageBasedLighting(THREE, scene, renderer);
     state.bounds = graph.layoutBounds || {
       minX: Math.min(...graph.chambers.map(c => c.pos.x)) - 8,
       maxX: Math.max(...graph.chambers.map(c => c.pos.x)) + 8,
@@ -791,8 +865,10 @@
     buildConnectedNav(spawn);
     resizeRenderer();
 
+    applySceneShadows();
     setStatus("Loading devices…");
     loadDevicePods(THREE, graph, 1).then(() => {
+      applySceneShadows();
       if (state.mode) setStatus("Pick a device below or tap a connected link");
     });
   }
@@ -2224,6 +2300,8 @@
 
   function disposeScene() {
     clearWayfinding();
+    if (state.envRT) { state.envRT.dispose?.(); state.envRT = null; }
+    if (state.scene) state.scene.environment = null;
     if (state.viewmodel && state.camera) state.camera.remove(state.viewmodel);
     if (state.avatar && state.scene) state.scene.remove(state.avatar);
     state.viewmodel = null;
