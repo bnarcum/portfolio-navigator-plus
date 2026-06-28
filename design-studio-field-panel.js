@@ -97,6 +97,22 @@
     return { roleInfo, zoneNote, tip, layer, poe, rack };
   }
 
+  function citationFor(ch, studio, graph) {
+    if (graph?.kind === "room" && studio) {
+      const room = studio.design?.rooms?.find(r => r.id === studio.activeRoomId);
+      const tpl = room ? window.__DS_TEMPLATES?.ROOM_TEMPLATES?.[room.template] : null;
+      if (tpl?.ctUrl) return { label: tpl.ct || "Workspace design guide", url: tpl.ctUrl };
+    }
+    if (graph?.kind === "network") {
+      const keys = Object.keys(window.__DS_TEMPLATES?.NETWORK_TEMPLATES || {});
+      const hit = keys.find(k => (studio?.design?.nodes || []).some(n =>
+        !n.roomId && window.__DS_TEMPLATES?.NETWORK_TEMPLATES?.[k]?.nodes?.some(tn => tn.label === n.label)));
+      const tpl = hit ? window.__DS_TEMPLATES.NETWORK_TEMPLATES[hit] : null;
+      if (tpl?.cvdUrl) return { label: tpl.cvd || "CVD design guide", url: tpl.cvdUrl };
+    }
+    return null;
+  }
+
   function render(ch, studio, graph) {
     const panel = document.getElementById("ds-field-panel");
     if (!panel || !ch) return;
@@ -117,6 +133,8 @@
 
     const exploreCtx = studio ? window.__DS_EXPLORE?.resolveContext?.(studio) : null;
     const docLink = exploreCtx?.docs?.[0];
+    const cite = citationFor(ch, studio, graph);
+    const whyHere = ch.semantic?.why || edu.zoneNote;
 
     panel.hidden = false;
     panel.innerHTML = `
@@ -132,8 +150,12 @@
       <div class="ds-fp-body">
         ${ch.photoUrl ? `<div class="ds-fp-photo"><img src="${esc(ch.photoUrl)}" alt="${esc(ch.label)}" loading="lazy"/></div>` : ""}
         <section class="ds-fp-section ds-fp-hero">
+          <h4>Why here?</h4>
+          <p class="ds-fp-lead">${esc(whyHere)}</p>
+        </section>
+        <section class="ds-fp-section">
           <h4>What is this?</h4>
-          <p class="ds-fp-lead">${esc(edu.roleInfo.body)}</p>
+          <p>${esc(edu.roleInfo.body)}</p>
         </section>
         <section class="ds-fp-section">
           <h4>Field tip</h4>
@@ -158,7 +180,8 @@
           <button type="button" class="ds-walk-btn" data-action="fp-trace-av">Trace AV path</button>
           ${pid ? `<button type="button" class="ds-walk-btn" data-action="fp-copy-pid">Copy PID</button>` : ""}
           ${ciscoUrl ? `<a class="ds-walk-btn ds-btn-link" href="${ciscoUrl}" target="_blank" rel="noopener noreferrer">Cisco.com ↗</a>` : ""}
-          ${docLink ? `<a class="ds-walk-btn ds-btn-link" href="${docLink.url}" target="_blank" rel="noopener noreferrer">${esc(docLink.label || "Design guide")} ↗</a>` : ""}
+          ${cite ? `<a class="ds-walk-btn ds-btn-link" href="${esc(cite.url)}" target="_blank" rel="noopener noreferrer">${esc(cite.label)} ↗</a>` : ""}
+          ${docLink && (!cite || docLink.url !== cite.url) ? `<a class="ds-walk-btn ds-btn-link" href="${docLink.url}" target="_blank" rel="noopener noreferrer">${esc(docLink.label || "Design guide")} ↗</a>` : ""}
         </section>
         <footer class="ds-fp-foot">Press <kbd>Esc</kbd> or click the room to keep walking</footer>
       </div>`;

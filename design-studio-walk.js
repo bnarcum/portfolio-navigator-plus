@@ -47,7 +47,8 @@
     focusId: null, navIndex: 0, nearChamber: null,
     reticleChamber: null, bobPhase: 0, viewmodel: null, worldBounds: null,
     dustParticles: null, footPhase: 0,
-    topology: null, easyNav: true, route: null, environmentTags: {}
+    topology: null, easyNav: true, route: null, environmentTags: {},
+    tour: null, traceCableId: null, semanticFrame: null
   };
 
   function esc(s) {
@@ -101,9 +102,31 @@
       const p = layout.positions[ch.id];
       if (p) ch.pos = { x: p.x, y: p.y, z: p.z, diagramX: p.diagramX, diagramY: p.diagramY };
     });
+    const wx = chambers.map(c => c.pos.x);
+    const wz = chambers.map(c => c.pos.z);
+    const pad = kind === "network" ? 10 : 8;
+    const bounds = {
+      minX: Math.min(...wx) - pad,
+      maxX: Math.max(...wx) + pad,
+      minZ: Math.min(...wz) - pad,
+      maxZ: Math.max(...wz) + pad
+    };
     return {
-      bounds: layout.bounds,
+      bounds,
       diagram: { cx: layout.center.cx, cy: layout.center.cy, scale: layout.scale, kind }
+    };
+  }
+
+  function recomputeBounds(chambers, kind) {
+    const wx = chambers.map(c => c.pos.x).filter(Number.isFinite);
+    const wz = chambers.map(c => c.pos.z).filter(Number.isFinite);
+    if (!wx.length) return null;
+    const pad = kind === "network" ? 10 : 8;
+    return {
+      minX: Math.min(...wx) - pad,
+      maxX: Math.max(...wx) + pad,
+      minZ: Math.min(...wz) - pad,
+      maxZ: Math.max(...wz) + pad
     };
   }
 
@@ -111,7 +134,12 @@
     const roomId = studio.activeRoomId;
     const room = studio.design.rooms.find(r => r.id === roomId);
     if (!room) return null;
-    const nodes = studio.design.nodes.filter(n => n.roomId === roomId && !window.__DS_STENCILS?.getDef?.(n.stencilId, "room")?.decorative);
+    const nodes = studio.design.nodes.filter(n => {
+      if (n.roomId !== roomId) return false;
+      const def = window.__DS_STENCILS?.getDef?.(n.stencilId, "room");
+      if (def?.decorative && !/^display-/.test(n.stencilId || "")) return false;
+      return true;
+    });
     const nodeIds = new Set(nodes.map(n => n.id));
     const links = studio.design.links.filter(l => nodeIds.has(l.from) && nodeIds.has(l.to));
     const chambers = nodes.map(n => {
@@ -120,7 +148,11 @@
     });
     const graph = linkGraph(room, chambers, links, "room");
     const layoutInfo = applyDiagramLayout(studio, graph.chambers, nodes, "room");
-    graph.layoutBounds = layoutInfo?.bounds;
+    const tpl = window.__DS_TEMPLATES?.ROOM_TEMPLATES?.[room.template];
+    graph.semanticFrame = window.__DS_WALK_LAYOUT?.applySemanticPlacement?.(
+      graph.chambers, nodes, "room", { items: tpl?.items, room }
+    );
+    graph.layoutBounds = recomputeBounds(graph.chambers, "room") || layoutInfo?.bounds;
     graph.layoutDiagram = layoutInfo?.diagram;
     return graph;
   }
@@ -138,7 +170,10 @@
     });
     const graph = linkGraph({ name: "Network topology" }, chambers, links, "network");
     const layoutInfo = applyDiagramLayout(studio, graph.chambers, nodes, "network");
-    graph.layoutBounds = layoutInfo?.bounds;
+    graph.semanticFrame = window.__DS_WALK_LAYOUT?.applySemanticPlacement?.(
+      graph.chambers, nodes, "network", {}
+    );
+    graph.layoutBounds = recomputeBounds(graph.chambers, "network") || layoutInfo?.bounds;
     graph.layoutDiagram = layoutInfo?.diagram;
     return graph;
   }
@@ -401,7 +436,17 @@
     return sprite;
   }
 
-  function podLift(zone, kind) {
+  function podLift(zone, kind, ch) {
+    if (ch?.pos?.y && kind === "room") {
+      if (zone === "table") return ch.pos.y;
+      if (zone === "display" || zone === "wall") return ch.pos.y;
+      if (zone === "ceiling") return ch.pos.y || 2.95;
+      if (zone === "rack") return ch.pos.y || 1.05;
+    }
+    if (kind === "network") {
+      if (ch?.mount === "ceiling" || ch?.pos?.y > 2) return ch.pos?.y || 2.85;
+      return ch?.pos?.y || 1.05;
+    }
     if (kind !== "room") return 1.05;
     const z = (zone || "").toLowerCase();
     if (z === "ceiling") return 3.1;
@@ -416,7 +461,7 @@
     const theme = zoneTheme(ch.zone);
     const g = new THREE.Group();
     g.userData = { chamber: ch, kind: "pod" };
-    const lift = podLift(ch.zone, kind);
+    const lift = podLift(ch.zone, kind, ch);
     const mode = kind === "room" ? "room" : "network";
     const def = window.__DS_STENCILS?.getDef?.(ch.stencilId, mode);
 
@@ -487,6 +532,7 @@
   }
 
   function podFaceYaw(ch) {
+    if (Number.isFinite(ch.faceYaw)) return ch.faceYaw;
     const cors = state.graph?.corridors?.filter(c => c.from.id === ch.id || c.to.id === ch.id) || [];
     if (!cors.length) return 0;
     const cor = cors[0];
@@ -507,7 +553,7 @@
   function cablePortY(ch) {
     const kind = state.graph?.kind || "room";
     const z = (ch?.zone || "").toLowerCase();
-    const lift = podLift(z, kind);
+    const lift = podLift(z, kind, ch);
     if (kind !== "room") return lift + 0.4;    // network chassis: into the body
     if (z === "ceiling") return lift + 0.55;   // plug into the stem of a hanging mic/AP
     if (z === "wall" || z === "display") return lift + 0.15;
@@ -707,14 +753,20 @@
 
   function addRoomVenue(THREE, scene, bounds, graph) {
     const template = String(graph.room?.template || "");
+    const frame = graph.semanticFrame || {};
     const wallMat = new THREE.MeshStandardMaterial({ color: 0x2a323c, roughness: 0.78, metalness: 0.15 });
-    const displayMat = new THREE.MeshStandardMaterial({ color: 0x05070a, emissive: 0x143448, emissiveIntensity: 0.22, metalness: 0.35, roughness: 0.45 });
     const cx = (bounds.minX + bounds.maxX) / 2;
-    const frontZ = bounds.minZ - 2.5;
+    const frontZ = Number.isFinite(frame.frontZ) ? frame.frontZ - 0.35 : bounds.minZ - 2.5;
+    const hasDisplayDevice = (graph.chambers || []).some(ch =>
+      /display/i.test(ch.stencilId || "") || ch.semantic?.kind === "display");
     box(THREE, scene, "room-front-wall", [Math.max(bounds.maxX - bounds.minX + 8, 16), 3.2, 0.18], [cx, 1.6, frontZ], wallMat);
-    box(THREE, scene, "room-stage", [Math.max(bounds.maxX - bounds.minX - 4, 8), 0.22, 1.8], [cx, 0.13, bounds.minZ + 1.8], new THREE.MeshStandardMaterial({ color: 0x40362b, roughness: 0.7 }));
-    box(THREE, scene, "room-display-wall", [4.8, 2.1, 0.12], [cx, 2.0, frontZ + 0.12], displayMat);
-    addCeilingGrid(THREE, scene, bounds, /auditorium|training/i.test(template) ? 3.7 : 3.25);
+    if (/auditorium|training/i.test(template)) {
+      box(THREE, scene, "room-stage", [Math.max(bounds.maxX - bounds.minX - 4, 8), 0.22, 1.8], [cx, 0.13, frontZ + 2.1], new THREE.MeshStandardMaterial({ color: 0x40362b, roughness: 0.7 }));
+    }
+    if (!hasDisplayDevice) {
+      const displayMat = new THREE.MeshStandardMaterial({ color: 0x05070a, emissive: 0x143448, emissiveIntensity: 0.22, metalness: 0.35, roughness: 0.45 });
+      box(THREE, scene, "room-display-wall", [4.8, 2.1, 0.12], [cx, 2.0, frontZ + 0.12], displayMat);
+    }
     if (/auditorium|training/i.test(template)) addSeatRows(THREE, scene, bounds, /auditorium/i.test(template) ? 5 : 3);
     else addConferenceFurniture(THREE, scene, bounds, graph);
     if (/openDesk|desk/i.test(template)) {
@@ -730,15 +782,26 @@
     const cz = (bounds.minZ + bounds.maxZ) / 2;
     const w = Math.max(bounds.maxX - bounds.minX + 10, 18);
     const d = Math.max(bounds.maxZ - bounds.minZ + 10, 18);
-    const closetMat = new THREE.MeshStandardMaterial({ color: 0x17202b, roughness: 0.72, metalness: 0.25 });
-    box(THREE, scene, "network-closet-wall", [w, 3.8, 0.2], [cx, 1.9, bounds.minZ - 3.2], closetMat);
+    const frame = graph.semanticFrame || {};
+    const isDc = frame.isDc;
+    const closetMat = new THREE.MeshStandardMaterial({ color: isDc ? 0x121820 : 0x17202b, roughness: 0.72, metalness: 0.25 });
+    const demarcZ = frame.demarcZ ?? bounds.minZ - 3.2;
+    box(THREE, scene, "network-closet-wall", [w, 3.8, 0.2], [cx, 1.9, demarcZ - 1.2], closetMat);
     box(THREE, scene, "network-closet-wall", [0.2, 3.8, d], [bounds.minX - 3.2, 1.9, cz], closetMat);
     const rackMat = new THREE.MeshStandardMaterial({ color: 0x111820, roughness: 0.38, metalness: 0.82 });
-    const rackRows = /n9k|spine|leaf|ucs|apic|aci|data center/i.test((graph.chambers || []).map(ch => `${ch.label} ${ch.stencilId}`).join(" ")) ? 3 : 2;
-    for (let r = 0; r < rackRows; r++) {
-      const z = bounds.minZ + 2.5 + r * Math.max(2.5, d / (rackRows + 1));
-      box(THREE, scene, "network-rack-row", [w * 0.72, 2.6, 0.52], [cx, 1.3, z], rackMat);
-      box(THREE, scene, "network-patch-panel", [w * 0.68, 0.12, 0.56], [cx, 2.2, z - 0.02], new THREE.MeshStandardMaterial({ color: 0x02c8ff, emissive: 0x026f8f, emissiveIntensity: 0.25, roughness: 0.45 }));
+    const layers = window.__DS_WALK_LAYOUT?.NET_LAYER_ORDER || ["wan", "security", "core", "distribution", "dc", "access", "mgmt", "collab"];
+    const activeLayers = layers.filter(l => (graph.chambers || []).some(ch => ch.zone === l));
+    const rackRows = activeLayers.length || (isDc ? 3 : 2);
+    activeLayers.forEach((layer, r) => {
+      const layerZ = frame.layerZ?.[layer] ?? bounds.minZ + 2.5 + r * 3;
+      box(THREE, scene, "network-rack-row", [w * 0.72, isDc ? 2.9 : 2.6, 0.52], [cx, isDc ? 1.45 : 1.3, layerZ], rackMat);
+      box(THREE, scene, "network-patch-panel", [w * 0.68, 0.12, 0.56], [cx, isDc ? 2.45 : 2.2, layerZ - 0.02], new THREE.MeshStandardMaterial({ color: 0x02c8ff, emissive: 0x026f8f, emissiveIntensity: 0.25, roughness: 0.45 }));
+    });
+    if (!activeLayers.length) {
+      for (let r = 0; r < (isDc ? 3 : 2); r++) {
+        const z = bounds.minZ + 2.5 + r * Math.max(2.5, d / (rackRows + 1));
+        box(THREE, scene, "network-rack-row", [w * 0.72, 2.6, 0.52], [cx, 1.3, z], rackMat);
+      }
     }
     const trayMat = new THREE.MeshStandardMaterial({ color: 0x7d8791, roughness: 0.5, metalness: 0.8 });
     box(THREE, scene, "network-cable-tray", [w * 0.82, 0.12, 0.34], [cx, 3.15, cz], trayMat);
@@ -997,6 +1060,14 @@
       if (window.__cpnAutoOutcomes && !state.outcomes) {
         window.__cpnAutoOutcomes = false;
         toggleOutcomes();
+      }
+      if (window.__cpnFollowPoE) {
+        window.__cpnFollowPoE = false;
+        startTrace("poe");
+      }
+      if (window.__cpnAutoTour) {
+        window.__cpnAutoTour = false;
+        setTimeout(() => startGuidedTour(), 400);
       }
       if (state.mode) setStatus("Pick a device below or tap a connected link");
     });
@@ -1778,7 +1849,7 @@
       state.pos.y = EYE_HEIGHT;
       state.yaw = Math.atan2(bx - ax, bz - az);
       state.vel = { x: 0, y: 0, z: 0 };
-      if (t >= 1) { setStatus(`Arrived: ${state.trace.label}`); state.trace = null; }
+      if (t >= 1) { setStatus(`Arrived: ${state.trace.label}`); state.trace = null; setTraceCable(null); }
     }
     const footSpd = Math.hypot(state.vel.x, state.vel.z);
     if (footSpd > 0.3) {
@@ -1945,6 +2016,7 @@
   function animateCables(t) {
     state.cables.forEach(g => {
       const curve = g.userData?.curve;
+      const hi = g.userData?.corridor?.id === state.traceCableId;
       if (!curve) return;
       g.children.forEach(ch => {
         if (!ch.userData?.packet) return;
@@ -1980,7 +2052,7 @@
     ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
     ctx.font = "8px system-ui,sans-serif";
     ctx.fillStyle = "rgba(158,192,220,0.85)";
-    ctx.fillText("Diagram links", 6, 11);
+    ctx.fillText("Diagram mirror · you are here", 6, 11);
 
     if (!state.chambers?.length) return;
 
@@ -2133,6 +2205,7 @@
     state.lastFrame = t;
     state.clock += dt;
     updatePlayer(dt);
+    updateTour(dt);
     animateCables(state.clock);
     animateDust(dt);
     updateReticleFocus();
@@ -2289,6 +2362,122 @@
     if (g.userData.central) g.userData.central.position.y = 3.4 + Math.sin(t * 0.8) * 0.08;
   }
 
+  function setTraceCable(cor) {
+    state.traceCableId = cor?.id || null;
+    state.cables.forEach(g => {
+      const on = g.userData?.corridor?.id === state.traceCableId;
+      g.traverse(o => {
+        if (!o.material) return;
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach(m => {
+          if (m.emissiveIntensity !== undefined) m.emissiveIntensity = on ? 1.15 : 0.55;
+          if (m.opacity !== undefined && m.transparent) m.opacity = on ? 1 : 0.92;
+        });
+      });
+      g.scale.setScalar(on ? 1.04 : 1);
+    });
+  }
+
+  function tourStepsFor(graph) {
+    const dwell = 5.5;
+    if (graph?.kind === "room") {
+      return [
+        { match: ch => /display/i.test(ch.stencilId || ""), caption: "Front wall display — primary video for the room" },
+        { match: ch => /quad|cam/i.test(`${ch.stencilId} ${ch.label}`), caption: "Wall camera — mounted above the display, aimed at the table" },
+        { match: ch => /touch/i.test(`${ch.stencilId} ${ch.label}`), caption: "Touch controller on the table — in-room control within reach" },
+        { match: ch => /mic/i.test(`${ch.stencilId} ${ch.label}`), caption: "Microphones — ceiling or table pickup for the codec" },
+        { match: ch => /9200|switch/i.test(`${ch.stencilId} ${ch.label}`), caption: "Collaboration PoE switch — powers room endpoints" },
+        { match: ch => /kit|codec|bar|board/i.test(ch.stencilId || ""), caption: "Codec in the credenza — terminates AV on the LAN" }
+      ].map(s => ({ ...s, dwell }));
+    }
+    return [
+      { match: ch => ch.zone === "wan" || /internet|8200|sdwan|dia/i.test(`${ch.stencilId} ${ch.label}`), caption: "WAN demarc — circuits and SD-WAN handoff at the closet door" },
+      { match: ch => ch.zone === "security" || /fpr|firewall|ise/i.test(`${ch.stencilId} ${ch.label}`), caption: "Security row — firewall, ISE, and policy services" },
+      { match: ch => ch.zone === "core", caption: "Core switches — redundant campus aggregation" },
+      { match: ch => ch.zone === "distribution", caption: "Distribution layer — connects access to core" },
+      { match: ch => ch.zone === "access" && !/9179|mr57|ap/i.test(ch.stencilId || ""), caption: "Access switches — PoE to APs and IDF endpoints" },
+      { match: ch => /9179|mr57|9120|ap/i.test(`${ch.stencilId} ${ch.label}`), caption: "Ceiling APs — wireless coverage powered from access" },
+      { match: ch => ch.zone === "collab" || /9200-collab/i.test(ch.stencilId || ""), caption: "Collaboration uplink — PoE path toward meeting rooms" }
+    ].map(s => ({ ...s, dwell }));
+  }
+
+  function setTourCaption(text) {
+    const el = document.getElementById("ds-walk-tour-caption");
+    if (!el) return;
+    if (!text) { el.hidden = true; el.textContent = ""; return; }
+    el.hidden = false;
+    el.textContent = text;
+  }
+
+  function stopTour() {
+    state.tour = null;
+    setTourCaption("");
+    state.overlay?.querySelector('[data-action="tour"]')?.classList.remove("active");
+  }
+
+  function startGuidedTour() {
+    if (!state.chambers?.length) return;
+    const steps = tourStepsFor(state.graph).map(s => {
+      const ch = state.chambers.find(s.match);
+      return ch ? { ...s, ch } : null;
+    }).filter(Boolean);
+    if (!steps.length) { setStatus("No tour stops in this design"); return; }
+    state.tour = { steps, i: 0, elapsed: 0 };
+    state.overlay?.querySelector('[data-action="tour"]')?.classList.add("active");
+    teleportToChamber(steps[0].ch, false);
+    highlightNavChip(steps[0].ch.id);
+    setTourCaption(steps[0].caption);
+    setStatus("Customer tour — Esc to stop");
+  }
+
+  function updateTour(dt) {
+    if (!state.tour) return;
+    state.tour.elapsed += dt;
+    const step = state.tour.steps[state.tour.i];
+    if (!step) { stopTour(); return; }
+    if (state.tour.elapsed >= step.dwell) {
+      state.tour.i += 1;
+      state.tour.elapsed = 0;
+      const next = state.tour.steps[state.tour.i];
+      if (!next) {
+        stopTour();
+        setStatus("Tour complete — inspect any device or trace a link");
+        return;
+      }
+      teleportToChamber(next.ch, false);
+      highlightNavChip(next.ch.id);
+      setTourCaption(next.caption);
+    }
+  }
+
+  async function followPoEToRoom() {
+    const studio = state.studio;
+    const graph = state.graph;
+    if (!studio || !graph) return;
+    if (graph.kind === "network") {
+      const poe = graph.corridors.find(c => /cat6|cat6a/i.test(c.media || "") && /poe|touch|mic|kit|codec|bar/i.test(`${c.label} ${c.from?.label} ${c.to?.label}`))
+        || graph.corridors.find(c => /cat6/i.test(c.media || ""));
+      const room = studio.design.rooms.find(r =>
+        studio.design.nodes.some(n => n.roomId === r.id && /9200|touch|kit|bar|codec/i.test(`${n.stencilId} ${n.label}`)));
+      if (!room) { setStatus("Add a collaboration room to follow PoE downstream"); return; }
+      window.__cpnFollowPoE = true;
+      studio.activeRoomId = room.id;
+      studio.design.activeRoomId = room.id;
+      close(true);
+      studio.setTab("room");
+      setTimeout(() => studio.openWalk?.(), 200);
+      setStatus("Following PoE to collaboration room…");
+      return;
+    }
+    const hasNet = studio.design.nodes.some(n => n.canvas !== "room" && !n.roomId);
+    if (!hasNet) { setStatus("Add a network topology to trace upstream PoE"); return; }
+    window.__cpnFollowPoE = true;
+    close(true);
+    studio.setTab("network");
+    setTimeout(() => studio.openWalk?.(), 200);
+    setStatus("Following PoE upstream to the closet…");
+  }
+
   function renderOutcomeReadout() {
     const el = document.getElementById("ds-walk-outcomes");
     if (!el || !state.outcomeStats) return;
@@ -2330,6 +2519,8 @@
         <button type="button" class="ds-walk-close" title="Exit walkthrough">✕</button>
       </div>
       <div class="ds-walk-hud-mid">
+        <button type="button" class="ds-walk-btn" data-action="tour" title="Guided customer tour of key devices">Customer tour</button>
+        <button type="button" class="ds-walk-btn" data-action="follow-collab" title="Follow PoE path between network closet and collaboration room">Follow PoE</button>
         <button type="button" class="ds-walk-btn" data-action="trace-av">Trace AV link</button>
         <button type="button" class="ds-walk-btn" data-action="trace-poe">Trace PoE link</button>
         <button type="button" class="ds-walk-btn" data-action="prev-dev" title="Previous device">‹ Prev</button>
@@ -2338,6 +2529,7 @@
         <button type="button" class="ds-walk-btn primary" data-action="inspect" title="Open device details">Inspect</button>
       </div>
       <div class="ds-walk-outcomes" id="ds-walk-outcomes" hidden></div>
+      <div class="ds-walk-tour-caption" id="ds-walk-tour-caption" hidden></div>
       <div class="ds-walk-wayfind" id="ds-walk-wayfind" hidden></div>
       <div class="ds-walk-links" id="ds-walk-links" hidden></div>
       <div class="ds-walk-legend" id="ds-walk-legend" hidden></div>
@@ -2378,6 +2570,8 @@
       if (!btn) return;
       const a = btn.dataset.action;
       if (a === "trace-av") startTrace("av");
+      else if (a === "tour") { state.tour ? stopTour() : startGuidedTour(); }
+      else if (a === "follow-collab") followPoEToRoom();
       else if (a === "outcomes") toggleOutcomes();
       else if (a === "wayfind-open") openWayfindMenu();
       else if (a === "wayfind-close") closeWayfindMenu();
@@ -2413,10 +2607,12 @@
       ? graph.corridors.find(c => c.media === "hdmi" || c.media === "usb")
       : graph.corridors.find(c => c.media === "cat6" || c.media === "cat6a" || /fiber/i.test(c.media || ""));
     if (!pick) { setStatus(kind === "av" ? "No AV link in this room" : "No PoE link in this room"); return; }
+    setTraceCable(pick);
     state.trace = {
       waypoints: [chamberWorldPos(pick.from), chamberWorldPos(pick.to)],
       label: `${pick.label} · ${pick.fromPort || ""} → ${pick.toPort || ""}`,
-      t: 0
+      t: 0,
+      cor: pick
     };
     setStatus(`Tracing: ${pick.label}`);
   }
@@ -2447,6 +2643,7 @@
       if (e.type === "keydown") {
         if (e.key === "Escape") {
           e.preventDefault();
+          if (state.tour) { stopTour(); return; }
           const panel = document.getElementById("ds-field-panel");
           if (panel && !panel.hidden) {
             window.__DS_FIELD_PANEL?.close?.();
@@ -2693,6 +2890,8 @@
   }
 
   function close(silent) {
+    stopTour();
+    setTraceCable(null);
     cancelAnimationFrame(state.animId);
     state.animId = 0;
     state._inputCleanup?.();
@@ -2720,6 +2919,7 @@
   function debugStats() {
     return {
       mode: state.mode,
+      graphKind: state.graph?.kind,
       pos: { x: state.pos.x, z: state.pos.z },
       pods: state.devicePods.length,
       cables: state.cables.length,
@@ -2727,9 +2927,19 @@
       photos: state.devicePods.filter(p => p.userData?.chamber?.photoUrl).length,
       outcomes: !!state.outcomes,
       outcomeObjects: state.outcomeGroup?.children?.length || 0,
-      environmentTags: { ...(state.environmentTags || {}) }
+      environmentTags: { ...(state.environmentTags || {}) },
+      semanticFrame: state.graph?.semanticFrame || null,
+      chambers: (state.chambers || []).map(ch => ({
+        id: ch.id, label: ch.label, zone: ch.zone,
+        x: ch.pos?.x, y: ch.pos?.y, z: ch.pos?.z,
+        kind: ch.semantic?.kind, why: ch.semantic?.why
+      }))
     };
   }
 
-  window.__DS_WALK = { open, close, rebuild, toggle: s => state.mode ? close(true) : open(s), isOpen: () => !!state.mode, debugStats, hasRoute: () => !!state.route };
+  window.__DS_WALK = {
+    open, close, rebuild, toggle: s => state.mode ? close(true) : open(s),
+    isOpen: () => !!state.mode, debugStats, hasRoute: () => !!state.route,
+    startGuidedTour, followPoEToRoom, startTrace
+  };
 })();

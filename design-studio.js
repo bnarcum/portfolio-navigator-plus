@@ -1169,6 +1169,35 @@
       this.render();
       setTimeout(() => this.refreshExplore(), 500);
       this.highlightQuickstartOnce();
+      this.runDemoIfRequested();
+    }
+
+    runDemoIfRequested() {
+      if (this._demoRan) return;
+      const demo = new URLSearchParams(location.search).get("demo");
+      if (!demo) return;
+      this._demoRan = true;
+      const ta = document.getElementById("ds-intent-text");
+      if (demo === "hospital" || demo === "contest") {
+        if (ta) ta.value = demo === "hospital"
+          ? "Regional hospital: redundant campus core, secure healthcare segmentation, 1 boardroom and 2 conference rooms, Cisco Spaces occupancy."
+          : "Hybrid HQ: redundant 3-tier campus, SD-WAN, 1 boardroom and 3 conference rooms, Cisco Spaces wayfinding.";
+        document.querySelector("#ds-one-cisco-deck [data-pillar='workplaces']")?.click();
+      }
+      setTimeout(() => {
+        this.runGenerate();
+        const hasNet = this.design.nodes.some(n => n.canvas !== "room" && !n.roomId);
+        if (hasNet) {
+          this.setTab("network");
+          window.__cpnAutoTour = true;
+        } else if (this.design.rooms[0]) {
+          this.activeRoomId = this.design.rooms[0].id;
+          this.design.activeRoomId = this.activeRoomId;
+          this.setTab("room");
+          window.__cpnAutoTour = true;
+        }
+        setTimeout(() => this.openWalk?.(), 750);
+      }, 500);
     }
 
     // First-ever visit: gently spotlight the Quickstart CTA (no auto-generate,
@@ -2170,13 +2199,17 @@ Account: ${this.design.account}`;
         body.querySelectorAll(".ds-suggest-btn").forEach(btn => {
           btn.onclick = () => {
             const s = suggestions.find(x => x.id === btn.dataset.sid);
-            if (RULES()?.applyFix?.(this.design, s, uid, STN())) { this.pushHistory(); this.render(); this.toast("Applied"); }
+            if (RULES()?.applyFix?.(this.design, s, uid, STN())) {
+              this.pushHistory(); this.render(); this.toast("Applied");
+              if (window.__DS_WALK?.isOpen?.()) window.__DS_WALK.rebuild(this);
+            }
           };
         });
         document.getElementById("ds-apply-all-sug")?.addEventListener("click", () => {
           let n = 0;
           getSuggestions(this.design).forEach(s => { if (RULES()?.applyFix?.(this.design, s, uid, STN())) n++; });
           if (n) { this.pushHistory(); this.render(); this.toast(`Applied ${n} suggestions`); }
+          if (n && window.__DS_WALK?.isOpen?.()) window.__DS_WALK.rebuild(this);
         });
       } else if (this.panelTab === "sites") {
         body.innerHTML = `<div style="padding:12px;font-size:11px">
