@@ -47,7 +47,7 @@
     focusId: null, navIndex: 0, mission: null, waypointGroup: null, nearChamber: null,
     reticleChamber: null, bobPhase: 0, viewmodel: null, worldBounds: null,
     dustParticles: null, footPhase: 0,
-    topology: null, easyNav: true
+    topology: null, easyNav: true, route: null
   };
 
   function esc(s) {
@@ -862,6 +862,7 @@
     if (!ch) return;
     const dest = chamberStandPos(ch);
     const prev = state.chambers[state.navIndex];
+    if (!instant && prev && prev.id !== ch.id) startWayfinding(ch, prev);
     state.navIndex = Math.max(0, state.chambers.indexOf(ch));
     highlightNavChip(ch.id);
     buildConnectedNav(ch);
@@ -910,8 +911,161 @@
 
   function cycleDevice(dir) {
     if (!state.chambers.length) return;
-    state.navIndex = (state.navIndex + dir + state.chambers.length) % state.chambers.length;
-    teleportToChamber(state.chambers[state.navIndex], false);
+    // Keep navIndex as the current location until teleportToChamber updates it,
+    // so wayfinding can route from the previous device to the target.
+    const idx = (state.navIndex + dir + state.chambers.length) % state.chambers.length;
+    teleportToChamber(state.chambers[idx], false);
+  }
+
+  // ---- Cisco Spaces–style wayfinding ("Take me there") ----------------------
+  // Reconstructs the ordered chamber sequence for the shortest topology route so
+  // we can draw a continuous on-floor path instead of disconnected segments.
+  function routeNodeIds(fromId, toId) {
+    const segs = state.topology?.findPath?.(fromId, toId);
+    if (!segs?.length) return null;
+    const ids = [fromId];
+    let cur = fromId;
+    for (const s of segs) {
+      const next = s.cor.from.id === cur ? s.cor.to.id : s.cor.from.id;
+      ids.push(next);
+      cur = next;
+    }
+    return ids;
+  }
+
+  function buildRouteOverlay(pts, destPt) {
+    const THREE = state.THREE;
+    if (!THREE || !state.scene || pts.length < 2) return null;
+    const g = new THREE.Group();
+    const v = pts.map(p => new THREE.Vector3(p.x, 0.16, p.z));
+    const curve = new THREE.CatmullRomCurve3(v, false, "catmullrom", 0.35);
+    const len = curve.getLength();
+
+    // Glowing route ribbon laid on the floor.
+    const tube = new THREE.Mesh(
+      new THREE.TubeGeometry(curve, Math.max(20, Math.round(len * 4)), 0.17, 8, false),
+      new THREE.MeshBasicMaterial({ color: 0x02c8ff, transparent: true, opacity: 0.5 })
+    );
+    g.add(tube);
+
+    // Directional chevrons that travel along the route toward the destination.
+    const chevs = [];
+    const nChev = Math.max(4, Math.min(40, Math.round(len / 2.0)));
+    for (let i = 0; i < nChev; i++) {
+      const cone = new THREE.Mesh(
+        new THREE.ConeGeometry(0.24, 0.6, 4),
+        new THREE.MeshBasicMaterial({ color: 0x7fe3ff })
+      );
+      g.add(cone);
+      chevs.push(cone);
+    }
+
+    // Destination beacon (pillar of light + pulsing ground ring).
+    const pillar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.13, 0.13, 3.4, 10),
+      new THREE.MeshBasicMaterial({ color: 0x2dce5c, transparent: true, opacity: 0.55 })
+    );
+    pillar.position.set(destPt.x, 1.7, destPt.z);
+    g.add(pillar);
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.95, 0.08, 8, 28),
+      new THREE.MeshBasicMaterial({ color: 0x2dce5c })
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(destPt.x, 0.2, destPt.z);
+    g.add(ring);
+
+    g.userData = { curve, chevs, ring, len };
+    state.scene.add(g);
+    return g;
+  }
+
+  function startWayfinding(destCh, fromCh) {
+    if (!destCh || !state.scene) return;
+    clearWayfinding();
+    const from = fromCh || state.chambers[state.navIndex] || state.chambers[0];
+    let pts = null;
+    if (from && from.id !== destCh.id) {
+      const ids = routeNodeIds(from.id, destCh.id);
+      if (ids?.length) {
+        pts = ids.map(id => {
+          const c = state.chambers.find(x => x.id === id);
+          return c ? { x: c.pos.x, z: c.pos.z } : null;
+        }).filter(Boolean);
+      }
+    }
+    if (!pts || pts.length < 2) {
+      pts = [{ x: from ? from.pos.x : state.pos.x, z: from ? from.pos.z : state.pos.z },
+             { x: destCh.pos.x, z: destCh.pos.z }];
+    }
+    const destPt = { x: destCh.pos.x, z: destCh.pos.z };
+    const group = buildRouteOverlay(pts, destPt);
+    if (!group) return;
+    state.route = { destId: destCh.id, destLabel: destCh.label, destPt, group, points: pts };
+    renderWayfindHud();
+  }
+
+  function clearWayfinding() {
+    const g = state.route?.group;
+    if (g) {
+      state.scene?.remove(g);
+      g.traverse(o => {
+        o.geometry?.dispose?.();
+        const m = o.material;
+        if (Array.isArray(m)) m.forEach(x => x?.dispose?.());
+        else m?.dispose?.();
+      });
+    }
+    state.route = null;
+    const el = document.getElementById("ds-walk-wayfind");
+    if (el) el.hidden = true;
+  }
+
+  function routeRemaining() {
+    if (!state.route) return 0;
+    const dx = state.pos.x - state.route.destPt.x;
+    const dz = state.pos.z - state.route.destPt.z;
+    return Math.hypot(dx, dz);
+  }
+
+  function renderWayfindHud() {
+    const el = document.getElementById("ds-walk-wayfind");
+    if (!el || !state.route) return;
+    el.hidden = false;
+    el.innerHTML = `<span class="ds-wf-icon">◎</span>
+      <span class="ds-wf-dest">Heading to <b>${esc(state.route.destLabel)}</b></span>
+      <span class="ds-wf-dist">${routeRemaining().toFixed(1)} m</span>
+      <button type="button" class="ds-wf-stop" data-action="wayfind-stop">Stop</button>`;
+  }
+
+  function animateRoute(t) {
+    const g = state.route?.group;
+    if (!g?.userData) return;
+    const THREE = state.THREE;
+    const { curve, chevs, ring } = g.userData;
+    const n = chevs.length || 1;
+    const up = new THREE.Vector3(0, 1, 0);
+    chevs.forEach((c, i) => {
+      const u = ((t * 0.1) + i / n) % 1;
+      const p = curve.getPointAt(u);
+      const tan = curve.getTangentAt(u).normalize();
+      c.position.copy(p);
+      c.quaternion.setFromUnitVectors(up, tan);
+    });
+    if (ring) ring.scale.setScalar(1 + Math.sin(t * 3) * 0.14);
+  }
+
+  function updateWayfind() {
+    if (!state.route) return;
+    const span = document.querySelector("#ds-walk-wayfind .ds-wf-dist");
+    const d = routeRemaining();
+    if (span) span.textContent = d.toFixed(1) + " m";
+    const atDest = state.chambers[state.navIndex]?.id === state.route.destId;
+    if (!state.fly && (atDest || d < 2.0)) {
+      const label = state.route.destLabel;
+      clearWayfinding();
+      setStatus(`Arrived at ${label}`);
+    }
   }
 
   function buildDeviceNav(chambers) {
@@ -1445,6 +1599,33 @@
       }
     });
 
+    if (state.route?.points?.length) {
+      const mapPt = p => {
+        if (hasDiagram) { const dd = worldToDiagram(p.x, p.z); return dd ? { x: toX(dd.x), y: toY(dd.y) } : null; }
+        return { x: toX(p.x), y: toY(p.z) };
+      };
+      ctx.strokeStyle = "#02c8ff";
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.95;
+      ctx.beginPath();
+      let started = false;
+      state.route.points.forEach(p => {
+        const m = mapPt(p);
+        if (!m || !Number.isFinite(m.x)) return;
+        if (started) ctx.lineTo(m.x, m.y); else { ctx.moveTo(m.x, m.y); started = true; }
+      });
+      ctx.stroke();
+      const dm = mapPt(state.route.destPt);
+      if (dm && Number.isFinite(dm.x)) {
+        ctx.strokeStyle = "#2dce5c";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(dm.x, dm.y, 6, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+
     const diag = worldToDiagram(state.pos.x, state.pos.z);
     let plx, ply;
     if (diag && hasDiagram) {
@@ -1494,6 +1675,7 @@
     updateReticleFocus();
     window.__DS_MISSIONS?.animateWaypoints?.(state, state.clock);
     if (state.mission && !state.mission.complete) window.__DS_MISSIONS?.renderHud?.(state.mission);
+    if (state.route) { animateRoute(state.clock); updateWayfind(); }
     drawMinimap();
     state.renderer.render(state.scene, state.camera);
     state.animId = requestAnimationFrame(loop);
@@ -1514,6 +1696,7 @@
         <button type="button" class="ds-walk-btn" data-action="next-dev" title="Next device">Next ›</button>
         <button type="button" class="ds-walk-btn primary" data-action="inspect" title="Open device details">Inspect</button>
       </div>
+      <div class="ds-walk-wayfind" id="ds-walk-wayfind" hidden></div>
       <div class="ds-walk-links" id="ds-walk-links" hidden></div>
       <div class="ds-walk-legend" id="ds-walk-legend" hidden></div>
       <div class="ds-walk-mission" id="ds-walk-mission"></div>
@@ -1551,6 +1734,7 @@
       if (!btn) return;
       const a = btn.dataset.action;
       if (a === "trace-av") startTrace("av");
+      else if (a === "wayfind-stop") { clearWayfinding(); setStatus("Wayfinding stopped"); }
       else if (a === "trace-poe") startTrace("poe");
       else if (a === "prev-dev") cycleDevice(-1);
       else if (a === "next-dev") cycleDevice(1);
@@ -1753,6 +1937,7 @@
   }
 
   function disposeScene() {
+    clearWayfinding();
     if (state.viewmodel && state.camera) state.camera.remove(state.viewmodel);
     if (state.avatar && state.scene) state.scene.remove(state.avatar);
     state.viewmodel = null;
@@ -1944,5 +2129,5 @@
     };
   }
 
-  window.__DS_WALK = { open, close, rebuild, toggle: s => state.mode ? close(true) : open(s), isOpen: () => !!state.mode, debugStats };
+  window.__DS_WALK = { open, close, rebuild, toggle: s => state.mode ? close(true) : open(s), isOpen: () => !!state.mode, debugStats, hasRoute: () => !!state.route };
 })();

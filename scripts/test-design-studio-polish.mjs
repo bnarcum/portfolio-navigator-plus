@@ -18,7 +18,7 @@ try {
   await page.goto("http://127.0.0.1:8765/cisco-portfolio-navigator.html", { waitUntil: "load", timeout: 60000 });
   await page.waitForFunction(() => window.__cpnV2?.APP_VERSION, { timeout: 60000 });
   const version = await page.evaluate(() => window.__cpnV2.APP_VERSION);
-  if (version !== "2.70.3") errors.push(`version ${version} != 2.70.3`);
+  if (version !== "2.71.0") errors.push(`version ${version} != 2.71.0`);
 
   await page.click("#design-studio-btn");
   await page.waitForSelector("#design-studio.open", { timeout: 8000 });
@@ -104,6 +104,21 @@ try {
   });
   if (!walk.open) errors.push("walk did not open");
   await page.screenshot({ path: path.join(out, "polish-walk.png") });
+
+  // Wayfinding: picking a device from the hotbar should draw a route overlay
+  // (3D group + on-screen banner). Navigate Next and check the banner appears.
+  await page.evaluate(() => document.querySelector('#ds-walk-overlay [data-action="next-dev"]')?.click());
+  await page.waitForTimeout(500);
+  const wayfind = await page.evaluate(() => {
+    const banner = document.getElementById("ds-walk-wayfind");
+    return {
+      bannerShown: banner && !banner.hidden,
+      hasDest: !!banner?.querySelector(".ds-wf-dest"),
+      routeActive: window.__DS_WALK?.hasRoute?.() ?? null
+    };
+  });
+  if (!wayfind.bannerShown) errors.push("wayfinding banner did not appear on device nav");
+  await page.screenshot({ path: path.join(out, "polish-wayfind.png") });
   await page.evaluate(() => window.__DS_WALK?.close?.());
 
   if (errors.length) {
