@@ -869,6 +869,10 @@
     setStatus("Loading devices…");
     loadDevicePods(THREE, graph, 1).then(() => {
       applySceneShadows();
+      if (window.__cpnAutoOutcomes && !state.outcomes) {
+        window.__cpnAutoOutcomes = false;
+        toggleOutcomes();
+      }
       if (state.mode) setStatus("Pick a device below or tap a connected link");
     });
   }

@@ -18,7 +18,7 @@ try {
   await page.goto("http://127.0.0.1:8765/cisco-portfolio-navigator.html", { waitUntil: "load", timeout: 60000 });
   await page.waitForFunction(() => window.__cpnV2?.APP_VERSION, { timeout: 60000 });
   const version = await page.evaluate(() => window.__cpnV2.APP_VERSION);
-  if (version !== "2.73.0") errors.push(`version ${version} != 2.73.0`);
+  if (version !== "2.73.1") errors.push(`version ${version} != 2.73.1`);
 
   await page.click("#design-studio-btn");
   await page.waitForSelector("#design-studio.open", { timeout: 8000 });
@@ -76,6 +76,11 @@ try {
     };
   });
   if (!/gradient/.test(intent.genBgImage)) errors.push(`Generate button not styled (bg=${intent.genBgImage})`);
+  const hasQuickstart = await page.evaluate(() => {
+    const b = document.getElementById("ds-quickstart");
+    return !!b && typeof b.onclick === "function";
+  });
+  if (!hasQuickstart) errors.push("Quickstart button missing or not wired");
   if (/mono|courier/.test(intent.taFont)) errors.push(`textarea still monospace (${intent.taFont})`);
   await page.screenshot({ path: path.join(out, "polish-intent.png") });
 

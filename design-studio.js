@@ -662,6 +662,7 @@
               </div>
               <div id="ds-compare" class="ds-compare-wrap"></div>
               <div class="ds-intent-actions">
+                <button type="button" class="ds-btn ds-btn-quickstart" id="ds-quickstart" title="Generate a sample workspace and step straight into the live 3D walk">✨ Quickstart — sample workspace + 3D walk</button>
                 <button type="button" class="ds-btn primary" id="ds-generate">Generate Draft</button>
                 <button type="button" class="ds-btn" id="ds-clear">Start Over</button>
               </div>
@@ -802,6 +803,8 @@
         this.renderPanel();
       };
       $("ds-generate").onclick = () => this.runGenerate();
+      const qs = $("ds-quickstart");
+      if (qs) qs.onclick = () => this.quickstart();
       let intentPreviewTimer;
       $("ds-intent-text")?.addEventListener("input", () => {
         clearTimeout(intentPreviewTimer);
@@ -1183,6 +1186,22 @@
       this.setTab("intent");
       this.render();
       setTimeout(() => this.refreshExplore(), 500);
+      this.highlightQuickstartOnce();
+    }
+
+    // First-ever visit: gently spotlight the Quickstart CTA (no auto-generate,
+    // no forced 3D load — keeps tests clean and respects user intent).
+    highlightQuickstartOnce() {
+      let seen = true;
+      try { seen = localStorage.getItem("cpn-ds-onboarded") === "1"; } catch (e) { /* ignore */ }
+      if (seen) return;
+      try { localStorage.setItem("cpn-ds-onboarded", "1"); } catch (e) { /* ignore */ }
+      const empty = !this.design.nodes.length && !(this.design.rooms || []).length;
+      if (!empty) return;
+      const btn = document.getElementById("ds-quickstart");
+      if (!btn) return;
+      btn.classList.add("ds-qs-spotlight");
+      setTimeout(() => btn.classList.remove("ds-qs-spotlight"), 6000);
     }
 
     close() {
@@ -1332,6 +1351,22 @@
         this.setTab("network");
       }
       this.fitView();
+    }
+
+    // "Wow in 10 seconds": generate a sample workspace, then drop straight into
+    // the 3D walk with the Cisco Spaces outcome overlay already playing.
+    quickstart() {
+      const ta = document.getElementById("ds-intent-text");
+      if (ta && !ta.value.trim())
+        ta.value = "Hybrid workplace: 1 boardroom, 2 medium video rooms and 4 huddle spaces, campus Wi-Fi, plus Cisco Spaces for live occupancy and wayfinding.";
+      document.querySelector("#ds-one-cisco-deck [data-pillar='workplaces']")?.click();
+      this.runGenerate();
+      const board = this.design.rooms.find(r => /board/i.test(r.template || r.name || "")) || this.design.rooms[0];
+      if (board) { this.activeRoomId = board.id; this.design.activeRoomId = board.id; this.setTab("room"); this.fitView(); }
+      if (!this.design.rooms.length) { this.toast("Quickstart needs at least one room"); return; }
+      window.__cpnAutoOutcomes = true;
+      this.toast("Stepping into your space — Spaces outcomes live");
+      setTimeout(() => this.openWalk?.(), 350);
     }
 
     importStack() {
@@ -1944,7 +1979,7 @@ Account: ${this.design.account}`;
             const iss = nodeIssueMap[n.id];
             if (this.presentation || isDeco || !iss) return "";
             const err = iss.severity === "error";
-            return `<g class="ds-node-badge" data-badge="${iss.severity}">
+            return `<g class="ds-node-badge" data-badge="${iss.type || iss.severity}">
             <title>${escapeHtml(iss.msg)}</title>
             <circle class="ds-node-badge-dot ${err ? "ds-badge-err" : "ds-badge-warn"}" cx="${w - 3}" cy="3" r="7"/>
             <text class="ds-node-badge-mark" x="${w - 3}" y="6" text-anchor="middle">!</text>
