@@ -945,7 +945,7 @@
     return { icon: "📍", label: "Device" };
   }
 
-  function buildRouteOverlay(pts, destPt) {
+  function buildRouteOverlay(pts, destPt, destLabel) {
     const THREE = state.THREE;
     if (!THREE || !state.scene || pts.length < 2) return null;
     const g = new THREE.Group();
@@ -1008,6 +1008,30 @@
     pin.position.set(destPt.x, 3.2, destPt.z);
     g.add(pin);
 
+    // Maps-style white label bubble floating above the pin.
+    if (destLabel) {
+      const tex = makeCanvasTexture(THREE, (ctx, w, h) => {
+        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = "#ffffff";
+        roundRect(ctx, 8, 8, w - 16, 56, 16); ctx.fill();
+        ctx.fillStyle = "#0A1F33";
+        ctx.font = "bold 27px system-ui,sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText((destLabel || "").slice(0, 20), w / 2, 46);
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.moveTo(w / 2 - 11, 63); ctx.lineTo(w / 2 + 11, 63); ctx.lineTo(w / 2, 80);
+        ctx.closePath(); ctx.fill();
+      }, 512, 96);
+      const lmat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+      const label = new THREE.Sprite(lmat);
+      label.scale.set(3.0, 0.56, 1);
+      label.position.y = 0.95;
+      label.renderOrder = 12;
+      state.disposables.push(lmat);
+      pin.add(label);
+    }
+
     g.userData = { curve, chevs, ring, origin, pin, len };
     state.scene.add(g);
     return g;
@@ -1033,7 +1057,7 @@
     }
     const pts = legs.map(l => ({ x: l.x, z: l.z }));
     const destPt = { x: destCh.pos.x, z: destCh.pos.z };
-    const group = buildRouteOverlay(pts, destPt);
+    const group = buildRouteOverlay(pts, destPt, destCh.label);
     if (!group) return;
     const startLen = Math.hypot(state.pos.x - destPt.x, state.pos.z - destPt.z) || 1;
     state.route = {
@@ -1153,7 +1177,21 @@
     }
   }
 
-  // ---- "Where to?" destination picker (Spaces-style search) -----------------
+  // ---- "Where to?" destination picker (Cisco Spaces-style) ------------------
+  const WF_FILTERS = [
+    { key: "all", label: "All" },
+    { key: "Collaboration", label: "🖥 Rooms" },
+    { key: "Access Point", label: "📶 APs" },
+    { key: "Network", label: "🔀 Network" },
+    { key: "AV", label: "🎙 AV" }
+  ];
+
+  function wfBucket(catLabel) {
+    if (catLabel === "Microphone" || catLabel === "Camera") return "AV";
+    if (catLabel === "Security") return "Network";
+    return catLabel;
+  }
+
   function openWayfindMenu() {
     let menu = document.getElementById("ds-wf-menu");
     if (!menu) {
@@ -1162,15 +1200,30 @@
       menu.className = "ds-wf-menu";
       state.overlay?.appendChild(menu);
     }
+    state.wfFilter = state.wfFilter || "all";
     menu.hidden = false;
+    const chips = WF_FILTERS.map(f =>
+      `<button type="button" class="ds-wf-chip${state.wfFilter === f.key ? " on" : ""}" data-chip="${f.key}">${f.label}</button>`
+    ).join("");
     menu.innerHTML = `<div class="ds-wf-menu-head">
-        <span class="ds-wf-menu-title">◎ Where to?</span>
+        <span class="ds-wf-menu-title">Where to?</span>
         <button type="button" class="ds-wf-menu-close" data-action="wayfind-close" title="Close">✕</button>
       </div>
-      <input type="text" class="ds-wf-search" id="ds-wf-search" placeholder="Search rooms, switches, APs, mics…" autocomplete="off">
+      <div class="ds-wf-search-wrap">
+        <span class="ds-wf-search-ico">⌕</span>
+        <input type="text" class="ds-wf-search" id="ds-wf-search" placeholder="Search for a place" autocomplete="off">
+      </div>
+      <div class="ds-wf-chips">${chips}</div>
       <div class="ds-wf-list" id="ds-wf-list"></div>`;
     const search = menu.querySelector("#ds-wf-search");
     search?.addEventListener("input", () => renderWayfindList(search.value));
+    menu.querySelectorAll("[data-chip]").forEach(c => {
+      c.addEventListener("click", () => {
+        state.wfFilter = c.dataset.chip;
+        menu.querySelectorAll("[data-chip]").forEach(x => x.classList.toggle("on", x === c));
+        renderWayfindList(search?.value || "");
+      });
+    });
     renderWayfindList("");
     requestAnimationFrame(() => search?.focus());
   }
@@ -1178,36 +1231,76 @@
   function closeWayfindMenu() {
     const menu = document.getElementById("ds-wf-menu");
     if (menu) menu.hidden = true;
+    closeDestPreview();
   }
 
   function renderWayfindList(query) {
     const list = document.getElementById("ds-wf-list");
     if (!list) return;
     const q = (query || "").trim().toLowerCase();
+    const filter = state.wfFilter || "all";
     const here = state.chambers[state.navIndex];
     const rows = state.chambers
       .filter(ch => !here || ch.id !== here.id)
       .map(ch => {
         const cat = poiCategory(ch);
         const dist = Math.hypot((here ? here.pos.x : state.pos.x) - ch.pos.x, (here ? here.pos.z : state.pos.z) - ch.pos.z);
-        return { ch, cat, dist };
+        return { ch, cat, dist, bucket: wfBucket(cat.label) };
       })
+      .filter(r => filter === "all" || r.bucket === filter)
       .filter(r => !q || (r.ch.label + " " + (r.ch.pid || "") + " " + r.cat.label).toLowerCase().includes(q))
       .sort((a, b) => a.dist - b.dist);
     if (!rows.length) { list.innerHTML = `<div class="ds-wf-empty">No matching destinations</div>`; return; }
     list.innerHTML = rows.map(r => `<button type="button" class="ds-wf-poi" data-chamber="${r.ch.id}">
       <span class="ds-wf-poi-ico">${r.cat.icon}</span>
       <span class="ds-wf-poi-main"><b>${esc(r.ch.label)}</b><i>${esc(r.cat.label)}${r.ch.pid ? " · " + esc(r.ch.pid) : ""}</i></span>
-      <span class="ds-wf-poi-dist">${r.dist.toFixed(0)} m</span>
+      <span class="ds-wf-poi-dist">${r.dist.toFixed(0)} m<em>›</em></span>
     </button>`).join("");
     list.querySelectorAll("[data-chamber]").forEach(btn => {
       btn.addEventListener("click", () => {
         const ch = state.chambers.find(c => c.id === btn.dataset.chamber);
-        if (!ch) return;
-        closeWayfindMenu();
-        teleportToChamber(ch, false);
+        if (ch) openDestPreview(ch);
       });
     });
+  }
+
+  // Spaces-style destination preview: name, category, distance, ETA + Directions.
+  function openDestPreview(ch) {
+    let sheet = document.getElementById("ds-wf-preview");
+    if (!sheet) {
+      sheet = document.createElement("div");
+      sheet.id = "ds-wf-preview";
+      sheet.className = "ds-wf-preview";
+      state.overlay?.appendChild(sheet);
+    }
+    const cat = poiCategory(ch);
+    const here = state.chambers[state.navIndex];
+    const dist = Math.hypot((here ? here.pos.x : state.pos.x) - ch.pos.x, (here ? here.pos.z : state.pos.z) - ch.pos.z);
+    sheet.hidden = false;
+    sheet.innerHTML = `<div class="ds-wf-pv-grip"></div>
+      <div class="ds-wf-pv-head">
+        <span class="ds-wf-pv-ico">${cat.icon}</span>
+        <div class="ds-wf-pv-meta">
+          <strong>${esc(ch.label)}</strong>
+          <span>${esc(cat.label)}${ch.pid ? " · " + esc(ch.pid) : ""}</span>
+        </div>
+        <button type="button" class="ds-wf-pv-x" data-action="preview-close" title="Close">✕</button>
+      </div>
+      <div class="ds-wf-pv-stats">
+        <span><b>${dist.toFixed(0)}</b> m away</span>
+        <span><b>~${Math.max(1, Math.round(dist / 1.4))}</b> sec walk</span>
+      </div>
+      <button type="button" class="ds-wf-pv-go" data-chamber="${ch.id}">➤ Directions</button>`;
+    sheet.querySelector(".ds-wf-pv-go")?.addEventListener("click", () => {
+      closeWayfindMenu();
+      teleportToChamber(ch, false);
+    });
+    sheet.querySelector("[data-action='preview-close']")?.addEventListener("click", closeDestPreview);
+  }
+
+  function closeDestPreview() {
+    const sheet = document.getElementById("ds-wf-preview");
+    if (sheet) sheet.hidden = true;
   }
 
   function buildDeviceNav(chambers) {
@@ -1781,16 +1874,34 @@
   }
 
   function drawMinimapPlayer(ctx, px, py) {
-    ctx.fillStyle = "#02c8ff";
-    ctx.beginPath();
-    ctx.arc(px, py, 4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#ff9000";
-    ctx.lineWidth = 2;
+    // Google-Maps / Cisco Spaces style "blue dot": heading cone, accuracy halo,
+    // and a white-ringed solid blue dot.
+    const yaw = state.yaw;
+    ctx.save();
+    // Heading beam.
+    const grad = ctx.createRadialGradient(px, py, 2, px, py, 22);
+    grad.addColorStop(0, "rgba(2,200,255,0.5)");
+    grad.addColorStop(1, "rgba(2,200,255,0)");
+    ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.moveTo(px, py);
-    ctx.lineTo(px + Math.sin(state.yaw) * 12, py + Math.cos(state.yaw) * 12);
+    ctx.arc(px, py, 22, (Math.PI / 2 - yaw) - 0.5, (Math.PI / 2 - yaw) + 0.5);
+    ctx.closePath();
+    ctx.fill();
+    // Accuracy halo.
+    ctx.fillStyle = "rgba(2,200,255,0.16)";
+    ctx.beginPath();
+    ctx.arc(px, py, 11, 0, Math.PI * 2);
+    ctx.fill();
+    // Solid dot with white ring.
+    ctx.fillStyle = "#0A60FF";
+    ctx.beginPath();
+    ctx.arc(px, py, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
     ctx.stroke();
+    ctx.restore();
   }
 
   function animateDust(dt) {

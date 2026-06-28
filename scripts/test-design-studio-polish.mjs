@@ -116,7 +116,16 @@ try {
   if (!menu.open) errors.push("wayfinding 'Where to?' menu did not open");
   if (menu.rows < 2) errors.push(`wayfinding POI list rows ${menu.rows}`);
   await page.screenshot({ path: path.join(out, "polish-wayfind-menu.png") });
+  // Picking a POI opens a Spaces-style preview sheet with a Directions button.
   await page.evaluate(() => document.querySelector("#ds-wf-list .ds-wf-poi")?.click());
+  await page.waitForTimeout(250);
+  const preview = await page.evaluate(() => ({
+    open: !document.getElementById("ds-wf-preview")?.hidden,
+    hasGo: !!document.querySelector(".ds-wf-pv-go")
+  }));
+  if (!preview.open || !preview.hasGo) errors.push("wayfinding destination preview did not appear");
+  await page.screenshot({ path: path.join(out, "polish-wayfind-preview.png") });
+  await page.evaluate(() => document.querySelector(".ds-wf-pv-go")?.click());
   await page.waitForTimeout(500);
   const wayfind = await page.evaluate(() => {
     const card = document.getElementById("ds-walk-wayfind");
