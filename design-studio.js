@@ -655,6 +655,10 @@
         <div id="ds-body">
           <div id="ds-main">
             <div id="ds-intent" hidden>
+              <details class="ds-intent-fold ds-intent-fold--hero" id="ds-intent-hero-fold" open>
+                <summary>One Cisco story</summary>
+                <div class="ds-intent-fold-body">${buildOneCiscoHeroHtml()}</div>
+              </details>
               <div class="ds-intent-work">
                 <label class="ds-intent-label" for="ds-intent-text">Opportunity brief</label>
                 <div id="ds-intent-chips"></div>
@@ -679,10 +683,6 @@
               <details class="ds-intent-fold" id="ds-intent-explore-fold">
                 <summary>Guides &amp; dCloud labs <span class="ds-intent-fold-hint">matched to your brief</span></summary>
                 <div class="ds-intent-fold-body"><div id="ds-explore-intent"></div></div>
-              </details>
-              <details class="ds-intent-fold" id="ds-intent-hero-fold">
-                <summary>One Cisco story</summary>
-                <div class="ds-intent-fold-body">${buildOneCiscoHeroHtml()}</div>
               </details>
             </div>
             <div id="ds-canvas-wrap" class="network-mode">
