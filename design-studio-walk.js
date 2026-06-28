@@ -41,6 +41,12 @@
   const FLY_DIST_SCALE = 0.52;
   const WALK_ONBOARD_KEY = "cpn-ds-walk-onboarded";
   const WALK_INSIGHTS_OFF_KEY = "cpn-ds-walk-insights-off";
+  const WALK_PACKETS_KEY = "cpn-ds-walk-packets";
+  const PACKET_SPEEDS = [
+    { mult: 0.5, label: "Slow" },
+    { mult: 1, label: "Normal" },
+    { mult: 2, label: "Fast" }
+  ];
 
   const MOVE_KEYS = new Set(["w", "a", "s", "d", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 
@@ -67,7 +73,8 @@
     reticleChamber: null, bobPhase: 0, viewmodel: null, worldBounds: null,
     dustParticles: null, footPhase: 0,
     topology: null, easyNav: true, route: null, environmentTags: {},
-    semanticFrame: null, layerFilter: "all"
+    semanticFrame: null, layerFilter: "all",
+    packetsEnabled: true, packetSpeedIdx: 1
   };
 
   function esc(s) {
@@ -2022,12 +2029,15 @@
   }
 
   function animateCables(t) {
+    const speed = PACKET_SPEEDS[state.packetSpeedIdx]?.mult ?? 1;
     state.cables.forEach(g => {
       const curve = g.userData?.curve;
       if (!curve) return;
       g.children.forEach(ch => {
         if (!ch.userData?.packet) return;
-        ch.userData.t = (ch.userData.t + 0.006) % 1;
+        ch.visible = !!state.packetsEnabled;
+        if (!state.packetsEnabled) return;
+        ch.userData.t = (ch.userData.t + 0.006 * speed) % 1;
         const pt = curve.getPoint(ch.userData.t);
         ch.position.set(pt.x, pt.y, pt.z);
       });
@@ -2441,6 +2451,70 @@
       <div class="ds-oc-row"><span class="ds-oc-dot" style="background:#6F42C1"></span>IoT · 23°C · CO₂ 540ppm${st.mics.length ? ` · ${st.mics.length} mic${st.mics.length > 1 ? "s" : ""}` : ""}</div>`;
   }
 
+  function loadPacketPrefs() {
+    try {
+      const raw = sessionStorage.getItem(WALK_PACKETS_KEY);
+      if (!raw) return;
+      const p = JSON.parse(raw);
+      if (typeof p.enabled === "boolean") state.packetsEnabled = p.enabled;
+      if (Number.isFinite(p.speedIdx)) {
+        state.packetSpeedIdx = Math.max(0, Math.min(PACKET_SPEEDS.length - 1, p.speedIdx | 0));
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  function savePacketPrefs() {
+    try {
+      sessionStorage.setItem(WALK_PACKETS_KEY, JSON.stringify({
+        enabled: !!state.packetsEnabled,
+        speedIdx: state.packetSpeedIdx
+      }));
+    } catch (e) { /* ignore */ }
+  }
+
+  function applyPacketVisibility() {
+    state.cables.forEach(g => {
+      g.children.forEach(ch => {
+        if (ch.userData?.packet) ch.visible = !!state.packetsEnabled;
+      });
+    });
+  }
+
+  function syncPacketsHud() {
+    const btn = state.overlay?.querySelector('[data-action="packets"]');
+    const spd = state.overlay?.querySelector('[data-action="packet-speed"]');
+    const preset = PACKET_SPEEDS[state.packetSpeedIdx] || PACKET_SPEEDS[1];
+    if (btn) {
+      btn.classList.toggle("active", !!state.packetsEnabled);
+      btn.textContent = state.packetsEnabled ? "Packets: on" : "Packets";
+    }
+    if (spd) {
+      spd.textContent = preset.label;
+      spd.disabled = !state.packetsEnabled;
+      spd.title = state.packetsEnabled
+        ? `Packet speed — ${preset.label} (click to change)`
+        : "Turn packets on to change speed";
+    }
+  }
+
+  function togglePackets() {
+    state.packetsEnabled = !state.packetsEnabled;
+    applyPacketVisibility();
+    savePacketPrefs();
+    syncPacketsHud();
+    setStatus(state.packetsEnabled
+      ? `Link packets on · ${PACKET_SPEEDS[state.packetSpeedIdx]?.label || "Normal"} speed`
+      : "Link packets off — cables stay visible");
+  }
+
+  function cyclePacketSpeed() {
+    if (!state.packetsEnabled) return;
+    state.packetSpeedIdx = (state.packetSpeedIdx + 1) % PACKET_SPEEDS.length;
+    savePacketPrefs();
+    syncPacketsHud();
+    setStatus(`Packet speed · ${PACKET_SPEEDS[state.packetSpeedIdx].label}`);
+  }
+
   function hudHtml(tab) {
     const outcomesBtn = tab === "room"
       ? `<button type="button" class="ds-walk-btn ds-walk-btn-spaces" data-action="outcomes" title="Simulated occupancy, location &amp; IoT overlay — room walks only">Insights</button>`
@@ -2455,6 +2529,8 @@
         <button type="button" class="ds-walk-btn" data-action="prev-dev" title="Previous device">‹ Prev</button>
         <button type="button" class="ds-walk-btn" data-action="next-dev" title="Next device">Next ›</button>
         ${outcomesBtn}
+        <button type="button" class="ds-walk-btn ds-walk-pkt-toggle" data-action="packets" title="Show or hide data packets on links">Packets</button>
+        <button type="button" class="ds-walk-btn ds-walk-pkt-speed" data-action="packet-speed" title="Packet speed">Normal</button>
         <button type="button" class="ds-walk-btn primary" data-action="inspect" title="Open device details">Inspect</button>
       </div>
       ${layerFilterHtml(tab)}
@@ -2499,6 +2575,8 @@
       if (!btn) return;
       const a = btn.dataset.action;
       if (a === "outcomes") { e.preventDefault(); e.stopPropagation(); toggleOutcomes(); }
+      else if (a === "packets") { e.preventDefault(); e.stopPropagation(); togglePackets(); }
+      else if (a === "packet-speed") { e.preventDefault(); e.stopPropagation(); cyclePacketSpeed(); }
       else if (a === "wayfind-open") openWayfindMenu();
       else if (a === "wayfind-close") closeWayfindMenu();
       else if (a === "wayfind-stop") { clearWayfinding(); setStatus("Wayfinding stopped"); }
@@ -2753,7 +2831,10 @@
       </div>
       ${hudPanelsHtml()}`;
     bindHud();
+    loadPacketPrefs();
+    applyPacketVisibility();
     syncOutcomesHud();
+    syncPacketsHud();
 
     const canvas = overlay.querySelector("#ds-walk-canvas");
     bindInput(canvas);
@@ -2800,9 +2881,11 @@
     state.mode = "walk";
     try {
       await initCorridor(studio, canvas, graph);
+      applyPacketVisibility();
       state.chamberWorldPos = chamberWorldPos;
       window.__DS_FIELD_PANEL?.bindWalk?.(state);
       syncOutcomesHud();
+      syncPacketsHud();
       setStatus(`Switched to ${graph.kind} layout`);
       loop();
     } catch (err) {
