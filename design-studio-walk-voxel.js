@@ -122,30 +122,102 @@
     return tex;
   }
 
+  /** Front-facing head texture: simple friendly face (eyes, brows, mouth). */
+  function avatarFaceTex(THREE) {
+    return makePixelTexture(THREE, (ctx, s) => {
+      ctx.fillStyle = "#d8aa78";
+      ctx.fillRect(0, 0, s, s);
+      ctx.fillStyle = "#c79566";
+      ctx.fillRect(0, 0, s, 3);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(4, 7, 3, 2);
+      ctx.fillRect(9, 7, 3, 2);
+      ctx.fillStyle = "#2b3a4a";
+      ctx.fillRect(5, 7, 2, 2);
+      ctx.fillRect(10, 7, 2, 2);
+      ctx.fillStyle = "#6a4f38";
+      ctx.fillRect(4, 5, 3, 1);
+      ctx.fillRect(9, 5, 3, 1);
+      ctx.fillStyle = "#a06a4e";
+      ctx.fillRect(6, 11, 4, 1);
+    }, 16);
+  }
+
+  function part(THREE, w, h, d, mat, x, y, z) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    return m;
+  }
+
+  function pivotGroup(THREE, x, y, z) {
+    const p = new THREE.Group();
+    p.position.set(x, y, z);
+    return p;
+  }
+
+  /**
+   * Polished voxel "field engineer" — head with a face, hair, collared Cisco-blue
+   * shirt with a lanyard badge, sleeves with hands, and pants with shoes. Limbs hang
+   * off shoulder/hip pivots so walk.js can drive a natural walk cycle. Group origin
+   * sits at the feet; eyes land near EYE_HEIGHT (1.62) for a clean 1st/3rd swap.
+   */
   function makeAvatar(THREE) {
     const g = new THREE.Group();
     g.userData.kind = "avatar";
-    const skin = blockMat(THREE, null, 0xd4a574);
-    const shirt = blockMat(THREE, null, 0x2b6cb8);
+
+    const skin = blockMat(THREE, null, 0xd8aa78);
+    const shirt = blockMat(THREE, null, 0x1289b0);
+    const shirtDark = blockMat(THREE, null, 0x0e6f90);
     const pants = blockMat(THREE, null, 0x2d3748);
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.72, 0.72), skin);
+    const shoe = blockMat(THREE, null, 0x191f2b);
+    const hair = blockMat(THREE, null, 0x43301f);
+    const strap = blockMat(THREE, null, 0x161b24);
+    const badge = blockMat(THREE, null, 0x00bceb);
+    const faceTex = avatarFaceTex(THREE);
+    const faceMat = blockMat(THREE, faceTex);
+
+    // Head: face texture on the front (+Z) face only.
+    const headMats = [skin, skin, skin, skin, faceMat, skin];
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.74, 0.74), headMats);
     head.position.y = 1.62;
+    head.castShadow = true;
+    head.add(part(THREE, 0.8, 0.26, 0.82, hair, 0, 0.3, 0));      // hair cap
+    head.add(part(THREE, 0.8, 0.46, 0.16, hair, 0, 0.02, -0.33)); // hair back
+    head.add(part(THREE, 0.18, 0.16, 0.1, hair, -0.28, 0.18, 0.3)); // fringe L
+    head.add(part(THREE, 0.18, 0.16, 0.1, hair, 0.28, 0.18, 0.3));  // fringe R
     g.add(head);
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.9, 0.42), shirt);
-    torso.position.y = 0.86;
+
+    // Torso with collar, belt, lanyard + badge.
+    const torso = part(THREE, 0.86, 0.92, 0.44, shirt, 0, 0.86, 0);
+    torso.add(part(THREE, 0.86, 0.12, 0.46, shirtDark, 0, 0.4, 0));   // collar line
+    torso.add(part(THREE, 0.9, 0.12, 0.48, strap, 0, -0.46, 0));      // belt
+    torso.add(part(THREE, 0.06, 0.5, 0.02, strap, 0.06, 0.16, 0.23)); // lanyard
+    torso.add(part(THREE, 0.2, 0.26, 0.05, strap, 0.06, -0.12, 0.24));// badge holder
+    torso.add(part(THREE, 0.15, 0.2, 0.07, badge, 0.06, -0.12, 0.25));// badge (Cisco blue)
     g.add(torso);
-    const legL = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.72, 0.36), pants);
-    legL.position.set(-0.2, 0.36, 0);
-    g.add(legL);
-    const legR = legL.clone();
-    legR.position.x = 0.2;
-    g.add(legR);
-    const armL = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.72, 0.32), shirt);
-    armL.position.set(-0.58, 0.9, 0);
-    g.add(armL);
-    const armR = armL.clone();
-    armR.position.x = 0.58;
-    g.add(armR);
+
+    // Legs on hip pivots (pivot at hip height; mesh hangs below).
+    const hipL = pivotGroup(THREE, -0.2, 0.82, 0);
+    hipL.add(part(THREE, 0.34, 0.64, 0.34, pants, 0, -0.32, 0));
+    hipL.add(part(THREE, 0.36, 0.16, 0.48, shoe, 0, -0.66, 0.06));
+    g.add(hipL);
+    const hipR = pivotGroup(THREE, 0.2, 0.82, 0);
+    hipR.add(part(THREE, 0.34, 0.64, 0.34, pants, 0, -0.32, 0));
+    hipR.add(part(THREE, 0.36, 0.16, 0.48, shoe, 0, -0.66, 0.06));
+    g.add(hipR);
+
+    // Arms on shoulder pivots, with skin hands at the cuffs.
+    const shoulderL = pivotGroup(THREE, -0.56, 1.28, 0);
+    shoulderL.add(part(THREE, 0.3, 0.6, 0.3, shirt, 0, -0.32, 0));
+    shoulderL.add(part(THREE, 0.3, 0.18, 0.3, skin, 0, -0.7, 0));
+    g.add(shoulderL);
+    const shoulderR = pivotGroup(THREE, 0.56, 1.28, 0);
+    shoulderR.add(part(THREE, 0.3, 0.6, 0.3, shirt, 0, -0.32, 0));
+    shoulderR.add(part(THREE, 0.3, 0.18, 0.3, skin, 0, -0.7, 0));
+    g.add(shoulderR);
+
+    g.userData.parts = { head, torso, legL: hipL, legR: hipR, armL: shoulderL, armR: shoulderR };
     return g;
   }
 

@@ -258,6 +258,18 @@
     state.avatar.visible = state.thirdPerson;
   }
 
+  // Pendulum walk cycle: opposite arm/leg swing while moving; gentle idle breathing.
+  function animateAvatar(moving) {
+    const parts = state.avatar?.userData?.parts;
+    if (!parts) return;
+    const sw = moving ? Math.sin(state.bobPhase) * 0.7 : Math.sin(state.clock * 1.6) * 0.05;
+    parts.legL.rotation.x = sw;
+    parts.legR.rotation.x = -sw;
+    parts.armL.rotation.x = -sw * 0.85;
+    parts.armR.rotation.x = sw * 0.85;
+    if (parts.head) parts.head.rotation.x = moving ? Math.sin(state.bobPhase * 2) * 0.03 : 0;
+  }
+
   function toggleCameraMode() {
     state.thirdPerson = !state.thirdPerson;
     if (state.avatar) state.avatar.visible = state.thirdPerson;
@@ -1771,9 +1783,12 @@
       const cz = state.pos.z - Math.cos(state.yaw) * dist;
       cam.position.set(cx, camY, cz);
       cam.lookAt(state.pos.x, state.pos.y + 0.95, state.pos.z);
-      state.avatar.position.set(state.pos.x, state.pos.y - EYE_HEIGHT, state.pos.z);
+      const moving = spd > 0.25;
+      const stride = moving ? Math.abs(Math.sin(state.bobPhase)) * 0.05 : 0;
+      state.avatar.position.set(state.pos.x, state.pos.y - EYE_HEIGHT + stride, state.pos.z);
       state.avatar.rotation.y = state.facing;
       state.avatar.visible = true;
+      animateAvatar(moving);
       if (state.viewmodel) state.viewmodel.visible = false;
     } else {
       cam.position.set(state.pos.x, state.pos.y + bob, state.pos.z);
