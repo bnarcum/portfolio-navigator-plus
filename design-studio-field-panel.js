@@ -122,7 +122,12 @@
     const links = linksForChamber(ch, graph);
     const linkRows = links.map(l => {
       const other = l.from?.id === ch.id ? l.to : l.from;
-      return `<li><span class="ds-fp-media">${esc((l.media || "link").toUpperCase())}</span> <strong>${esc(other?.label || "?")}</strong>${l.fromPort ? `<br><span class="ds-fp-portpath">${esc(l.fromPort)} → ${esc(l.toPort || "")}</span>` : ""}</li>`;
+      const hop = other?.id || "";
+      return `<li><button type="button" class="ds-fp-link-row" data-fp-hop="${esc(hop)}" title="Walk to ${esc(other?.label || "?")}">
+        <span class="ds-fp-media">${esc((l.media || "link").toUpperCase())}</span>
+        <strong>${esc(other?.label || "?")}</strong>
+        ${l.fromPort ? `<span class="ds-fp-portpath">${esc(l.fromPort)} → ${esc(l.toPort || "")}</span>` : ""}
+      </button></li>`;
     }).join("") || "<li class='muted'>No diagram links — add connections in Network tab</li>";
 
     const portList = Array.isArray(def?.ports) ? def.ports : (def?.ports ? [String(def.ports)] : []);
@@ -176,8 +181,6 @@
         </section>
         <section class="ds-fp-actions">
           <button type="button" class="ds-walk-btn primary" data-action="fp-fly">Walk to device</button>
-          <button type="button" class="ds-walk-btn" data-action="fp-trace-poe">Trace PoE path</button>
-          <button type="button" class="ds-walk-btn" data-action="fp-trace-av">Trace AV path</button>
           ${pid ? `<button type="button" class="ds-walk-btn" data-action="fp-copy-pid">Copy PID</button>` : ""}
           ${ciscoUrl ? `<a class="ds-walk-btn ds-btn-link" href="${ciscoUrl}" target="_blank" rel="noopener noreferrer">Cisco.com ↗</a>` : ""}
           ${cite ? `<a class="ds-walk-btn ds-btn-link" href="${esc(cite.url)}" target="_blank" rel="noopener noreferrer">${esc(cite.label)} ↗</a>` : ""}
@@ -190,6 +193,12 @@
     panel.querySelector("[data-action=fp-close]")?.addEventListener("click", () => close());
     panel.querySelector("[data-action=fp-copy-pid]")?.addEventListener("click", () => {
       window.__DS_EXPERT?.copyText?.(pid).then?.(() => studio?.toast?.("PID copied"));
+    });
+    panel.querySelectorAll("[data-fp-hop]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.fpHop;
+        if (id) window.__DS_WALK?.flyToChamberById?.(id);
+      });
     });
   }
 

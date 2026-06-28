@@ -39,12 +39,19 @@
   const FLY_DUR_MIN = 2.8;
   const FLY_DUR_MAX = 6.0;
   const FLY_DIST_SCALE = 0.52;
-  const TRACE_DUR_MIN = 4.0;
-  const TRACE_DUR_MAX = 8.0;
-  const TRACE_LEN_SCALE = 0.42;
-  const FOLLOW_POE_FADE_MS = 600;
+  const WALK_ONBOARD_KEY = "cpn-ds-walk-onboarded";
 
   const MOVE_KEYS = new Set(["w", "a", "s", "d", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+
+  const NET_LAYER_FILTERS = [
+    { key: "all", label: "All" },
+    { key: "wan", label: "WAN" },
+    { key: "security", label: "Security" },
+    { key: "core", label: "Core" },
+    { key: "distribution", label: "Dist" },
+    { key: "access", label: "Access" },
+    { key: "collab", label: "Collab" }
+  ];
 
   const state = {
     studio: null, mode: null, overlay: null, animId: 0, clock: 0, lastFrame: 0,
@@ -54,12 +61,12 @@
     pos: { x: 0, y: EYE_HEIGHT, z: 0 }, fly: null,
     thirdPerson: true, avatar: null,
     chambers: [], devicePods: [], cables: [], colliders: [], bounds: null,
-    trace: null, graph: null, texCache: new Map(), disposables: [],
+    graph: null, texCache: new Map(), disposables: [],
     focusId: null, navIndex: 0, nearChamber: null,
     reticleChamber: null, bobPhase: 0, viewmodel: null, worldBounds: null,
     dustParticles: null, footPhase: 0,
     topology: null, easyNav: true, route: null, environmentTags: {},
-    traceCableId: null, semanticFrame: null
+    semanticFrame: null, layerFilter: "all"
   };
 
   function esc(s) {
@@ -1041,15 +1048,12 @@
     setStatus("Loading devices…");
     loadDevicePods(THREE, graph, 1).then(() => {
       applySceneShadows();
-      if (window.__cpnAutoOutcomes && !state.outcomes) {
+      if (window.__cpnAutoOutcomes && !state.outcomes && graph.kind === "room") {
         window.__cpnAutoOutcomes = false;
         toggleOutcomes();
       }
-      if (window.__cpnFollowPoE) {
-        window.__cpnFollowPoE = false;
-        startTrace("poe");
-      }
-      if (state.mode) setStatus("Pick a device below or tap a connected link");
+      if (state.mode) setStatus("Follow a connected link below, or use ‹ Prev / Next › to walk devices");
+      showWalkOnboardHint();
     });
   }
 
@@ -1136,7 +1140,7 @@
           dest
         };
         state.vel = { x: 0, y: 0, z: 0 };
-        setStatus(`Following link path to ${ch.label}`);
+        setStatus(`Walking to ${ch.label}…`);
         return;
       }
     }
@@ -1146,6 +1150,7 @@
       state.vel = { x: 0, y: 0, z: 0 };
       faceChamber(ch);
       state.fly = null;
+      setStatus(`At ${ch.label}${ch.pid ? " · " + ch.pid : ""}`);
     } else {
       const dist = Math.hypot(dest.x - state.pos.x, dest.z - state.pos.z);
       state.fly = {
@@ -1158,16 +1163,28 @@
         chamber: ch
       };
       state.vel = { x: 0, y: 0, z: 0 };
+      setStatus(`Walking to ${ch.label}…`);
     }
-    setStatus(`At ${ch.label}${ch.pid ? " · " + ch.pid : ""}`);
+  }
+
+  function chambersForNav() {
+    if (state.graph?.kind !== "network" || state.layerFilter === "all") return state.chambers;
+    return state.chambers.filter(c => (c.zone || "") === state.layerFilter);
+  }
+
+  function flyToChamberById(id) {
+    const ch = state.chambers.find(c => c.id === id);
+    if (ch) teleportToChamber(ch, false);
   }
 
   function cycleDevice(dir) {
-    if (!state.chambers.length) return;
-    // Keep navIndex as the current location until teleportToChamber updates it,
-    // so wayfinding can route from the previous device to the target.
-    const idx = (state.navIndex + dir + state.chambers.length) % state.chambers.length;
-    teleportToChamber(state.chambers[idx], false);
+    const list = chambersForNav();
+    if (!list.length) return;
+    const cur = state.chambers[state.navIndex];
+    let idx = list.findIndex(c => c.id === cur?.id);
+    if (idx < 0) idx = 0;
+    idx = (idx + dir + list.length) % list.length;
+    teleportToChamber(list[idx], false);
   }
 
   // ---- Cisco Spaces–style wayfinding ("Take me there") ----------------------
@@ -1598,7 +1615,6 @@
         const ch = chambers.find(c => c.id === btn.dataset.chamber);
         if (!ch) return;
         teleportToChamber(ch, false);
-        openFieldPanel(ch);
       });
     });
   }
@@ -1618,7 +1634,7 @@
       return;
     }
     bar.hidden = false;
-    bar.innerHTML = `<span class="ds-walk-links-label">Connected — follow a link:</span>` + links.map(s => {
+    bar.innerHTML = `<span class="ds-walk-links-label">Connected — tap a link to walk there:</span>` + links.map(s => {
       const other = s.cor.from.id === ch.id ? s.cor.to : s.cor.from;
       const media = (s.cor.media || s.cor.label || "link").toUpperCase();
       return `<button type="button" class="ds-walk-link" data-hop="${other.id}" title="${esc(s.cor.label || media)}">
@@ -1718,69 +1734,7 @@
   }
 
   function cancelMotion() {
-    if (!state.fly && !state.trace) return;
     state.fly = null;
-    state.trace = null;
-    setTraceCable(null);
-  }
-
-  function cableCurveForCor(cor) {
-    if (!cor) return null;
-    const g = state.cables.find(c => c.userData?.corridor?.id === cor.id);
-    return g?.userData?.curve || null;
-  }
-
-  function traceWaypointsForCorridor(cor) {
-    const curve = cableCurveForCor(cor);
-    if (curve) {
-      const steps = 40;
-      const wps = [];
-      for (let i = 0; i <= steps; i++) {
-        const p = curve.getPoint(i / steps);
-        const y = Math.max(EYE_HEIGHT - 0.15, Math.min(p.y + 0.28, EYE_HEIGHT + 0.6));
-        wps.push({ x: p.x, y, z: p.z });
-      }
-      return wps;
-    }
-    const a = chamberWorldPos(cor.from);
-    const b = chamberWorldPos(cor.to);
-    return [
-      { x: a.x, y: EYE_HEIGHT, z: a.z },
-      { x: b.x, y: EYE_HEIGHT, z: b.z }
-    ];
-  }
-
-  function traceDurationForCorridor(waypoints) {
-    let len = 0;
-    for (let i = 1; i < waypoints.length; i++) {
-      const a = waypoints[i - 1], b = waypoints[i];
-      len += Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
-    }
-    return Math.max(TRACE_DUR_MIN, Math.min(TRACE_DUR_MAX, len * TRACE_LEN_SCALE));
-  }
-
-  function updateTrace(dt) {
-    const tr = state.trace;
-    if (!tr?.waypoints?.length) return false;
-    const wps = tr.waypoints;
-    const dur = tr.dur || TRACE_DUR_MIN;
-    tr.t = Math.min(1, tr.t + dt / dur);
-    const u = flyEase(tr.t);
-    const seg = u * (wps.length - 1);
-    const i = Math.min(Math.floor(seg), wps.length - 2);
-    const f = seg - i;
-    const a = wps[i], b = wps[i + 1];
-    state.pos.x = a.x + (b.x - a.x) * f;
-    state.pos.y = a.y + (b.y - a.y) * f;
-    state.pos.z = a.z + (b.z - a.z) * f;
-    state.yaw = Math.atan2(b.x - a.x, b.z - a.z);
-    state.vel = { x: 0, y: 0, z: 0 };
-    if (tr.t >= 1) {
-      setStatus(`Arrived: ${tr.label}`);
-      state.trace = null;
-      setTraceCable(null);
-    }
-    return true;
   }
 
   function updateFly(dt) {
@@ -1825,7 +1779,10 @@
     while (dy < -Math.PI) dy += Math.PI * 2;
     state.yaw = f.yawFrom + dy * e;
     if (f.t >= 1) {
-      if (f.chamber) highlightNavChip(f.chamber.id);
+      if (f.chamber) {
+        highlightNavChip(f.chamber.id);
+        setStatus(`At ${f.chamber.label}${f.chamber.pid ? " · " + f.chamber.pid : ""}`);
+      }
       state.fly = null;
     }
     return true;
@@ -1833,9 +1790,8 @@
 
   function updatePlayer(dt) {
     if (updateFly(dt)) { applyCamera(); return; }
-    if (updateTrace(dt)) { applyCamera(); return; }
 
-    if (!state.fly && !state.trace) {
+    {
       state.vel.y = (state.vel.y ?? 0) - 30 * dt;
       state.pos.y += state.vel.y * dt;
       if (state.pos.y <= EYE_HEIGHT) {
@@ -2057,7 +2013,6 @@
   function animateCables(t) {
     state.cables.forEach(g => {
       const curve = g.userData?.curve;
-      const hi = g.userData?.corridor?.id === state.traceCableId;
       if (!curve) return;
       g.children.forEach(ch => {
         if (!ch.userData?.packet) return;
@@ -2402,57 +2357,50 @@
     if (g.userData.central) g.userData.central.position.y = 3.4 + Math.sin(t * 0.8) * 0.08;
   }
 
-  function setTraceCable(cor) {
-    state.traceCableId = cor?.id || null;
-    state.cables.forEach(g => {
-      const on = g.userData?.corridor?.id === state.traceCableId;
-      g.traverse(o => {
-        if (!o.material) return;
-        const mats = Array.isArray(o.material) ? o.material : [o.material];
-        mats.forEach(m => {
-          if (m.emissiveIntensity !== undefined) m.emissiveIntensity = on ? 1.15 : 0.55;
-          if (m.opacity !== undefined && m.transparent) m.opacity = on ? 1 : 0.92;
-        });
-      });
-      g.scale.setScalar(on ? 1.04 : 1);
-    });
-  }
-
-  async function followPoEToRoom() {
-    const studio = state.studio;
-    const graph = state.graph;
-    if (!studio || !graph) return;
-    cancelMotion();
-    setStatus("Following PoE path…");
-
-    const fadeOut = () => new Promise(resolve => {
-      const ov = state.overlay;
-      if (!ov) { resolve(); return; }
-      ov.classList.add("ds-walk-fade-out");
-      setTimeout(resolve, FOLLOW_POE_FADE_MS);
-    });
-
-    const switchWalk = (tab) => {
-      window.__cpnFollowPoE = true;
-      close(true);
-      studio.setTab(tab);
-      setTimeout(() => studio.openWalk?.(), 80);
-    };
-
-    await fadeOut();
-
-    if (graph.kind === "network") {
-      const room = studio.design.rooms.find(r =>
-        studio.design.nodes.some(n => n.roomId === r.id && /9200|touch|kit|bar|codec/i.test(`${n.stencilId} ${n.label}`)));
-      if (!room) { setStatus("Add a collaboration room to follow PoE downstream"); return; }
-      studio.activeRoomId = room.id;
-      studio.design.activeRoomId = room.id;
-      switchWalk("room");
+  function toggleOutcomes() {
+    if (state.graph?.kind !== "room") {
+      setStatus("Cisco Spaces demo is available in room walk only");
       return;
     }
-    const hasNet = studio.design.nodes.some(n => n.canvas !== "room" && !n.roomId);
-    if (!hasNet) { setStatus("Add a network topology to trace upstream PoE"); return; }
-    switchWalk("network");
+    state.outcomes = !state.outcomes;
+    const btn = state.overlay?.querySelector('[data-action="outcomes"]');
+    const panel = document.getElementById("ds-walk-outcomes");
+    if (state.outcomes) {
+      if (!state.outcomeGroup) buildOutcomeOverlay(state.THREE);
+      btn?.classList.add("active");
+      if (btn) btn.textContent = "Spaces: on";
+      panel?.removeAttribute("hidden");
+      renderOutcomeReadout();
+      setStatus("Demo — Cisco Spaces occupancy, Detect & Locate, IoT");
+    } else {
+      removeOutcomeOverlay();
+      btn?.classList.remove("active");
+      if (btn) btn.textContent = "Demo: Spaces";
+      panel?.setAttribute("hidden", "");
+      setStatus("Spaces demo off");
+    }
+  }
+
+  function layerFilterHtml(tab) {
+    if (tab !== "network") return "";
+    const chips = NET_LAYER_FILTERS.map(f =>
+      `<button type="button" class="ds-walk-layer${f.key === "all" ? " active" : ""}" data-layer="${f.key}">${f.label}</button>`
+    ).join("");
+    return `<div class="ds-walk-layer-filters" id="ds-walk-layer-filters" aria-label="Filter Prev/Next by layer">${chips}</div>`;
+  }
+
+  function showWalkOnboardHint() {
+    let seen = true;
+    try { seen = localStorage.getItem(WALK_ONBOARD_KEY) === "1"; } catch (e) { /* ignore */ }
+    if (seen || !state.overlay) return;
+    try { localStorage.setItem(WALK_ONBOARD_KEY, "1"); } catch (e) { /* ignore */ }
+    const el = document.createElement("div");
+    el.className = "ds-walk-onboard";
+    el.innerHTML = `<strong>3D walk controls</strong>
+      <p>Drag to look · <kbd>WASD</kbd> move · Tap a <em>connected link</em> or use ‹ Prev / Next › · <kbd>E</kbd> inspect · <kbd>Esc</kbd> back to diagram</p>`;
+    state.overlay.appendChild(el);
+    setTimeout(() => el.classList.add("ds-walk-onboard-out"), 4800);
+    setTimeout(() => el.remove(), 5600);
   }
 
   function renderOutcomeReadout() {
@@ -2462,54 +2410,35 @@
     const occ = Math.round((0.55 + 0.12 * Math.sin(t * 0.4)) * 100);
     const people = Math.max(0, Math.round(st.seats * occ / 100));
     const clients = people + st.deviceCount + 2;
-    el.innerHTML = `<div class="ds-oc-head">CISCO SPACES · LIVE</div>
+    el.innerHTML = `<div class="ds-oc-head">CISCO SPACES · DEMO</div>
       <div class="ds-oc-row"><span class="ds-oc-dot" style="background:#16b35a"></span><strong>${occ}%</strong> occupancy · ${people}/${st.seats} seats</div>
       <div class="ds-oc-row"><span class="ds-oc-dot" style="background:#0A60FF"></span>Detect &amp; Locate · ${clients} Wi-Fi clients</div>
       <div class="ds-oc-row"><span class="ds-oc-dot" style="background:#6F42C1"></span>IoT · 23°C · CO₂ 540ppm${st.mics.length ? ` · ${st.mics.length} mic${st.mics.length > 1 ? "s" : ""}` : ""}</div>`;
   }
 
-  function toggleOutcomes() {
-    state.outcomes = !state.outcomes;
-    const btn = state.overlay?.querySelector('[data-action="outcomes"]');
-    const panel = document.getElementById("ds-walk-outcomes");
-    if (state.outcomes) {
-      if (!state.outcomeGroup) buildOutcomeOverlay(state.THREE);
-      btn?.classList.add("active");
-      if (btn) btn.textContent = "Outcomes: on";
-      panel?.removeAttribute("hidden");
-      renderOutcomeReadout();
-      setStatus("Cisco Spaces outcomes — live occupancy, Detect & Locate, IoT");
-    } else {
-      removeOutcomeOverlay();
-      btn?.classList.remove("active");
-      if (btn) btn.textContent = "Outcomes";
-      panel?.setAttribute("hidden", "");
-      setStatus("Outcomes overlay off");
-    }
-  }
-
   function hudHtml(tab) {
+    const outcomesBtn = tab === "room"
+      ? `<button type="button" class="ds-walk-btn ds-walk-btn-spaces" data-action="outcomes" title="Cisco Spaces outcomes demo — room walks only">Demo: Spaces</button>`
+      : "";
     return `<div class="ds-walk-hud">
       <div class="ds-walk-hud-top">
         <strong class="ds-walk-title">3D WALKTHROUGH</strong>
-        <span class="ds-walk-hint">WASD move · Space jump · Shift sprint · V camera · drag look</span>
+        <span class="ds-walk-hint">WASD move · drag look · E inspect · Esc exit</span>
         <button type="button" class="ds-walk-close" title="Exit walkthrough">✕</button>
       </div>
       <div class="ds-walk-hud-mid">
-        <button type="button" class="ds-walk-btn" data-action="follow-collab" title="Follow PoE path between network closet and collaboration room">Follow PoE</button>
-        <button type="button" class="ds-walk-btn" data-action="trace-av">Trace AV link</button>
-        <button type="button" class="ds-walk-btn" data-action="trace-poe">Trace PoE link</button>
         <button type="button" class="ds-walk-btn" data-action="prev-dev" title="Previous device">‹ Prev</button>
         <button type="button" class="ds-walk-btn" data-action="next-dev" title="Next device">Next ›</button>
-        <button type="button" class="ds-walk-btn ds-walk-btn-spaces" data-action="outcomes" title="Cisco Spaces outcomes overlay — occupancy, Detect &amp; Locate, IoT">Outcomes</button>
+        ${outcomesBtn}
         <button type="button" class="ds-walk-btn primary" data-action="inspect" title="Open device details">Inspect</button>
       </div>
+      ${layerFilterHtml(tab)}
       <div class="ds-walk-outcomes" id="ds-walk-outcomes" hidden></div>
       <div class="ds-walk-wayfind" id="ds-walk-wayfind" hidden></div>
       <div class="ds-walk-links" id="ds-walk-links" hidden></div>
       <div class="ds-walk-legend" id="ds-walk-legend" hidden></div>
       <div class="ds-walk-focus" id="ds-walk-focus" hidden></div>
-      <div class="ds-walk-status" id="ds-walk-status">Pick a device below or tap a connected link to walk your diagram</div>
+      <div class="ds-walk-status" id="ds-walk-status">Follow a connected link below, or use ‹ Prev / Next ›</div>
     </div>`;
   }
 
@@ -2544,13 +2473,10 @@
       const btn = e.target.closest("[data-action]");
       if (!btn) return;
       const a = btn.dataset.action;
-      if (a === "trace-av") startTrace("av");
-      else if (a === "follow-collab") followPoEToRoom();
-      else if (a === "outcomes") toggleOutcomes();
+      if (a === "outcomes") toggleOutcomes();
       else if (a === "wayfind-open") openWayfindMenu();
       else if (a === "wayfind-close") closeWayfindMenu();
       else if (a === "wayfind-stop") { clearWayfinding(); setStatus("Wayfinding stopped"); }
-      else if (a === "trace-poe") startTrace("poe");
       else if (a === "prev-dev") cycleDevice(-1);
       else if (a === "next-dev") cycleDevice(1);
       else if (a === "inspect") interactNearby();
@@ -2560,8 +2486,15 @@
         const ch = state.chambers.find(c => c.id === id);
         if (ch) teleportToChamber(ch, false);
       }
-      else if (a === "fp-trace-poe") startTrace("poe");
-      else if (a === "fp-trace-av") startTrace("av");
+    });
+    state.overlay?.querySelectorAll("[data-layer]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        state.layerFilter = btn.dataset.layer || "all";
+        state.overlay.querySelectorAll("[data-layer]").forEach(b =>
+          b.classList.toggle("active", b === btn));
+        const label = NET_LAYER_FILTERS.find(f => f.key === state.layerFilter)?.label || "All";
+        setStatus(`Layer ${label} — ‹ Prev / Next › walks this layer only`);
+      });
     });
   }
 
@@ -2572,26 +2505,6 @@
 
   function chamberWorldPos(ch) {
     return ch.pos;
-  }
-
-  function startTrace(kind) {
-    cancelMotion();
-    const graph = state.graph || buildGraph(state.studio);
-    if (!graph) return;
-    const pick = kind === "av"
-      ? graph.corridors.find(c => c.media === "hdmi" || c.media === "usb")
-      : graph.corridors.find(c => c.media === "cat6" || c.media === "cat6a" || /fiber/i.test(c.media || ""));
-    if (!pick) { setStatus(kind === "av" ? "No AV link in this room" : "No PoE link in this room"); return; }
-    const waypoints = traceWaypointsForCorridor(pick);
-    setTraceCable(pick);
-    state.trace = {
-      waypoints,
-      label: `${pick.label} · ${pick.fromPort || ""} → ${pick.toPort || ""}`,
-      t: 0,
-      dur: traceDurationForCorridor(waypoints),
-      cor: pick
-    };
-    setStatus(`Tracing: ${pick.label}`);
   }
 
   function pickDeviceAt(clientX, clientY, canvas) {
@@ -2634,7 +2547,7 @@
         if (e.key === "]" || e.key === "}") { e.preventDefault(); cycleDevice(1); return; }
         if (e.key === "Tab") { e.preventDefault(); cycleDevice(e.shiftKey ? -1 : 1); return; }
         if (e.key === "e" || e.key === "E") { e.preventDefault(); interactNearby(); return; }
-        if (e.code === "Space" && !state.fly && !state.trace) {
+        if (e.code === "Space" && !state.fly) {
           e.preventDefault();
           if (state.onGround) {
             state.vel.y = 10.5;
@@ -2871,13 +2784,12 @@
   }
 
   function close(silent) {
-    setTraceCable(null);
     cancelAnimationFrame(state.animId);
     state.animId = 0;
     state._inputCleanup?.();
     if (state._resize) window.removeEventListener("resize", state._resize);
     disposeScene();
-    state.trace = null;
+    state.fly = null;
     state.keys = {};
     state.pointerLocked = false;
     if (state.overlay) {
@@ -2920,6 +2832,6 @@
   window.__DS_WALK = {
     open, close, rebuild, toggle: s => state.mode ? close(true) : open(s),
     isOpen: () => !!state.mode, debugStats, hasRoute: () => !!state.route,
-    followPoEToRoom, startTrace
+    flyToChamberById
   };
 })();
