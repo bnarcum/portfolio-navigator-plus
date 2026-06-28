@@ -11,6 +11,34 @@
     return { x: n.x + (n.w || 76) / 2, y: n.y + (n.h || 46) / 2 };
   }
 
+  function relaxWorldPositions(positions, nodes, kind) {
+    const minSep = kind === "room" ? 3.95 : 3.15;
+    const maxStep = kind === "room" ? 0.28 : 0.22;
+    const ids = nodes.map(n => n.id).filter(id => positions[id]);
+    if (ids.length < 2) return;
+    for (let iter = 0; iter < 48; iter++) {
+      let moved = false;
+      for (let i = 0; i < ids.length; i++) {
+        for (let j = i + 1; j < ids.length; j++) {
+          const a = positions[ids[i]], b = positions[ids[j]];
+          let dx = b.x - a.x, dz = b.z - a.z;
+          let d = Math.hypot(dx, dz);
+          if (d >= minSep) continue;
+          if (d < 1e-4) {
+            const angle = ((i + 1) * 1.618 + (j + 1) * 0.733) * Math.PI;
+            dx = Math.cos(angle); dz = Math.sin(angle); d = 1;
+          }
+          const push = Math.min((minSep - d) / 2, maxStep);
+          const ux = dx / d, uz = dz / d;
+          a.x -= ux * push; a.z -= uz * push;
+          b.x += ux * push; b.z += uz * push;
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
+  }
+
   function diagramToWorld(nodes, kind) {
     if (!nodes?.length) return { positions: {}, bounds: null };
     const centers = nodes.map(n => ({ id: n.id, ...nodeCenter(n) }));
@@ -34,6 +62,7 @@
         diagramY: c.y
       };
     });
+    relaxWorldPositions(positions, nodes, kind);
     const wx = Object.values(positions).map(p => p.x);
     const wz = Object.values(positions).map(p => p.z);
     const pad = kind === "network" ? 10 : 8;
