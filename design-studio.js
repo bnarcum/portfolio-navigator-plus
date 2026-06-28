@@ -635,6 +635,8 @@
       this.staleBannerDismissed = null;
       this.sidebarMode = "build";
       this.bomScope = "room";
+      this.exploreFoldOpen = false;
+      this.panelMoreOpen = false;
       this.history = new History(this); this.el = null;
       this._bgScrollY = 0;
     }
@@ -855,14 +857,27 @@
       const pickPanel = b => {
         if (!b?.dataset?.panel) return;
         this.panelTab = b.dataset.panel;
+        if (["engineer", "sites", "cables"].includes(this.panelTab)) {
+          document.getElementById("ds-panel-more-fold")?.setAttribute("open", "");
+          this.panelMoreOpen = true;
+        }
         $$("#ds-panel-tabs button, .ds-panel-more-btns button").forEach(x =>
           x.classList.toggle("active", x.dataset.panel === this.panelTab));
+        const tools = document.getElementById("ds-sidebar-tools");
+        if (tools && this.sidebarMode !== "learn") tools.hidden = false;
         this.renderPanel();
       };
       $("ds-panel-tabs").onclick = e => { const b = e.target.closest("[data-panel]"); if (b) pickPanel(b); };
       document.querySelector(".ds-panel-more-btns")?.addEventListener("click", e => {
+        e.stopPropagation();
         const b = e.target.closest("[data-panel]");
         if (b) pickPanel(b);
+      });
+      document.getElementById("ds-panel-more-fold")?.addEventListener("toggle", e => {
+        this.panelMoreOpen = e.currentTarget.open;
+      });
+      document.getElementById("ds-explore-fold")?.addEventListener("toggle", e => {
+        if (this.sidebarMode !== "learn") this.exploreFoldOpen = e.currentTarget.open;
       });
       $("ds-generate").onclick = () => this.runGenerate();
       const qs = $("ds-quickstart");
@@ -1319,9 +1334,14 @@
         b.classList.toggle("active", b.dataset.sidebarMode === mode));
       const fold = document.getElementById("ds-explore-fold");
       if (fold) {
-        if (mode === "learn") fold.setAttribute("open", "");
+        if (mode === "learn") {
+          fold.setAttribute("open", "");
+          this.exploreFoldOpen = true;
+        } else if (this.exploreFoldOpen) fold.setAttribute("open", "");
         else fold.removeAttribute("open");
       }
+      const moreFold = document.getElementById("ds-panel-more-fold");
+      if (moreFold && mode === "quote" && this.panelMoreOpen) moreFold.setAttribute("open", "");
       const tools = document.getElementById("ds-sidebar-tools");
       if (tools) tools.hidden = mode === "learn" && this.tab !== "intent";
       $$("#ds-panel-tabs button, .ds-panel-more-btns button").forEach(x =>
