@@ -623,6 +623,7 @@
       this.highlightPid = null;
       this.staleBannerDismissed = null;
       this.history = new History(this); this.el = null;
+      this._bgScrollY = 0;
     }
 
     pushHistory() { saveDesign(this.design); this.history.snapshot(); }
@@ -647,10 +648,6 @@
           <button type="button" class="ds-btn" id="ds-undo">↶</button>
           <button type="button" class="ds-btn" id="ds-redo">↷</button>
           <button type="button" class="ds-btn" id="ds-start-over" title="Clear canvas, rooms, and BOM">Start Over</button>
-          <button type="button" class="ds-btn" id="ds-import-stack">Import Stack</button>
-          <button type="button" class="ds-btn" id="ds-export-svg">SVG</button>
-          <button type="button" class="ds-btn" id="ds-export-png" title="Export diagram as a PNG image">PNG</button>
-          <button type="button" class="ds-btn" id="ds-export-pack" title="CCW BOM + cable schedule + summary JSON">Full Pack</button>
           <button type="button" class="ds-btn ds-export-ccw" id="ds-export-ccw">Export to CCW</button>
           <button type="button" class="ds-btn" id="ds-ai-design">Ask AI</button>
           <button type="button" class="ds-btn primary" id="ds-close">Close</button>
@@ -826,11 +823,7 @@
       });
       $("ds-clear").onclick = () => this.startOver();
       $("ds-start-over").onclick = () => this.startOver();
-      $("ds-import-stack").onclick = () => this.importStack();
       $("ds-export-ccw").onclick = () => this.exportCcw();
-      $("ds-export-pack").onclick = () => this.exportPack();
-      $("ds-export-svg").onclick = () => this.exportSvg();
-      $("ds-export-png").onclick = () => this.exportPng();
       $("ds-ai-design").onclick = () => this.askAi();
       $("ds-undo").onclick = () => this.history.undo();
       $("ds-redo").onclick = () => this.history.redo();
@@ -1144,6 +1137,37 @@
       reader.readAsDataURL(file);
     }
 
+    lockBackgroundScroll() {
+      this._bgScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${this._bgScrollY}px`;
+      document.body.style.left = "0";
+      document.body.style.right = "0";
+      document.body.style.width = "100%";
+      document.body.style.overflow = "hidden";
+    }
+
+    unlockBackgroundScroll() {
+      const y = this._bgScrollY || 0;
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.left = "";
+      document.body.style.right = "";
+      document.body.style.width = "";
+      document.body.style.overflow = "";
+      window.scrollTo(0, y);
+      this._bgScrollY = 0;
+    }
+
+    resetIntentScroll() {
+      const intent = document.getElementById("ds-intent");
+      if (intent) {
+        intent.scrollTop = 0;
+        intent.scrollTo(0, 0);
+      }
+      document.getElementById("ds-panel-body")?.scrollTo(0, 0);
+    }
+
     open() {
       this.mount();
       NETWORK_STENCILS = buildNetworkStencils();
@@ -1163,17 +1187,21 @@
       this.history.snapshot();
       this.el.classList.add("open");
       document.body.classList.add("design-studio-open");
-      document.body.style.overflow = "hidden";
-      document.getElementById("ds-intent")?.scrollTo(0, 0);
-      document.getElementById("ds-panel-body")?.scrollTo(0, 0);
-      document.getElementById("planner-scroll")?.scrollTo(0, 0);
-      window.scrollTo(0, 0);
+      this.lockBackgroundScroll();
       const ta = document.getElementById("ds-intent-text");
       if (ta) ta.value = this.design.requirements?.notes || "";
       this.previewIntent();
       this.setTab("intent");
       this.render();
-      setTimeout(() => this.refreshExplore(), 500);
+      this.resetIntentScroll();
+      requestAnimationFrame(() => {
+        this.resetIntentScroll();
+        requestAnimationFrame(() => this.resetIntentScroll());
+      });
+      setTimeout(() => {
+        this.refreshExplore();
+        this.resetIntentScroll();
+      }, 500);
       this.highlightQuickstartOnce();
     }
 
@@ -1198,7 +1226,7 @@
       this.el?.classList.remove("open");
       this.el?.classList.remove("ds-present-mode");
       document.body.classList.remove("design-studio-open");
-      document.body.style.overflow = "";
+      this.unlockBackgroundScroll();
     }
 
     setTab(tab) {

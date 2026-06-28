@@ -21,7 +21,7 @@ try {
   await page.waitForFunction(() => window.__cpnV2?.APP_VERSION, { timeout: 60000 });
 
   const version = await page.evaluate(() => window.__cpnV2.APP_VERSION);
-  if (version !== "2.76.3") errors.push(`expected version 2.76.3, got ${version}`);
+  if (version !== "2.76.4") errors.push(`expected version 2.76.4, got ${version}`);
 
   await page.click("#design-studio-btn");
   await page.waitForSelector("#design-studio.open", { timeout: 8000 });
@@ -41,13 +41,13 @@ try {
     alignBar: !!document.getElementById("ds-align-bar"),
     zoomCtl: !!document.getElementById("ds-zoom-ctl"),
     marquee: !!document.getElementById("ds-marquee"),
-    pngBtn: !!document.getElementById("ds-export-png"),
+    ccwBtn: !!document.getElementById("ds-export-ccw"),
     zoomLabel: document.getElementById("ds-zoom-label")?.textContent || ""
   }));
   if (!dom.alignBar) errors.push("align bar missing");
   if (!dom.zoomCtl) errors.push("zoom control missing");
   if (!dom.marquee) errors.push("marquee rect missing");
-  if (!dom.pngBtn) errors.push("PNG export button missing");
+  if (!dom.ccwBtn) errors.push("CCW export button missing");
 
   // Select all -> align bar should show when 2+ selected.
   const selRes = await page.evaluate(() => {
