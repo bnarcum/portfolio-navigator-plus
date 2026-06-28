@@ -623,10 +623,6 @@
           <span class="ds-spacer"></span>
           <button type="button" class="ds-btn" id="ds-gallery" title="Template gallery">Gallery</button>
           <button type="button" class="ds-btn" id="ds-tour" title="Start guided tour (optional)">Tour</button>
-          <button type="button" class="ds-btn" id="ds-share-design" title="Shareable .cpn-design bundle">Share</button>
-          <button type="button" class="ds-btn" id="ds-customer-export" title="Customer-safe SVG export">Customer SVG</button>
-          <input type="file" id="ds-import-design" accept=".json,.cpn-design.json,application/json" hidden/>
-          <button type="button" class="ds-btn" id="ds-snapshot" title="Save snapshot">Snapshot</button>
           <button type="button" class="ds-btn" id="ds-undo">↶</button>
           <button type="button" class="ds-btn" id="ds-redo">↷</button>
           <button type="button" class="ds-btn" id="ds-start-over" title="Clear canvas, rooms, and BOM">Start Over</button>
@@ -860,21 +856,6 @@
         this.renderGalleryGrid(b.dataset.gtab);
       });
       $("ds-tour")?.addEventListener("click", () => window.__DS_PREMIUM?.runTour?.(this, 0));
-      $("ds-share-design")?.addEventListener("click", () => window.__DS_PREMIUM?.exportDesignBundle?.(this));
-      $("ds-customer-export")?.addEventListener("click", () => window.__DS_PREMIUM?.exportCustomerSvg?.(this));
-      const importInp = $("ds-import-design");
-      if (importInp && !importInp.dataset.wired) {
-        importInp.dataset.wired = "1";
-        importInp.addEventListener("change", e => {
-          window.__DS_PREMIUM?.importDesignBundle?.(this, e.target.files?.[0]);
-          e.target.value = "";
-        });
-      }
-      $("ds-share-design")?.addEventListener("contextmenu", e => {
-        e.preventDefault();
-        importInp?.click();
-      });
-      $("ds-snapshot").onclick = () => this.saveSnapshot();
 
       const svg = $("ds-svg");
       svg.onmousedown = e => this.onSvgDown(e);
@@ -1120,13 +1101,6 @@
       const idx = Math.max(0, rooms.findIndex(r => r.id === this.activeRoomId));
       const next = rooms[(idx + dir + rooms.length) % rooms.length];
       this.switchToRoom(next.id);
-    }
-
-    saveSnapshot() {
-      const name = prompt("Snapshot name:", "Review " + new Date().toLocaleDateString());
-      if (!name) return;
-      (this.design.snapshots ||= []).push({ id: uid(), name, at: new Date().toISOString(), data: JSON.parse(JSON.stringify({ nodes: this.design.nodes, links: this.design.links, rooms: this.design.rooms })) });
-      this.pushHistory(); this.toast("Snapshot saved: " + name);
     }
 
     uploadFloorPlan(file) {
