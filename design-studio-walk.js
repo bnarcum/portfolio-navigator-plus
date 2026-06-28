@@ -933,6 +933,18 @@
     return ids;
   }
 
+  // POI category + icon for a chamber (drives the destination picker + card).
+  function poiCategory(ch) {
+    const s = ((ch.label || "") + " " + (ch.pid || "") + " " + (ch.stencilId || "")).toLowerCase();
+    if (/\bap\b|9179|\bmr\d|wi-?fi|access point/.test(s)) return { icon: "📶", label: "Access Point" };
+    if (/\bmic|microphone/.test(s)) return { icon: "🎙", label: "Microphone" };
+    if (/\bcam|camera|quad/.test(s)) return { icon: "📷", label: "Camera" };
+    if (/board|room kit|room bar|roomkit|desk pro|codec|display|screen|navigator|\btouch/.test(s)) return { icon: "🖥", label: "Collaboration" };
+    if (/firewall|\bfpr|\bise\b|umbrella|secure|asa/.test(s)) return { icon: "🛡", label: "Security" };
+    if (/switch|920\d|930\d|940\d|950\d|core|dist|access|router|wan|sdwan|820\d|nexus|9k/.test(s)) return { icon: "🔀", label: "Network" };
+    return { icon: "📍", label: "Device" };
+  }
+
   function buildRouteOverlay(pts, destPt) {
     const THREE = state.THREE;
     if (!THREE || !state.scene || pts.length < 2) return null;
@@ -941,41 +953,62 @@
     const curve = new THREE.CatmullRomCurve3(v, false, "catmullrom", 0.35);
     const len = curve.getLength();
 
-    // Glowing route ribbon laid on the floor.
+    // Soft base ribbon laid on the floor.
     const tube = new THREE.Mesh(
-      new THREE.TubeGeometry(curve, Math.max(20, Math.round(len * 4)), 0.17, 8, false),
-      new THREE.MeshBasicMaterial({ color: 0x02c8ff, transparent: true, opacity: 0.5 })
+      new THREE.TubeGeometry(curve, Math.max(24, Math.round(len * 5)), 0.2, 8, false),
+      new THREE.MeshBasicMaterial({ color: 0x02c8ff, transparent: true, opacity: 0.32 })
     );
     g.add(tube);
 
-    // Directional chevrons that travel along the route toward the destination.
+    // Flowing chevrons that travel along the route toward the destination.
     const chevs = [];
-    const nChev = Math.max(4, Math.min(40, Math.round(len / 2.0)));
+    const nChev = Math.max(5, Math.min(48, Math.round(len / 1.6)));
     for (let i = 0; i < nChev; i++) {
       const cone = new THREE.Mesh(
-        new THREE.ConeGeometry(0.24, 0.6, 4),
-        new THREE.MeshBasicMaterial({ color: 0x7fe3ff })
+        new THREE.ConeGeometry(0.26, 0.7, 4),
+        new THREE.MeshBasicMaterial({ color: 0x9becff, transparent: true, opacity: 0.95 })
       );
       g.add(cone);
       chevs.push(cone);
     }
 
-    // Destination beacon (pillar of light + pulsing ground ring).
-    const pillar = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.13, 0.13, 3.4, 10),
-      new THREE.MeshBasicMaterial({ color: 0x2dce5c, transparent: true, opacity: 0.55 })
+    // Origin "you are here" pulse ring.
+    const origin = new THREE.Mesh(
+      new THREE.RingGeometry(0.5, 0.66, 28),
+      new THREE.MeshBasicMaterial({ color: 0x02c8ff, transparent: true, opacity: 0.7, side: THREE.DoubleSide })
     );
-    pillar.position.set(destPt.x, 1.7, destPt.z);
-    g.add(pillar);
+    origin.rotation.x = -Math.PI / 2;
+    origin.position.set(pts[0].x, 0.12, pts[0].z);
+    g.add(origin);
+
+    // Destination: ground ring + light pillar + a floating map pin.
     const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(0.95, 0.08, 8, 28),
+      new THREE.TorusGeometry(0.95, 0.09, 8, 30),
       new THREE.MeshBasicMaterial({ color: 0x2dce5c })
     );
     ring.rotation.x = Math.PI / 2;
     ring.position.set(destPt.x, 0.2, destPt.z);
     g.add(ring);
+    const pillar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.06, 0.14, 3.0, 12),
+      new THREE.MeshBasicMaterial({ color: 0x2dce5c, transparent: true, opacity: 0.38 })
+    );
+    pillar.position.set(destPt.x, 1.5, destPt.z);
+    g.add(pillar);
+    const pin = new THREE.Group();
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.36, 18, 18),
+      new THREE.MeshBasicMaterial({ color: 0x2dce5c }));
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.55, 18),
+      new THREE.MeshBasicMaterial({ color: 0x2dce5c }));
+    tip.position.y = -0.44; tip.rotation.x = Math.PI;
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 12),
+      new THREE.MeshBasicMaterial({ color: 0xeafff3 }));
+    dot.position.y = 0.05;
+    pin.add(head, tip, dot);
+    pin.position.set(destPt.x, 3.2, destPt.z);
+    g.add(pin);
 
-    g.userData = { curve, chevs, ring, len };
+    g.userData = { curve, chevs, ring, origin, pin, len };
     state.scene.add(g);
     return g;
   }
@@ -984,25 +1017,30 @@
     if (!destCh || !state.scene) return;
     clearWayfinding();
     const from = fromCh || state.chambers[state.navIndex] || state.chambers[0];
-    let pts = null;
+    let legs = null;
     if (from && from.id !== destCh.id) {
       const ids = routeNodeIds(from.id, destCh.id);
       if (ids?.length) {
-        pts = ids.map(id => {
-          const c = state.chambers.find(x => x.id === id);
-          return c ? { x: c.pos.x, z: c.pos.z } : null;
-        }).filter(Boolean);
+        legs = ids.map(id => state.chambers.find(x => x.id === id)).filter(Boolean)
+          .map(c => ({ id: c.id, label: c.label, x: c.pos.x, z: c.pos.z }));
       }
     }
-    if (!pts || pts.length < 2) {
-      pts = [{ x: from ? from.pos.x : state.pos.x, z: from ? from.pos.z : state.pos.z },
-             { x: destCh.pos.x, z: destCh.pos.z }];
+    if (!legs || legs.length < 2) {
+      legs = [
+        { id: from?.id, label: from?.label || "Start", x: from ? from.pos.x : state.pos.x, z: from ? from.pos.z : state.pos.z },
+        { id: destCh.id, label: destCh.label, x: destCh.pos.x, z: destCh.pos.z }
+      ];
     }
+    const pts = legs.map(l => ({ x: l.x, z: l.z }));
     const destPt = { x: destCh.pos.x, z: destCh.pos.z };
     const group = buildRouteOverlay(pts, destPt);
     if (!group) return;
-    state.route = { destId: destCh.id, destLabel: destCh.label, destPt, group, points: pts };
-    renderWayfindHud();
+    const startLen = Math.hypot(state.pos.x - destPt.x, state.pos.z - destPt.z) || 1;
+    state.route = {
+      destId: destCh.id, destLabel: destCh.label, destPt, group, points: pts,
+      legs, legCursor: 1, startLen, category: poiCategory(destCh)
+    };
+    renderWayfindCard();
   }
 
   function clearWayfinding() {
@@ -1028,44 +1066,148 @@
     return Math.hypot(dx, dz);
   }
 
-  function renderWayfindHud() {
+  function renderWayfindCard() {
     const el = document.getElementById("ds-walk-wayfind");
     if (!el || !state.route) return;
+    const r = state.route;
+    const d = routeRemaining();
     el.hidden = false;
-    el.innerHTML = `<span class="ds-wf-icon">◎</span>
-      <span class="ds-wf-dest">Heading to <b>${esc(state.route.destLabel)}</b></span>
-      <span class="ds-wf-dist">${routeRemaining().toFixed(1)} m</span>
-      <button type="button" class="ds-wf-stop" data-action="wayfind-stop">Stop</button>`;
+    el.innerHTML = `<div class="ds-wf-arrow" id="ds-wf-arrow">↑</div>
+      <div class="ds-wf-meta">
+        <div class="ds-wf-step" id="ds-wf-step">Starting route…</div>
+        <div class="ds-wf-dest">${esc(r.category?.icon || "◎")} to <b>${esc(r.destLabel)}</b>
+          · <span class="ds-wf-dist" id="ds-wf-dist">${d.toFixed(0)} m</span>
+          · <span class="ds-wf-eta" id="ds-wf-eta">~${Math.max(1, Math.round(d / 1.4))}s</span></div>
+      </div>
+      <button type="button" class="ds-wf-stop" data-action="wayfind-stop" title="Stop">✕</button>
+      <div class="ds-wf-progress"><i id="ds-wf-prog" style="width:0%"></i></div>`;
   }
 
   function animateRoute(t) {
     const g = state.route?.group;
     if (!g?.userData) return;
     const THREE = state.THREE;
-    const { curve, chevs, ring } = g.userData;
+    const { curve, chevs, ring, origin, pin } = g.userData;
     const n = chevs.length || 1;
     const up = new THREE.Vector3(0, 1, 0);
     chevs.forEach((c, i) => {
-      const u = ((t * 0.1) + i / n) % 1;
+      const u = ((t * 0.12) + i / n) % 1;
       const p = curve.getPointAt(u);
       const tan = curve.getTangentAt(u).normalize();
       c.position.copy(p);
       c.quaternion.setFromUnitVectors(up, tan);
     });
     if (ring) ring.scale.setScalar(1 + Math.sin(t * 3) * 0.14);
+    if (origin) { const s = 1 + Math.sin(t * 4) * 0.18; origin.scale.set(s, s, s); }
+    if (pin) pin.position.y = 3.2 + Math.sin(t * 2.5) * 0.18;
   }
 
   function updateWayfind() {
     if (!state.route) return;
-    const span = document.querySelector("#ds-walk-wayfind .ds-wf-dist");
+    const r = state.route;
     const d = routeRemaining();
-    if (span) span.textContent = d.toFixed(1) + " m";
-    const atDest = state.chambers[state.navIndex]?.id === state.route.destId;
+    const distEl = document.getElementById("ds-wf-dist");
+    const etaEl = document.getElementById("ds-wf-eta");
+    const stepEl = document.getElementById("ds-wf-step");
+    const progEl = document.getElementById("ds-wf-prog");
+    const arrowEl = document.getElementById("ds-wf-arrow");
+    if (distEl) distEl.textContent = d.toFixed(0) + " m";
+    if (etaEl) etaEl.textContent = "~" + Math.max(1, Math.round(d / 1.4)) + "s";
+    if (progEl) progEl.style.width = Math.max(0, Math.min(100, (1 - d / r.startLen) * 100)).toFixed(0) + "%";
+
+    // Advance the leg cursor as we reach each node along the route.
+    const legs = r.legs || [];
+    let cur = r.legCursor || 1;
+    while (cur < legs.length - 1) {
+      const dl = Math.hypot(state.pos.x - legs[cur].x, state.pos.z - legs[cur].z);
+      if (dl < 2.4) cur++; else break;
+    }
+    r.legCursor = cur;
+    const tgt = legs[cur];
+
+    // GPS-style arrow points to the next node relative to where the player faces.
+    if (arrowEl && tgt) {
+      const bearing = Math.atan2(tgt.x - state.pos.x, tgt.z - state.pos.z);
+      let rel = state.yaw - bearing;
+      while (rel > Math.PI) rel -= Math.PI * 2;
+      while (rel < -Math.PI) rel += Math.PI * 2;
+      arrowEl.style.transform = `rotate(${rel}rad)`;
+    }
+    if (stepEl && tgt) {
+      stepEl.textContent = cur >= legs.length - 1 ? `Arrive at ${tgt.label}` : `Continue to ${tgt.label}`;
+    }
+
+    const atDest = state.chambers[state.navIndex]?.id === r.destId;
     if (!state.fly && (atDest || d < 2.0)) {
-      const label = state.route.destLabel;
+      const label = r.destLabel;
       clearWayfinding();
       setStatus(`Arrived at ${label}`);
+      const wf = document.getElementById("ds-walk-wayfind");
+      if (wf) {
+        wf.hidden = false;
+        wf.innerHTML = `<div class="ds-wf-arrow ds-wf-done" id="ds-wf-arrow">✓</div>
+          <div class="ds-wf-meta"><div class="ds-wf-step" id="ds-wf-step">You've arrived</div>
+          <div class="ds-wf-dest">at <b>${esc(label)}</b></div></div>`;
+        setTimeout(() => { if (!state.route) wf.hidden = true; }, 2600);
+      }
     }
+  }
+
+  // ---- "Where to?" destination picker (Spaces-style search) -----------------
+  function openWayfindMenu() {
+    let menu = document.getElementById("ds-wf-menu");
+    if (!menu) {
+      menu = document.createElement("div");
+      menu.id = "ds-wf-menu";
+      menu.className = "ds-wf-menu";
+      state.overlay?.appendChild(menu);
+    }
+    menu.hidden = false;
+    menu.innerHTML = `<div class="ds-wf-menu-head">
+        <span class="ds-wf-menu-title">◎ Where to?</span>
+        <button type="button" class="ds-wf-menu-close" data-action="wayfind-close" title="Close">✕</button>
+      </div>
+      <input type="text" class="ds-wf-search" id="ds-wf-search" placeholder="Search rooms, switches, APs, mics…" autocomplete="off">
+      <div class="ds-wf-list" id="ds-wf-list"></div>`;
+    const search = menu.querySelector("#ds-wf-search");
+    search?.addEventListener("input", () => renderWayfindList(search.value));
+    renderWayfindList("");
+    requestAnimationFrame(() => search?.focus());
+  }
+
+  function closeWayfindMenu() {
+    const menu = document.getElementById("ds-wf-menu");
+    if (menu) menu.hidden = true;
+  }
+
+  function renderWayfindList(query) {
+    const list = document.getElementById("ds-wf-list");
+    if (!list) return;
+    const q = (query || "").trim().toLowerCase();
+    const here = state.chambers[state.navIndex];
+    const rows = state.chambers
+      .filter(ch => !here || ch.id !== here.id)
+      .map(ch => {
+        const cat = poiCategory(ch);
+        const dist = Math.hypot((here ? here.pos.x : state.pos.x) - ch.pos.x, (here ? here.pos.z : state.pos.z) - ch.pos.z);
+        return { ch, cat, dist };
+      })
+      .filter(r => !q || (r.ch.label + " " + (r.ch.pid || "") + " " + r.cat.label).toLowerCase().includes(q))
+      .sort((a, b) => a.dist - b.dist);
+    if (!rows.length) { list.innerHTML = `<div class="ds-wf-empty">No matching destinations</div>`; return; }
+    list.innerHTML = rows.map(r => `<button type="button" class="ds-wf-poi" data-chamber="${r.ch.id}">
+      <span class="ds-wf-poi-ico">${r.cat.icon}</span>
+      <span class="ds-wf-poi-main"><b>${esc(r.ch.label)}</b><i>${esc(r.cat.label)}${r.ch.pid ? " · " + esc(r.ch.pid) : ""}</i></span>
+      <span class="ds-wf-poi-dist">${r.dist.toFixed(0)} m</span>
+    </button>`).join("");
+    list.querySelectorAll("[data-chamber]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const ch = state.chambers.find(c => c.id === btn.dataset.chamber);
+        if (!ch) return;
+        closeWayfindMenu();
+        teleportToChamber(ch, false);
+      });
+    });
   }
 
   function buildDeviceNav(chambers) {
@@ -1690,6 +1832,7 @@
       </div>
       <div class="ds-walk-xp-track"><div class="ds-walk-xp-bar" id="ds-walk-xp-bar"></div></div>
       <div class="ds-walk-hud-mid">
+        <button type="button" class="ds-walk-btn wayfind" data-action="wayfind-open" title="Find &amp; navigate to a device">◎ Where to?</button>
         <button type="button" class="ds-walk-btn" data-action="trace-av">Trace AV link</button>
         <button type="button" class="ds-walk-btn" data-action="trace-poe">Trace PoE link</button>
         <button type="button" class="ds-walk-btn" data-action="prev-dev" title="Previous device">‹ Prev</button>
@@ -1734,6 +1877,8 @@
       if (!btn) return;
       const a = btn.dataset.action;
       if (a === "trace-av") startTrace("av");
+      else if (a === "wayfind-open") openWayfindMenu();
+      else if (a === "wayfind-close") closeWayfindMenu();
       else if (a === "wayfind-stop") { clearWayfinding(); setStatus("Wayfinding stopped"); }
       else if (a === "trace-poe") startTrace("poe");
       else if (a === "prev-dev") cycleDevice(-1);
