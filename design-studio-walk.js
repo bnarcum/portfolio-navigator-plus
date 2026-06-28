@@ -2359,7 +2359,7 @@
 
   function toggleOutcomes() {
     if (state.graph?.kind !== "room") {
-      setStatus("Cisco Spaces demo is available in room walk only");
+      setStatus("Insights overlay is available in room walk only");
       return;
     }
     state.outcomes = !state.outcomes;
@@ -2368,16 +2368,16 @@
     if (state.outcomes) {
       if (!state.outcomeGroup) buildOutcomeOverlay(state.THREE);
       btn?.classList.add("active");
-      if (btn) btn.textContent = "Spaces: on";
+      if (btn) btn.textContent = "Insights: on";
       panel?.removeAttribute("hidden");
       renderOutcomeReadout();
-      setStatus("Demo — Cisco Spaces occupancy, Detect & Locate, IoT");
+      setStatus("Simulated occupancy, Detect & Locate, IoT");
     } else {
       removeOutcomeOverlay();
       btn?.classList.remove("active");
-      if (btn) btn.textContent = "Demo: Spaces";
+      if (btn) btn.textContent = "Insights";
       panel?.setAttribute("hidden", "");
-      setStatus("Spaces demo off");
+      setStatus("Insights off");
     }
   }
 
@@ -2410,7 +2410,7 @@
     const occ = Math.round((0.55 + 0.12 * Math.sin(t * 0.4)) * 100);
     const people = Math.max(0, Math.round(st.seats * occ / 100));
     const clients = people + st.deviceCount + 2;
-    el.innerHTML = `<div class="ds-oc-head">CISCO SPACES · DEMO</div>
+    el.innerHTML = `<div class="ds-oc-head">LIVE INSIGHTS · SIMULATION</div>
       <div class="ds-oc-row"><span class="ds-oc-dot" style="background:#16b35a"></span><strong>${occ}%</strong> occupancy · ${people}/${st.seats} seats</div>
       <div class="ds-oc-row"><span class="ds-oc-dot" style="background:#0A60FF"></span>Detect &amp; Locate · ${clients} Wi-Fi clients</div>
       <div class="ds-oc-row"><span class="ds-oc-dot" style="background:#6F42C1"></span>IoT · 23°C · CO₂ 540ppm${st.mics.length ? ` · ${st.mics.length} mic${st.mics.length > 1 ? "s" : ""}` : ""}</div>`;
@@ -2418,7 +2418,7 @@
 
   function hudHtml(tab) {
     const outcomesBtn = tab === "room"
-      ? `<button type="button" class="ds-walk-btn ds-walk-btn-spaces" data-action="outcomes" title="Cisco Spaces outcomes demo — room walks only">Demo: Spaces</button>`
+      ? `<button type="button" class="ds-walk-btn ds-walk-btn-spaces" data-action="outcomes" title="Simulated occupancy, location &amp; IoT overlay — room walks only">Insights</button>`
       : "";
     return `<div class="ds-walk-hud">
       <div class="ds-walk-hud-top">
