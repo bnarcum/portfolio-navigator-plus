@@ -1896,6 +1896,7 @@ Account: ${this.design.account}`;
       const mode = this.tab === "room" ? "room" : "network";
       const linkedIds = new Set();
       this.design.links.forEach(l => { linkedIds.add(l.from); linkedIds.add(l.to); });
+      const nodeIssueMap = RULES()?.nodeIssues?.(this.design) || {};
       nodesG.innerHTML = nodes.map(n => {
         const sel = this.isNodeSelected(n.id) ? " selected" : "";
         const def = STN()?.getDef?.(n.stencilId, mode);
@@ -1939,11 +1940,16 @@ Account: ${this.design.account}`;
             <circle class="ds-connect-dot" cx="${w + 11}" cy="${h / 2}" r="8"/>
             <path class="ds-connect-plus" d="M${w + 11} ${h / 2 - 4}V${h / 2 + 4}M${w + 7} ${h / 2}H${w + 15}"/>
           </g>`}
-          ${(!this.presentation && this.tab === "network" && !isDeco && !linkedIds.has(n.id)) ? `<g class="ds-node-badge" data-badge="orphan">
-            <title>Not connected — add a link to this device</title>
-            <circle class="ds-node-badge-dot" cx="${w - 3}" cy="3" r="7"/>
+          ${(() => {
+            const iss = nodeIssueMap[n.id];
+            if (this.presentation || isDeco || !iss) return "";
+            const err = iss.severity === "error";
+            return `<g class="ds-node-badge" data-badge="${iss.severity}">
+            <title>${escapeHtml(iss.msg)}</title>
+            <circle class="ds-node-badge-dot ${err ? "ds-badge-err" : "ds-badge-warn"}" cx="${w - 3}" cy="3" r="7"/>
             <text class="ds-node-badge-mark" x="${w - 3}" y="6" text-anchor="middle">!</text>
-          </g>` : ""}
+          </g>`;
+          })()}
         </g>`;
       }).join("");
 

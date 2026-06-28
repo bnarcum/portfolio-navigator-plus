@@ -182,6 +182,35 @@
     return { warnings: w, tips, ok: w.filter(x => x.severity === "error").length === 0, poe };
   }
 
+  // Per-node issue map for ambient on-canvas badges: nodeId -> {severity,msg}.
+  function nodeIssues(design) {
+    const map = {};
+    const set = (id, sev, msg) => {
+      if (!id) return;
+      if (!map[id] || (sev === "error" && map[id].severity !== "error")) map[id] = { severity: sev, msg };
+    };
+    const network = nets(design);
+    network.forEach(n => {
+      const def = nodeDef(n);
+      if (def?.role === "cloud" || def?.role === "logical" || def?.role === "spaces-cloud") return;
+      if (!design.links.some(l => l.from === n.id || l.to === n.id))
+        set(n.id, "warn", "Not connected — add a link to this device.");
+    });
+    const hasGw = design.nodes.some(n => nodeDef(n)?.mtGateway);
+    if (!hasGw)
+      design.nodes.filter(n => nodeDef(n)?.role === "sensor")
+        .forEach(n => set(n.id, "error", "MT sensor needs a Meraki MR/MV gateway."));
+    rooms(design).filter(n => /kit|bar|board|desk/i.test(n.stencilId || "")).forEach(r => {
+      const ok = design.links.some(l => {
+        if (l.from !== r.id && l.to !== r.id) return false;
+        const other = design.nodes.find(n => n.id === (l.from === r.id ? l.to : l.from));
+        return other && /switch|9200|9300|collab/i.test(other.stencilId || "");
+      });
+      if (!ok) set(r.id, "error", "Missing PoE/network to a collab switch.");
+    });
+    return map;
+  }
+
   function computeScore(design) {
     let score = 100;
     const val = validateDesign(design);
@@ -333,7 +362,7 @@
   }
 
   window.__DS_RULES = {
-    validateDesign, validateSpaces, computeScore, getSuggestions, applyFix, computePoeBudget,
+    validateDesign, validateSpaces, nodeIssues, computeScore, getSuggestions, applyFix, computePoeBudget,
     validateLinkPorts, autoWireLayerBased, generateCustomerNarrative
   };
 })();
