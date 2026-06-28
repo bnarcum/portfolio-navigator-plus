@@ -637,7 +637,6 @@
       this.bomScope = "room";
       this.exploreFoldOpen = false;
       this.panelMoreOpen = false;
-      this.panelCollapsed = false;
       this.history = new History(this); this.el = null;
       this._bgScrollY = 0;
     }
@@ -758,7 +757,7 @@
                   <button type="button" data-panel="bom" data-sb-tier="quote" class="active">BOM</button>
                   <button type="button" data-panel="validate" data-sb-tier="quote">Validate</button>
                   <button type="button" data-panel="suggest" data-sb-tier="quote">Suggest</button>
-                  <button type="button" data-panel="cables" data-sb-tier="build">Cables</button>
+                  <button type="button" data-panel="cables" data-sb-tier="quote">Cables</button>
                   <button type="button" data-panel="engineer" data-sb-tier="more">Eng</button>
                   <button type="button" data-panel="sites" data-sb-tier="more">Sites</button>
                 </div>
@@ -767,7 +766,6 @@
                   <div class="ds-panel-more-btns">
                     <button type="button" data-panel="engineer">Engineer</button>
                     <button type="button" data-panel="sites">Sites</button>
-                    <button type="button" data-panel="cables">Cables</button>
                   </div>
                 </details>
                 <div id="ds-panel-body"></div>
@@ -857,21 +855,14 @@
       });
       const pickPanel = b => {
         if (!b?.dataset?.panel) return;
-        const next = b.dataset.panel;
-        if (next === this.panelTab && this.sidebarMode !== "learn" && this.tab !== "intent") {
-          this.panelCollapsed = !this.panelCollapsed;
-        } else {
-          this.panelTab = next;
-          this.panelCollapsed = false;
-        }
-        if (["engineer", "sites", "cables"].includes(this.panelTab)) {
+        this.panelTab = b.dataset.panel;
+        if (["engineer", "sites"].includes(this.panelTab)) {
           document.getElementById("ds-panel-more-fold")?.setAttribute("open", "");
           this.panelMoreOpen = true;
         }
-        const tools = document.getElementById("ds-sidebar-tools");
-        if (tools && this.sidebarMode !== "learn") tools.hidden = false;
-        this.applyPanelCollapsed();
-        if (!this.panelCollapsed) this.renderPanel();
+        $$("#ds-panel-tabs button, .ds-panel-more-btns button").forEach(x =>
+          x.classList.toggle("active", x.dataset.panel === this.panelTab));
+        this.renderPanel();
       };
       $("ds-panel-tabs").onclick = e => { const b = e.target.closest("[data-panel]"); if (b) pickPanel(b); };
       document.querySelector(".ds-panel-more-btns")?.addEventListener("click", e => {
@@ -1322,29 +1313,13 @@
 
     normalizePanelTab() {
       const mode = this.tab === "intent" ? "quote" : (this.sidebarMode || "build");
-      const buildPanels = ["cables", "suggest"];
       const quotePanels = ["bom", "validate", "suggest", "engineer", "sites", "cables"];
       if (this.tab === "intent") {
         if (this.panelTab !== "bom") this.panelTab = "bom";
         return;
       }
-      if (mode === "learn") return;
-      if (mode === "build" && !buildPanels.includes(this.panelTab)) this.panelTab = "suggest";
-      if (mode === "quote" && !quotePanels.includes(this.panelTab)) this.panelTab = "bom";
-    }
-
-    applyPanelCollapsed() {
-      const tools = document.getElementById("ds-sidebar-tools");
-      const body = document.getElementById("ds-panel-body");
-      const collapsed = !!this.panelCollapsed && this.tab !== "intent" && this.sidebarMode !== "learn";
-      tools?.classList.toggle("ds-sidebar-tools--collapsed", collapsed);
-      if (body) body.hidden = collapsed;
-      $$("#ds-panel-tabs button, .ds-panel-more-btns button").forEach(x => {
-        const sel = x.dataset.panel === this.panelTab;
-        x.classList.toggle("active", !collapsed && sel);
-        x.classList.toggle("ds-panel-tab--folded", collapsed && sel);
-        x.setAttribute("aria-expanded", sel && !collapsed ? "true" : "false");
-      });
+      if (mode === "learn" || mode === "build") return;
+      if (!quotePanels.includes(this.panelTab)) this.panelTab = "bom";
     }
 
     setSidebarMode(mode) {
@@ -1354,9 +1329,8 @@
         return;
       }
       this.sidebarMode = mode;
-      this.panelCollapsed = false;
-      if (mode === "quote" && ["cables"].includes(this.panelTab)) this.panelTab = "bom";
-      if (mode === "build" && ["bom", "validate", "engineer", "sites"].includes(this.panelTab)) this.panelTab = "suggest";
+      if (mode === "quote" && !["bom", "validate", "suggest", "cables", "engineer", "sites"].includes(this.panelTab))
+        this.panelTab = "validate";
       if (mode === "learn") this.refreshExplore();
       this.normalizePanelTab();
       this.syncSidebarMode();
@@ -1374,19 +1348,15 @@
         b.classList.toggle("active", b.dataset.sidebarMode === mode));
       const fold = document.getElementById("ds-explore-fold");
       if (fold) {
-        if (mode === "learn") {
-          fold.setAttribute("open", "");
-          this.exploreFoldOpen = true;
-        } else if (this.exploreFoldOpen) fold.setAttribute("open", "");
+        if (mode === "learn") fold.setAttribute("open", "");
         else fold.removeAttribute("open");
       }
       const moreFold = document.getElementById("ds-panel-more-fold");
       if (moreFold && mode === "quote" && this.panelMoreOpen) moreFold.setAttribute("open", "");
       const tools = document.getElementById("ds-sidebar-tools");
-      if (tools) tools.hidden = mode === "learn" && this.tab !== "intent";
+      if (tools) tools.hidden = mode === "build" || mode === "learn";
       $$("#ds-panel-tabs button, .ds-panel-more-btns button").forEach(x =>
-        x.classList.toggle("active", !this.panelCollapsed && x.dataset.panel === this.panelTab));
-      this.applyPanelCollapsed();
+        x.classList.toggle("active", x.dataset.panel === this.panelTab));
     }
 
     setTab(tab) {
@@ -1394,7 +1364,6 @@
       const wasWalkTab = this.tab === "room" || this.tab === "network";
       const prevTab = this.tab;
       this.tab = tab;
-      if (tab === "room" || tab === "network") this.panelCollapsed = false;
       if (prevTab === "intent" && (tab === "room" || tab === "network")) this.sidebarMode = "build";
       this.syncIntentChrome(tab);
       if (tab !== "room" && tab !== "network") window.__DS_WALK?.close?.();
@@ -1827,7 +1796,7 @@ Account: ${this.design.account}`;
       ROOM_STENCILS = buildRoomStencils();
       let stencils = this.tab === "room" ? ROOM_STENCILS : NETWORK_STENCILS;
       if (this.paletteFilter) stencils = stencils.filter(s => (s.label + s.id + (s.pid || "")).toLowerCase().includes(this.paletteFilter));
-      grid.innerHTML = stencils.slice(0, 72).map(s => {
+      grid.innerHTML = stencils.slice(0, 120).map(s => {
         const def = STN()?.getDef?.(s.id, this.tab === "room" ? "room" : "network");
         const symbolId = s.symbolId || STN()?.resolveSymbolId?.(def, s.id) || "switch";
         const accent = s.accent || STN()?.resolveAccent?.(def) || "#02C8FF";
@@ -2374,19 +2343,28 @@ Account: ${this.design.account}`;
           <table class="ds-table"><thead><tr><th>Label</th><th>From</th><th>Port</th><th>To</th><th>Media</th></tr></thead>
           <tbody>${cables.map(c => `<tr><td>${escapeHtml(c.label)}</td><td>${escapeHtml(c.from.slice(0, 10))}</td><td>${escapeHtml(c.fromPort)}</td><td>${escapeHtml(c.to.slice(0, 10))}</td><td>${escapeHtml(c.media)}</td></tr>`).join("")}</tbody></table>` : `<div class="ds-empty">Link mode (L) — click ports to connect</div>`;
       } else if (this.panelTab === "suggest") {
-        const suggestions = getSuggestions(this.design);
-        const poe = validateDesign(this.design).poe;
-        body.innerHTML = `
+        const hasDevices = this.design.nodes.length > 0;
+        const suggestions = hasDevices ? getSuggestions(this.design) : [];
+        const poe = hasDevices ? validateDesign(this.design).poe : null;
+        body.innerHTML = !hasDevices
+          ? `<div class="ds-empty">Place devices in <strong>Build</strong> mode first — drag stencils onto the canvas or use <strong>Gallery</strong>.</div>`
+          : `
           ${poe ? `<div class="ds-poe-bar">PoE: ${poe.load}W / ${poe.budget}W (${poe.headroom}W headroom)</div>` : ""}
           <div class="ds-suggest-list">${suggestions.length ? suggestions.map(s => `
             <button type="button" class="ds-suggest-btn" data-sid="${s.id}">${escapeHtml(s.label)}</button>`).join("") : `<div class="ds-empty">Design looks complete ✓</div>`}
           </div>
-          <div style="padding:8px"><button type="button" class="ds-btn primary" id="ds-apply-all-sug">Apply all suggestions</button></div>`;
+          <div style="padding:8px"><button type="button" class="ds-btn primary" id="ds-apply-all-sug"${suggestions.length ? "" : " disabled"}>Apply all suggestions</button></div>
+          <p class="ds-panel-hint">After applying fixes, open <button type="button" class="ds-intent-link" data-goto-panel="cables">Cables</button> for the link schedule.</p>`;
+        body.querySelector("[data-goto-panel]")?.addEventListener("click", () => {
+          this.panelTab = "cables";
+          $$("#ds-panel-tabs button").forEach(x => x.classList.toggle("active", x.dataset.panel === "cables"));
+          this.renderPanel();
+        });
         body.querySelectorAll(".ds-suggest-btn").forEach(btn => {
           btn.onclick = () => {
             const s = suggestions.find(x => x.id === btn.dataset.sid);
             if (RULES()?.applyFix?.(this.design, s, uid, STN())) {
-              this.pushHistory(); this.render(); this.toast("Applied");
+              this.pushHistory(); this.render(); this.toast("Applied — see Quote → Cables for links");
               if (window.__DS_WALK?.isOpen?.()) window.__DS_WALK.rebuild(this);
             }
           };
@@ -2394,7 +2372,7 @@ Account: ${this.design.account}`;
         document.getElementById("ds-apply-all-sug")?.addEventListener("click", () => {
           let n = 0;
           getSuggestions(this.design).forEach(s => { if (RULES()?.applyFix?.(this.design, s, uid, STN())) n++; });
-          if (n) { this.pushHistory(); this.render(); this.toast(`Applied ${n} suggestions`); }
+          if (n) { this.pushHistory(); this.render(); this.toast(`Applied ${n} suggestion${n === 1 ? "" : "s"} — see Cables tab`); }
           if (n && window.__DS_WALK?.isOpen?.()) window.__DS_WALK.rebuild(this);
         });
       } else if (this.panelTab === "sites") {
@@ -2419,7 +2397,6 @@ Account: ${this.design.account}`;
           ${val.tips.length ? `<ul class="ds-val-list tip">${val.tips.map(t => `<li>${escapeHtml(t.msg || t)}</li>`).join("")}</ul>` : ""}
           ${extras.ccwReady ? `<p class="ds-ccw-ready-note">✓ CCW-ready — export hardware PIDs from BOM tab.</p>` : ""}`;
       }
-      this.applyPanelCollapsed();
     }
 
     applyTransform() {

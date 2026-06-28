@@ -226,13 +226,21 @@
     </div>`;
   }
 
+  function stripHasCards(ctx, compact) {
+    if (!ctx) return false;
+    const docs = (ctx.docs || []).slice(0, compact ? 1 : undefined);
+    const labs = (ctx.labs || []).slice(0, compact ? 1 : undefined);
+    const skills = (ctx.skills || []).slice(0, compact ? 1 : undefined);
+    return docs.length + labs.length + skills.length > 0;
+  }
+
   function renderStrip(ctx, compact) {
     if (!ctx) return "";
     const docs = (ctx.docs || []).slice(0, compact ? 1 : undefined);
     const labs = (ctx.labs || []).slice(0, compact ? 1 : undefined);
     const skills = (ctx.skills || []).slice(0, compact ? 1 : undefined);
-    if (!docs.length && !labs.length && !skills.length && !ctx.pathId) {
-      return `<section class="ds-explore ds-explore--empty" hidden></section>`;
+    if (!stripHasCards(ctx, compact)) {
+      return "";
     }
     const docCards = docs.map(d =>
       `<a class="ds-explore-card ds-explore-card--doc" href="${esc(d.url)}" target="_blank" rel="noopener">
@@ -332,7 +340,7 @@
     }
     if (dockEl) {
       dockEl.innerHTML = studio.tab !== "intent" ? html : "";
-      const empty = !html || html.includes("ds-explore--empty");
+      const empty = !html;
       if (foldEl) foldEl.hidden = studio.tab === "intent" || empty;
       wireRoot(dockEl);
     }
